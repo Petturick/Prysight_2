@@ -93,13 +93,18 @@ function getFilteredMatches(product: ProductWithRelations, filters: DashboardFil
   })
 }
 
+function hasVerifiedMeasurement(match: ProductWithRelations['matches'][number]) {
+  const offer = match.competitorOffer
+  return offer.normalizedPrice !== null && offer.priceHistory.length > 0 && offer.priceChecks.some((check) => check.isSuccess)
+}
+
 export function deriveProductMetrics(product: ProductWithRelations, filters: DashboardFilters = {}) {
   const relevantMatches = getFilteredMatches(product, filters)
-  const pricedOffers = relevantMatches.filter((match) => match.competitorOffer.normalizedPrice !== null)
+  const pricedOffers = relevantMatches.filter(hasVerifiedMeasurement)
   const prices = pricedOffers.map((match) => decimalToNumber(match.competitorOffer.normalizedPrice)).filter((value): value is number => value !== null)
   const lowestPrice = prices.length ? Math.min(...prices) : null
   const averagePrice = prices.length ? prices.reduce((sum, value) => sum + value, 0) / prices.length : null
-  const lastCheckedDates = relevantMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((value): value is Date => Boolean(value))
+  const lastCheckedDates = pricedOffers.map((match) => match.competitorOffer.lastCheckedAt).filter((value): value is Date => Boolean(value))
   const lastCheckedAt = lastCheckedDates.length ? new Date(Math.max(...lastCheckedDates.map((value) => value.getTime()))) : null
   const selectedMarket = filters.countryId ? product.productMarkets.find((market) => market.countryId === filters.countryId && market.isActive) : null
   const ownPrice = decimalToNumber(selectedMarket?.ownPrice ?? product.ownPrice)
@@ -113,8 +118,8 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
   const trendDelta = latestHistory && previousHistory ? decimalToNumber(latestHistory.normalizedPrice ?? latestHistory.price)! - decimalToNumber(previousHistory.normalizedPrice ?? previousHistory.price)! : null
   const validMatches = relevantMatches.filter((match) => match.matchStatus === MatchStatus.CERTAIN)
   const reviewMatches = relevantMatches.filter((match) => match.matchStatus === MatchStatus.REVIEW)
-  const stale = !lastCheckedAt || Date.now() - lastCheckedAt.getTime() > 72 * 60 * 60 * 1000
-  const lowestOffer = pricedOffers.sort((a, b) => Number(a.competitorOffer.normalizedPrice) - Number(b.competitorOffer.normalizedPrice))[0]
+  const stale = pricedOffers.length === 0 || !lastCheckedAt || Date.now() - lastCheckedAt.getTime() > 72 * 60 * 60 * 1000
+  const lowestOffer = [...pricedOffers].sort((a, b) => Number(a.competitorOffer.normalizedPrice) - Number(b.competitorOffer.normalizedPrice))[0]
 
   return {
     product,
@@ -148,7 +153,10 @@ export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
   const [products, failedChecks, staleOffers, filterOptions] = await Promise.all([
     getFilteredProducts(filters),
     prisma.priceCheck.findMany({
-      where: { isSuccess: false },
+      where: {
+        isSuccess: false,
+        competitorOffer: filters.countryId ? { competitor: { countryId: filters.countryId } } : undefined,
+      },
       include: { competitorOffer: { include: { competitor: true, productMatch: { include: { product: true } } } } },
       orderBy: { checkedAt: 'desc' },
       take: 10,
@@ -156,6 +164,7 @@ export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
     prisma.competitorOffer.findMany({
       where: {
         isActive: true,
+        competitor: filters.countryId ? { isActive: true, countryId: filters.countryId } : { isActive: true },
         OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lt: new Date(Date.now() - 72 * 60 * 60 * 1000) } }],
       },
       include: { competitor: true, productMatch: { include: { product: true } } },
@@ -169,6 +178,7 @@ export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
   const allOfferMoves = products
     .flatMap((product) =>
       product.matches.flatMap((match) => {
+        if (!hasVerifiedMeasurement(match)) return []
         const [current, previous] = match.competitorOffer.priceHistory
         if (!current || !previous) return []
         const currentPrice = decimalToNumber(current.normalizedPrice ?? current.price)
@@ -226,16 +236,16 @@ export async function getCompetitorsOverview() {
 
 export function deriveCompetitorMetrics(competitor: CompetitorWithRelations) {
   const matchedOffers = competitor.offers.filter((offer) => offer.productMatch)
-  const validPrices = competitor.offers.filter((offer) => offer.normalizedPrice !== null)
+  const validPrices = competitor.offers.filter((offer) => offer.normalizedPrice !== null && offer.priceHistory.length > 0 && offer.priceChecks.some((check) => check.isSuccess))
   const positions = matchedOffers.map((offer) => {
     const ownPrice = decimalToNumber(offer.productMatch?.product.ownPrice)
-    const competitorPrice = decimalToNumber(offer.normalizedPrice)
+    const competitorPrice = validPrices.some((validOffer) => validOffer.id === offer.id) ? decimalToNumber(offer.normalizedPrice) : null
     return calculatePriceDifference(ownPrice, competitorPrice)
   })
   const lowerCount = positions.filter((position) => position.position === 'LAAGSTE').length
   const failedChecks = competitor.offers.flatMap((offer) => offer.priceChecks).filter((check) => !check.isSuccess)
   const totalChecks = competitor.offers.flatMap((offer) => offer.priceChecks)
-  const lastChecked = competitor.offers
+  const lastChecked = validPrices
     .map((offer) => offer.lastCheckedAt)
     .filter((value): value is Date => Boolean(value))
     .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
