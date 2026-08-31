@@ -1,6 +1,29 @@
 import { NextResponse } from 'next/server'
 import { edgeAuth } from '@/auth-edge'
 
+const SAFE_CALLBACKS = new Set([
+  '/dashboard',
+  '/producten',
+  '/concurrenten',
+  '/productmatches',
+  '/waarschuwingen',
+  '/prijsstrategie',
+  '/rapportages',
+  '/feeds',
+  '/import',
+  '/integraties',
+  '/beheer',
+  '/account/password',
+])
+
+function safeCallbackPath(pathname: string) {
+  if (SAFE_CALLBACKS.has(pathname)) return pathname
+  for (const route of SAFE_CALLBACKS) {
+    if (pathname.startsWith(`${route}/`)) return pathname
+  }
+  return '/dashboard'
+}
+
 export const middleware = edgeAuth((request) => {
   const pathname = request.nextUrl.pathname
   const isLoginPage = pathname === '/' || pathname === '/login'
@@ -18,7 +41,7 @@ export const middleware = edgeAuth((request) => {
     pathname === '/api/rapportages'
 
   if (isApi && !request.auth?.user && !isExternalApi) {
-    return NextResponse.json({ error: 'Log in om PrySight te gebruiken.' }, { status: 401 })
+    return NextResponse.json({ error: 'Log in om Prysight te gebruiken.' }, { status: 401 })
   }
 
   if (isApi && request.auth?.user?.role === 'READONLY' && !isReadRequest) {
@@ -33,7 +56,8 @@ export const middleware = edgeAuth((request) => {
 
   if (!isPublicPage && !request.auth?.user) {
     const loginUrl = new URL('/', request.url)
-    loginUrl.searchParams.set('callbackUrl', `${pathname}${request.nextUrl.search}`)
+    loginUrl.search = ''
+    loginUrl.searchParams.set('callbackUrl', safeCallbackPath(pathname))
     return NextResponse.redirect(loginUrl)
   }
 
