@@ -1,0 +1,141 @@
+name: Migrate Prysight cleanly
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/migrate-prysight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout new repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone existing Prysight source
+        run: git clone --depth 1 https://github.com/Petturick/Prysight.git /tmp/prysight-source
+
+      - name: Copy complete application into Prysight 2
+        run: |
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude '.github/workflows' \
+            /tmp/prysight-source/ ./
+
+      - name: Apply Netlify stability fixes
+        shell: bash
+        run: |
+          cat > netlify.toml <<'EOF'
+          [build]
+          command = "npm run lint && npm test && npm run build"
+          publish = ".next"
+
+          [build.environment]
+          NODE_VERSION = "22"
+          NEXT_DISABLE_NETLIFY_EDGE = "true"
+          EOF
+
+          node <<'NODE'
+          const fs = require('fs')
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          p.name = 'prysight'
+          p.scripts = p.scripts || {}
+          p.scripts['verify'] = 'npm run lint && npm test && npm run build'
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n')
+          NODE
+
+          if [ -f scripts/validate-production-contract.mjs ]; then
+            cat > scripts/validate-production-contract.mjs <<'EOF'
+          import fs from 'node:fs'
+
+          const failures = []
+          const required = ['package.json', 'next.config.ts', 'netlify.toml', 'src/app/page.tsx']
+          for (const file of required) {
+            if (!fs.existsSync(file)) failures.push(`Required file missing: ${file}`)
+          }
+
+          const netlify = fs.readFileSync('netlify.toml', 'utf8')
+          if (!netlify.includes('NEXT_DISABLE_NETLIFY_EDGE = "true"')) {
+            failures.push('netlify.toml must keep Next middleware out of Netlify Edge runtime')
+          }
+          if (netlify.includes('check:database')) {
+            failures.push('Netlify build must not depend on live database availability')
+          }
+
+          if (failures.length) {
+            console.error('PrySight production contract failed:')
+            for (const failure of failures) console.error(`  ${failure}`)
+            process.exit(1)
+          }
+          console.log('PrySight production contract OK')
+          EOF
+          fi
+
+          cat > .env.example <<'EOF'
+          DATABASE_URL=
+          DIRECT_URL=
+          AUTH_SECRET=
+          NEXTAUTH_SECRET=
+          NEXTAUTH_URL=
+          STRIPE_SECRET_KEY=
+          STRIPE_WEBHOOK_SECRET=
+          NEXT_PUBLIC_APP_URL=
+          EOF
+
+      - name: Preserve migration workflow and add CI
+        run: |
+          mkdir -p .github/workflows
+          cp "$GITHUB_WORKSPACE/.github/workflows/migrate-prysight.yml" /tmp/migrate-prysight.yml
+          cat > .github/workflows/ci.yml <<'EOF'
+          name: CI
+
+          on:
+            pull_request:
+            push:
+              branches: [main]
+              paths-ignore:
+                - '**/*.md'
+
+          permissions:
+            contents: read
+
+          jobs:
+            verify:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                    cache: npm
+                - run: npm ci
+                - run: npm run lint
+                - run: npm test
+                - run: npm run build
+                  env:
+                    AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+                    NEXTAUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+          EOF
+          cp /tmp/migrate-prysight.yml .github/workflows/migrate-prysight.yml
+
+      - name: Refresh lockfile after package metadata change
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Commit migrated code
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit"
+          else
+            git commit -m "feat: migrate Prysight into stable Netlify baseline"
+            git push origin main
+          fi
