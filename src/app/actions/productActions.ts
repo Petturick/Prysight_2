@@ -11,7 +11,7 @@ import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 
-export const MANUAL_CHECK_FREQUENCY_HOURS = 876000
+const MANUAL_CHECK_FREQUENCY_HOURS = 876000
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key)
