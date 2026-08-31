@@ -64,6 +64,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     })
   })
   const relevantOffers = [...relevantOfferMap.values()]
+  // Server rendered monitoring health intentionally uses one request time snapshot.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
   let healthyOffers = 0
   let staleOffersCount = 0
