@@ -56,9 +56,6 @@ export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearch
     <main className="relative flex min-h-screen items-center justify-center bg-[#f0f5f9] px-4 py-10 sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2458ff] to-[#1689b7] shadow-lg shadow-blue-500/20">
-            <Image src="/prysight-logo-sidebar.svg" alt="Prysight" width={40} height={40} priority className="h-9 w-9 object-contain brightness-0 invert" />
-          </div>
           <Image src="/prysight-logo.svg" alt="Prysight" width={520} height={140} priority className="mx-auto h-auto w-[220px]" />
           <p className="mt-1 text-sm text-slate-400">Pricing Intelligence</p>
         </div>
