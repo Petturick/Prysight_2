@@ -16,6 +16,8 @@ type LoginSearchParams = {
 const loginErrors: Record<string, string> = {
   missing: 'Vul je e-mailadres en wachtwoord in.',
   credentials: 'E-mailadres of wachtwoord is onjuist.',
+  server: 'Inloggen kon niet veilig worden afgerond. Probeer het opnieuw.',
+  Configuration: 'Inloggen kon niet veilig worden afgerond. Probeer het opnieuw.',
   'register-missing': 'Vul alle verplichte velden in.',
   'register-company': 'Vul een geldige bedrijfsnaam in.',
   'register-password': 'Gebruik een wachtwoord van minimaal 12 tekens.',
@@ -46,7 +48,7 @@ export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearch
   const [showPassword, setShowPassword] = useState(false)
   const forgotMode = params.mode === 'forgot'
   const registerMode = params.mode === 'register'
-  const loginError = params.error ? loginErrors[params.error] : null
+  const loginError = params.error ? loginErrors[params.error] ?? 'Inloggen kon niet worden afgerond. Probeer het opnieuw.' : null
   const resetRequested = params.reset === 'requested'
   const resetSucceeded = params.reset === 'success'
   const resetUnavailable = params.reset === 'unavailable'
