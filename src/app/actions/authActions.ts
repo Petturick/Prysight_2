@@ -73,9 +73,20 @@ export async function loginAction(formData: FormData) {
     })
   } catch (error) {
     if (error instanceof AuthError) {
-      redirect(withQuery(loginPath, 'error=credentials'))
+      if (error.type === 'CredentialsSignin') {
+        redirect(withQuery(loginPath, 'error=credentials'))
+      }
+      console.error('Prysight authentication error', error)
+      redirect(withQuery(loginPath, 'error=server'))
     }
-    throw error
+
+    const redirectDigest = error && typeof error === 'object' && 'digest' in error
+      ? String((error as { digest?: unknown }).digest ?? '')
+      : ''
+    if (redirectDigest.startsWith('NEXT_REDIRECT')) throw error
+
+    console.error('Unexpected Prysight login error', error)
+    redirect(withQuery(loginPath, 'error=server'))
   }
 }
 
