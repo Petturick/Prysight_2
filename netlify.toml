@@ -1,3 +1,4 @@
+# Prysight production deployment configuration
 [build]
 command = "npm run lint && npm test && npm run build"
 publish = ".next"
