@@ -11,6 +11,8 @@ import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 
+export const MANUAL_CHECK_FREQUENCY_HOURS = 876000
+
 function text(formData: FormData, key: string) {
   const value = formData.get(key)
   return typeof value === 'string' ? value.trim() : ''
@@ -19,6 +21,14 @@ function text(formData: FormData, key: string) {
 function positiveInteger(value: string, fallback = 1) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : fallback
+}
+
+function monitoringFrequency(value: string, fallback = 24) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  const rounded = Math.round(parsed)
+  const allowed = [6, 12, 24, 48, 168, MANUAL_CHECK_FREQUENCY_HOURS]
+  return allowed.includes(rounded) ? rounded : fallback
 }
 
 export async function createProductAction(formData: FormData) {
@@ -78,6 +88,7 @@ export async function addCompetitorOfferAction(formData: FormData) {
   const competitorName = text(formData, 'competitorName')
   const countryId = text(formData, 'countryId')
   const offerUrl = text(formData, 'offerUrl')
+  const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
 
   if (!productId || !competitorName || !countryId || !offerUrl) throw new Error('Product, concurrent, land en product URL zijn verplicht.')
 
@@ -94,8 +105,8 @@ export async function addCompetitorOfferAction(formData: FormData) {
 
   const competitor = await prisma.competitor.upsert({
     where: competitorWhere,
-    update: { website, isActive: true },
-    create: { companyId: user.companyId, name: competitorName, website, countryId, isActive: true },
+    update: { website, isActive: true, checkFrequencyHours },
+    create: { companyId: user.companyId, name: competitorName, website, countryId, isActive: true, checkFrequencyHours },
   })
 
   const existingOffer = await prisma.competitorOffer.findUnique({
@@ -146,6 +157,29 @@ export async function addCompetitorOfferAction(formData: FormData) {
   revalidatePath(`/producten/${product.id}`)
   revalidatePath('/concurrenten')
   redirect(`/producten/${product.id}?bron=toegevoegd`)
+}
+
+export async function updateCompetitorFrequencyAction(formData: FormData) {
+  const user = await requireWritableUser()
+  const competitorId = text(formData, 'competitorId')
+  const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'))
+
+  if (!competitorId) throw new Error('Concurrent ontbreekt.')
+
+  const competitor = await prisma.competitor.findFirst({
+    where: { id: competitorId, companyId: user.companyId },
+    select: { id: true },
+  })
+  if (!competitor) throw new Error('Concurrent niet gevonden.')
+
+  await prisma.competitor.update({
+    where: { id: competitorId },
+    data: { checkFrequencyHours },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath('/concurrenten')
 }
 
 export async function runProductResearchAction(formData: FormData) {
