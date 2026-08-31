@@ -33,6 +33,15 @@ function EyeIcon({ hidden = false }: { hidden?: boolean }) {
   )
 }
 
+function MailIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  )
+}
+
 export function PrysightLoginScreen({
   params,
   loginPath,
@@ -48,33 +57,32 @@ export function PrysightLoginScreen({
   const resetUnavailable = params.reset === 'unavailable'
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#07142d] via-[#102852] to-[#164487] px-4 py-10 sm:px-6">
-      <div className="pointer-events-none absolute left-[-140px] top-[-130px] h-[360px] w-[360px] rounded-full bg-[#2458ff]/25 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-[-180px] right-[-110px] h-[440px] w-[440px] rounded-full bg-[#3f7cff]/20 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.08),transparent_42%)]" />
-
-      <div className="relative w-full max-w-md">
+    <main className="relative flex min-h-screen items-center justify-center bg-[#f0f5f9] px-4 py-10 sm:px-6">
+      <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] ring-1 ring-white/60">
-            <Image src="/prysight-logo.svg" alt="Prysight" width={520} height={140} priority className="h-auto w-[250px] sm:w-[270px]" />
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2458ff] to-[#1689b7] shadow-lg shadow-blue-500/20">
+            <Image src="/prysight-logo-sidebar.svg" alt="Prysight" width={40} height={40} priority className="h-9 w-9 object-contain brightness-0 invert" />
           </div>
-          <p className="mt-4 text-sm font-medium tracking-wide text-blue-100/80">Pricing Intelligence</p>
+          <Image src="/prysight-logo.svg" alt="Prysight" width={520} height={140} priority className="mx-auto h-auto w-[220px]" />
+          <p className="mt-1 text-sm text-slate-400">Pricing Intelligence</p>
         </div>
 
-        <section className="rounded-2xl bg-white p-6 shadow-2xl shadow-black/25 sm:p-8">
+        <section className="rounded-2xl bg-white p-8 shadow-2xl shadow-slate-300/50">
+          {!forgotMode ? (
+            <div className="mb-6 flex rounded-lg bg-slate-100 p-1">
+              <button type="button" className="flex-1 rounded-md bg-white py-2 text-sm font-medium text-slate-900 shadow">Inloggen</button>
+              <button type="button" disabled className="flex-1 cursor-default rounded-md py-2 text-sm font-medium text-slate-400" title="Beschikbaar zodra self service registratie voor Prysight wordt geactiveerd">Gratis starten</button>
+            </div>
+          ) : null}
+
           {forgotMode ? (
             <>
-              <Link href={loginPath} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-[#2458ff]">
-                <span aria-hidden="true">←</span>
-                Terug naar inloggen
-              </Link>
-
-              <h1 className="text-xl font-semibold text-[#102042]">Wachtwoord resetten</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500">Vul je e-mailadres in en we sturen je een beveiligde link om je Prysight-wachtwoord te herstellen.</p>
+              <h1 className="text-xl font-semibold text-slate-900">Wachtwoord resetten</h1>
+              <p className="mt-2 text-sm text-slate-500">Je ontvangt een beveiligde resetlink per e-mail.</p>
 
               {resetRequested ? (
                 <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
-                  Als het e-mailadres bij een actief Prysight-account hoort, is de herstelmail verzonden. Controleer ook je ongewenste e-mail.
+                  Als het e-mailadres bij een actief Prysight account hoort, is de herstelmail verzonden. Controleer ook je ongewenste e-mail.
                 </div>
               ) : null}
 
@@ -93,16 +101,21 @@ export function PrysightLoginScreen({
                   <input type="hidden" name="loginPath" value={loginPath} />
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span>
-                    <input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-[#102042] outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]/20" placeholder="naam@bedrijf.nl" />
+                    <input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" />
                   </label>
-                  <button type="submit" className="w-full rounded-lg bg-gradient-to-r from-[#2458ff] to-[#3479ff] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-[#1949e8] hover:to-[#2368ed] focus:outline-none focus:ring-2 focus:ring-[#2458ff] focus:ring-offset-2">Resetlink versturen</button>
+                  <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white transition hover:from-[#1749dc] hover:to-[#11789f] focus:outline-none focus:ring-2 focus:ring-[#2458ff] focus:ring-offset-2">
+                    <MailIcon />
+                    Resetlink versturen
+                  </button>
                 </form>
               ) : null}
+
+              <Link href={loginPath} className="mt-4 block w-full text-center text-sm text-slate-500 transition hover:text-slate-800">Terug naar inloggen</Link>
             </>
           ) : (
             <>
-              <h1 className="text-xl font-semibold text-[#102042]">Inloggen</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500">Log in bij Prysight om je prijsmonitoring en concurrentie-inzichten te openen.</p>
+              <h1 className="text-xl font-semibold text-slate-900">Inloggen</h1>
+              <p className="mt-2 text-sm text-slate-500">Gebruik je Prysight account om verder te gaan.</p>
 
               {loginError ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{loginError}</div> : null}
               {resetSucceeded ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Je wachtwoord is gewijzigd. Je kunt nu inloggen met je nieuwe wachtwoord.</div> : null}
@@ -111,30 +124,33 @@ export function PrysightLoginScreen({
                 <input type="hidden" name="loginPath" value={loginPath} />
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span>
-                  <input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-[#102042] outline-none transition placeholder:text-slate-400 focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]/20" placeholder="naam@bedrijf.nl" />
+                  <input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" />
                 </label>
 
                 <label className="block">
                   <span className="mb-1.5 flex items-center justify-between gap-4 text-sm font-medium text-slate-700">
                     <span>Wachtwoord</span>
-                    <Link href={`${loginPath}?mode=forgot`} className="text-xs font-semibold text-[#2458ff] transition hover:text-[#1749dc]">Wachtwoord vergeten?</Link>
+                    <Link href={`${loginPath}?mode=forgot`} className="text-xs font-medium text-[#2458ff] transition hover:text-[#1749dc]">Wachtwoord vergeten?</Link>
                   </span>
                   <span className="relative block">
-                    <input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 pr-11 text-sm text-[#102042] outline-none transition placeholder:text-slate-400 focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]/20" placeholder="Voer je wachtwoord in" />
+                    <input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Voer je wachtwoord in" />
                     <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-[#2458ff] focus:outline-none">
                       <EyeIcon hidden={showPassword} />
                     </button>
                   </span>
                 </label>
 
-                <button type="submit" className="w-full rounded-lg bg-gradient-to-r from-[#2458ff] to-[#3479ff] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-[#1949e8] hover:to-[#2368ed] focus:outline-none focus:ring-2 focus:ring-[#2458ff] focus:ring-offset-2">Inloggen</button>
+                <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white transition hover:from-[#1749dc] hover:to-[#11789f] focus:outline-none focus:ring-2 focus:ring-[#2458ff] focus:ring-offset-2">
+                  <MailIcon />
+                  Inloggen
+                </button>
               </form>
             </>
           )}
         </section>
-
-        <p className="mt-6 text-center text-xs font-medium text-blue-100/75">Copyright © 2026 · Made by Pformance</p>
       </div>
+
+      <div className="absolute bottom-4 left-0 right-0 text-center text-xs text-slate-500">Pformance B.V. © 2026 · Prysight</div>
     </main>
   )
 }
