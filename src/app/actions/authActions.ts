@@ -1,5 +1,6 @@
 'use server'
 
+import { randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { AuthError } from 'next-auth'
 import { redirect } from 'next/navigation'
@@ -13,6 +14,17 @@ function safeLoginPath(value: FormDataEntryValue | null): '/' | '/login' {
 
 function withQuery(path: '/' | '/login', query: string) {
   return path === '/' ? `/?${query}` : `/login?${query}`
+}
+
+function slugify(value: string) {
+  const base = value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42)
+  return `${base || 'bedrijf'}-${randomBytes(3).toString('hex')}`
 }
 
 function passwordResetOrigin() {
@@ -36,8 +48,8 @@ async function sendPasswordResetEmail(email: string, resetLink: string) {
     body: JSON.stringify({
       from,
       to: [email],
-      subject: 'Herstel je PrySight wachtwoord',
-      text: `Er is een verzoek ontvangen om je PrySight wachtwoord te herstellen. Open deze beveiligde link binnen 30 minuten: ${resetLink}\n\nHeb je dit niet aangevraagd, dan kun je deze e-mail negeren.`,
+      subject: 'Herstel je Prysight wachtwoord',
+      text: `Er is een verzoek ontvangen om je Prysight wachtwoord te herstellen. Open deze beveiligde link binnen 30 minuten: ${resetLink}\n\nHeb je dit niet aangevraagd, dan kun je deze e-mail negeren.`,
     }),
   })
 
@@ -65,6 +77,89 @@ export async function loginAction(formData: FormData) {
     }
     throw error
   }
+}
+
+export async function registerAction(formData: FormData) {
+  const loginPath = safeLoginPath(formData.get('loginPath'))
+  const fullName = String(formData.get('fullName') ?? '').trim()
+  const companyName = String(formData.get('companyName') ?? '').trim()
+  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const password = String(formData.get('password') ?? '')
+
+  if (!fullName || !companyName || !email || !email.includes('@')) {
+    redirect(withQuery(loginPath, 'mode=register&error=register-missing'))
+  }
+  if (companyName.length < 2) {
+    redirect(withQuery(loginPath, 'mode=register&error=register-company'))
+  }
+  if (password.length < 12) {
+    redirect(withQuery(loginPath, 'mode=register&error=register-password'))
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } })
+  if (existing) {
+    redirect(withQuery(loginPath, 'mode=register&error=register-existing'))
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12)
+  const trialEndsAt = new Date(Date.now() + 9 * 24 * 60 * 60 * 1000)
+
+  await prisma.$transaction(async tx => {
+    const plan = await tx.licensePlan.upsert({
+      where: { code: 'trial' },
+      update: {
+        isActive: true,
+        isPublic: true,
+      },
+      create: {
+        code: 'trial',
+        name: 'Prysight Trial',
+        description: '9 dagen gratis Prysight proberen.',
+        isActive: true,
+        isPublic: true,
+        maxUsers: 1,
+        maxCountries: 3,
+        maxCompetitors: 5,
+        maxSkus: 1000,
+        maxChecksPerDay: 100,
+        features: { pricingAdvice: true, feeds: true, reports: true },
+      },
+    })
+
+    const user = await tx.user.create({
+      data: {
+        email,
+        name: fullName,
+        passwordHash,
+        role: 'ADMIN',
+      },
+    })
+
+    const company = await tx.company.create({
+      data: {
+        name: companyName,
+        slug: slugify(companyName),
+        billingEmail: email,
+        license: {
+          create: {
+            planId: plan.id,
+            status: 'TRIALING',
+            trialEndsAt,
+          },
+        },
+      },
+    })
+
+    await tx.companyMembership.create({
+      data: {
+        companyId: company.id,
+        userId: user.id,
+        role: 'OWNER',
+      },
+    })
+  })
+
+  redirect(withQuery(loginPath, 'registered=success'))
 }
 
 export async function requestPasswordResetAction(formData: FormData) {
