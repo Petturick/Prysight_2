@@ -1,0 +1,743 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  ANALYST
+  READONLY
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum CompanyMemberRole {
+  OWNER
+  ADMIN
+  ANALYST
+  READONLY
+}
+
+enum LicenseSource {
+  MANUAL
+  STRIPE
+}
+
+enum LicenseStatus {
+  INCOMPLETE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
+  UNPAID
+}
+
+enum BillingEnvironment {
+  TEST
+  LIVE
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+enum MatchStatus {
+  CERTAIN
+  REVIEW
+  UNRELIABLE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum ImportFormat {
+  CSV
+  XLSX
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATED
+  FAILED
+}
+
+enum FeedSourceType {
+  FILE
+  URL
+  API
+  SYNTRX
+}
+
+enum FeedFormat {
+  CSV
+  XLSX
+  XLS
+  JSON
+  XML
+  API
+}
+
+enum FeedSyncStatus {
+  IDLE
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id              String              @id @default(cuid())
+  email           String              @unique
+  name            String
+  passwordHash    String              @map("password_hash")
+  role            UserRole
+  isSuperAdmin    Boolean             @default(false) @map("is_super_admin")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  approvedMatches ProductMatch[]      @relation("ApprovedMatches")
+  importTasks     ImportTask[]        @relation("ImportTaskUser")
+  auditLogs       AuditLog[]
+  memberships     CompanyMembership[]
+
+  @@map("users")
+}
+
+model Company {
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  status             CompanyStatus       @default(ACTIVE)
+  billingEmail       String?             @map("billing_email")
+  defaultCurrency    String              @default("EUR") @map("default_currency")
+  timezone           String              @default("Europe/Amsterdam")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  memberships        CompanyMembership[]
+  countries          CompanyCountry[]
+  license            CompanyLicense?
+  stripeCustomers    StripeCustomer[]
+  webshops           Webshop[]
+  productGroups      ProductGroup[]
+  products           Product[]
+  competitors        Competitor[]
+  competitorOffers   CompetitorOffer[]
+  productMatches     ProductMatch[]
+  priceChecks        PriceCheck[]
+  priceHistory       PriceHistory[]
+  ownPriceHistory    OwnPriceHistory[]
+  productMarkets     ProductMarket[]
+  alerts             Alert[]
+  alertRules         AlertRule[]
+  importTasks        ImportTask[]
+  reports            Report[]
+  auditLogs          AuditLog[]
+  feedSources        FeedSource[]
+  feedColumnMappings FeedColumnMapping[]
+  feedItems          FeedItem[]
+  feedSyncRuns       FeedSyncRun[]
+  productFeedLinks   ProductFeedLink[]
+
+  @@map("companies")
+}
+
+model CompanyMembership {
+  id        String            @id @default(cuid())
+  companyId String            @map("company_id")
+  userId    String            @map("user_id")
+  role      CompanyMemberRole
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([userId, isActive])
+  @@map("company_memberships")
+}
+
+model CompanyCountry {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  countryId String   @map("country_id")
+  isDefault Boolean  @default(false) @map("is_default")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  country   Country  @relation(fields: [countryId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, countryId])
+  @@index([countryId, isActive])
+  @@map("company_countries")
+}
+
+model LicensePlan {
+  id                  String               @id @default(cuid())
+  code                String               @unique
+  name                String
+  description         String?
+  isActive            Boolean              @default(true) @map("is_active")
+  isPublic            Boolean              @default(false) @map("is_public")
+  maxUsers            Int?                 @map("max_users")
+  maxCountries        Int?                 @map("max_countries")
+  maxCompetitors      Int?                 @map("max_competitors")
+  maxSkus             Int?                 @map("max_skus")
+  maxChecksPerDay     Int?                 @map("max_checks_per_day")
+  features            Json                 @default("{}")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  companyLicenses     CompanyLicense[]
+  stripePriceMappings StripePriceMapping[]
+
+  @@map("license_plans")
+}
+
+model CompanyLicense {
+  id                      String              @id @default(cuid())
+  companyId               String              @unique @map("company_id")
+  planId                  String              @map("plan_id")
+  source                  LicenseSource       @default(MANUAL)
+  status                  LicenseStatus       @default(ACTIVE)
+  overrideMaxUsers        Int?                @map("override_max_users")
+  overrideMaxCountries    Int?                @map("override_max_countries")
+  overrideMaxCompetitors  Int?                @map("override_max_competitors")
+  overrideMaxSkus         Int?                @map("override_max_skus")
+  overrideMaxChecksPerDay Int?                @map("override_max_checks_per_day")
+  stripeEnvironment       BillingEnvironment? @map("stripe_environment")
+  stripeSubscriptionId    String?             @unique @map("stripe_subscription_id")
+  stripePriceId           String?             @map("stripe_price_id")
+  currentPeriodStart      DateTime?           @map("current_period_start")
+  currentPeriodEnd        DateTime?           @map("current_period_end")
+  trialEndsAt             DateTime?           @map("trial_ends_at")
+  cancelAtPeriodEnd       Boolean             @default(false) @map("cancel_at_period_end")
+  manuallyGrantedUntil    DateTime?           @map("manually_granted_until")
+  lastStripeEventAt       DateTime?           @map("last_stripe_event_at")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+  company                 Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan                    LicensePlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@map("company_licenses")
+}
+
+model StripePriceMapping {
+  id              String             @id @default(cuid())
+  planId          String             @map("plan_id")
+  environment     BillingEnvironment
+  interval        BillingInterval
+  stripeAccountId String             @map("stripe_account_id")
+  stripeProductId String             @map("stripe_product_id")
+  stripePriceId   String             @unique @map("stripe_price_id")
+  currency        String             @default("EUR")
+  isActive        Boolean            @default(true) @map("is_active")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  plan            LicensePlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, environment, interval, currency])
+  @@index([stripeProductId])
+  @@map("stripe_price_mappings")
+}
+
+model StripeCustomer {
+  id               String             @id @default(cuid())
+  companyId        String             @map("company_id")
+  environment      BillingEnvironment
+  stripeAccountId  String             @map("stripe_account_id")
+  stripeCustomerId String             @unique @map("stripe_customer_id")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, environment])
+  @@map("stripe_customers")
+}
+
+model BillingWebhookEvent {
+  id            String             @id @default(cuid())
+  stripeEventId String             @unique @map("stripe_event_id")
+  environment   BillingEnvironment
+  eventType     String             @map("event_type")
+  payload       Json
+  status        String             @default("PENDING")
+  errorMessage  String?            @map("error_message")
+  processedAt   DateTime?          @map("processed_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@map("billing_webhook_events")
+}
+
+model Country {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  vatRate          Decimal           @map("vat_rate")
+  currency         String
+  isActive         Boolean           @default(true) @map("is_active")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  companyCountries CompanyCountry[]
+  competitors      Competitor[]
+  webshops         Webshop[]
+  alertRules       AlertRule[]
+  productMarkets   ProductMarket[]
+  ownPriceHistory  OwnPriceHistory[]
+
+  @@map("countries")
+}
+
+model Webshop {
+  id           String      @id @default(cuid())
+  companyId    String      @default("cmp_engels_group") @map("company_id")
+  name         String
+  url          String
+  countryId    String      @map("country_id")
+  competitorId String?     @map("competitor_id")
+  isActive     Boolean     @default(true) @map("is_active")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  country      Country     @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  competitor   Competitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, name, countryId])
+  @@index([companyId, isActive])
+  @@map("webshops")
+}
+
+model ProductGroup {
+  id          String      @id @default(cuid())
+  companyId   String      @default("cmp_engels_group") @map("company_id")
+  name        String
+  description String?
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products    Product[]
+  alertRules  AlertRule[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+  @@map("product_groups")
+}
+
+model Product {
+  id              String            @id @default(cuid())
+  companyId       String            @default("cmp_engels_group") @map("company_id")
+  articleNumber   String            @map("article_number")
+  ean             String?
+  gtin            String?
+  name            String
+  productGroupId  String            @map("product_group_id")
+  ownPrice        Decimal?          @map("own_price")
+  vatIncluded     Boolean           @default(true) @map("vat_included")
+  packagingUnit   String?           @map("packaging_unit")
+  packagingQty    Int               @default(1) @map("packaging_qty")
+  currency        String            @default("EUR")
+  stockStatus     String?           @map("stock_status")
+  isActive        Boolean           @default(true) @map("is_active")
+  notes           String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productGroup    ProductGroup      @relation(fields: [productGroupId], references: [id], onDelete: Restrict)
+  matches         ProductMatch[]
+  alerts          Alert[]
+  ownPriceHistory OwnPriceHistory[]
+  productMarkets  ProductMarket[]
+  feedLinks       ProductFeedLink[]
+
+  @@unique([companyId, articleNumber])
+  @@index([companyId, isActive])
+  @@map("products")
+}
+
+model Competitor {
+  id                  String            @id @default(cuid())
+  companyId           String            @default("cmp_engels_group") @map("company_id")
+  name                String
+  website             String
+  countryId           String            @map("country_id")
+  isActive            Boolean           @default(true) @map("is_active")
+  checkFrequencyHours Int               @default(24) @map("check_frequency_hours")
+  lastCheckedAt       DateTime?         @map("last_checked_at")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  company             Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  country             Country           @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  offers              CompetitorOffer[]
+  webshops            Webshop[]
+  alertRules          AlertRule[]
+
+  @@unique([companyId, name, countryId])
+  @@index([companyId, isActive])
+  @@map("competitors")
+}
+
+model CompetitorOffer {
+  id              String         @id @default(cuid())
+  companyId       String         @default("cmp_engels_group") @map("company_id")
+  competitorId    String         @map("competitor_id")
+  productMatchId  String?        @map("product_match_id")
+  url             String
+  rawPrice        Decimal?       @map("raw_price")
+  normalizedPrice Decimal?       @map("normalized_price")
+  currency        String         @default("EUR")
+  vatIncluded     Boolean        @default(true) @map("vat_included")
+  packagingUnit   String?        @map("packaging_unit")
+  packagingQty    Int?           @map("packaging_qty")
+  stockStatus     String?        @map("stock_status")
+  lastCheckedAt   DateTime?      @map("last_checked_at")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  competitor      Competitor     @relation(fields: [competitorId], references: [id], onDelete: Restrict)
+  productMatch    ProductMatch?
+  alerts          Alert[]
+  priceChecks     PriceCheck[]
+  priceHistory    PriceHistory[]
+
+  @@unique([companyId, competitorId, url])
+  @@index([productMatchId])
+  @@index([companyId, isActive])
+  @@map("competitor_offers")
+}
+
+model ProductMatch {
+  id                String          @id @default(cuid())
+  companyId         String          @default("cmp_engels_group") @map("company_id")
+  productId         String          @map("product_id")
+  competitorOfferId String          @unique @map("competitor_offer_id")
+  confidenceScore   Int             @map("confidence_score")
+  matchStatus       MatchStatus     @map("match_status")
+  matchEvidence     Json            @map("match_evidence")
+  approvedBy        String?         @map("approved_by")
+  approvedAt        DateTime?       @map("approved_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  competitorOffer   CompetitorOffer @relation(fields: [competitorOfferId], references: [id], onDelete: Restrict)
+  approvedByUser    User?           @relation("ApprovedMatches", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([matchStatus])
+  @@index([companyId, matchStatus])
+  @@map("product_matches")
+}
+
+model PriceCheck {
+  id                String          @id @default(cuid())
+  companyId         String          @default("cmp_engels_group") @map("company_id")
+  competitorOfferId String          @map("competitor_offer_id")
+  checkedAt         DateTime        @map("checked_at")
+  foundPrice        Decimal?        @map("found_price")
+  currency          String
+  stockStatus       String?         @map("stock_status")
+  productTitle      String?         @map("product_title")
+  packagingUnit     String?         @map("packaging_unit")
+  checkMethod       String          @map("check_method")
+  statusCode        Int?            @map("status_code")
+  errorMessage      String?         @map("error_message")
+  sourceUrl         String          @map("source_url")
+  isSuccess         Boolean         @default(true) @map("is_success")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  competitorOffer   CompetitorOffer @relation(fields: [competitorOfferId], references: [id], onDelete: Cascade)
+
+  @@index([checkedAt])
+  @@index([companyId, checkedAt])
+  @@map("price_checks")
+}
+
+model PriceHistory {
+  id                String          @id @default(cuid())
+  companyId         String          @default("cmp_engels_group") @map("company_id")
+  competitorOfferId String          @map("competitor_offer_id")
+  recordedAt        DateTime        @map("recorded_at")
+  price             Decimal
+  normalizedPrice   Decimal?        @map("normalized_price")
+  currency          String
+  stockStatus       String?         @map("stock_status")
+  source            String
+  createdAt         DateTime        @default(now()) @map("created_at")
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  competitorOffer   CompetitorOffer @relation(fields: [competitorOfferId], references: [id], onDelete: Cascade)
+
+  @@index([recordedAt])
+  @@index([companyId, recordedAt])
+  @@map("price_history")
+}
+
+model OwnPriceHistory {
+  id         String   @id @default(cuid())
+  companyId  String   @default("cmp_engels_group") @map("company_id")
+  productId  String   @map("product_id")
+  countryId  String?  @map("country_id")
+  recordedAt DateTime @map("recorded_at")
+  price      Decimal
+  currency   String
+  createdAt  DateTime @default(now()) @map("created_at")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  country    Country? @relation(fields: [countryId], references: [id], onDelete: Restrict)
+
+  @@index([recordedAt])
+  @@index([companyId, recordedAt])
+  @@index([productId, countryId, recordedAt])
+  @@map("own_price_history")
+}
+
+model ProductMarket {
+  id          String   @id @default(cuid())
+  companyId   String   @default("cmp_engels_group") @map("company_id")
+  productId   String   @map("product_id")
+  countryId   String   @map("country_id")
+  ownPrice    Decimal? @map("own_price")
+  currency    String
+  ownUrl      String?  @map("own_url")
+  stockStatus String?  @map("stock_status")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  country     Country  @relation(fields: [countryId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, productId, countryId])
+  @@index([companyId, countryId, isActive])
+  @@map("product_markets")
+}
+
+model Alert {
+  id                String           @id @default(cuid())
+  companyId         String           @default("cmp_engels_group") @map("company_id")
+  type              String
+  productId         String?          @map("product_id")
+  competitorOfferId String?          @map("competitor_offer_id")
+  title             String
+  message           String
+  severity          AlertSeverity
+  isRead            Boolean          @default(false) @map("is_read")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  competitorOffer   CompetitorOffer? @relation(fields: [competitorOfferId], references: [id], onDelete: SetNull)
+
+  @@index([severity])
+  @@index([companyId, isRead, createdAt])
+  @@map("alerts")
+}
+
+model AlertRule {
+  id             String        @id @default(cuid())
+  companyId      String        @default("cmp_engels_group") @map("company_id")
+  type           String
+  threshold      Decimal?
+  isActive       Boolean       @default(true) @map("is_active")
+  countryId      String?       @map("country_id")
+  productGroupId String?       @map("product_group_id")
+  competitorId   String?       @map("competitor_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  country        Country?      @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  productGroup   ProductGroup? @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
+  competitor     Competitor?   @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, isActive])
+  @@map("alert_rules")
+}
+
+model ImportTask {
+  id            String       @id @default(cuid())
+  companyId     String       @default("cmp_engels_group") @map("company_id")
+  filename      String
+  format        ImportFormat
+  status        ImportStatus @default(PENDING)
+  totalRows     Int?         @map("total_rows")
+  processedRows Int?         @map("processed_rows")
+  errorRows     Int?         @map("error_rows")
+  errors        Json?
+  warnings      Json?
+  importedBy    String       @map("imported_by")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User         @relation("ImportTaskUser", fields: [importedBy], references: [id], onDelete: Restrict)
+
+  @@index([companyId, createdAt])
+  @@map("import_tasks")
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  companyId   String       @default("cmp_engels_group") @map("company_id")
+  title       String
+  weekStart   DateTime     @map("week_start")
+  weekEnd     DateTime     @map("week_end")
+  status      ReportStatus @default(PENDING)
+  content     Json?
+  generatedAt DateTime?    @map("generated_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  companyId  String   @default("cmp_engels_group") @map("company_id")
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ipAddress  String   @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, createdAt])
+  @@map("audit_logs")
+}
+
+model FeedSource {
+  id                 String              @id @default(cuid())
+  companyId          String              @default("cmp_engels_group") @map("company_id")
+  sourceKey          String              @map("source_key")
+  name               String
+  sourceType         FeedSourceType      @map("source_type")
+  format             FeedFormat?
+  url                String?
+  countryCode        String              @default("GLOBAL") @map("country_code")
+  isActive           Boolean             @default(true) @map("is_active")
+  isMainFeed         Boolean             @default(true) @map("is_main_feed")
+  syncFrequencyHours Int                 @default(24) @map("sync_frequency_hours")
+  lastRunAt          DateTime?           @map("last_run_at")
+  lastRunStatus      FeedSyncStatus      @default(IDLE) @map("last_run_status")
+  lastItemCount      Int                 @default(0) @map("last_item_count")
+  lastErrorCount     Int                 @default(0) @map("last_error_count")
+  lastWarningCount   Int                 @default(0) @map("last_warning_count")
+  syncError          String?             @map("sync_error")
+  config             Json?
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  columns            FeedColumnMapping[]
+  items              FeedItem[]
+  runs               FeedSyncRun[]
+  productLinks       ProductFeedLink[]
+
+  @@unique([companyId, sourceKey])
+  @@index([companyId, isActive])
+  @@map("feed_sources")
+}
+
+model FeedColumnMapping {
+  id           String     @id @default(cuid())
+  companyId    String     @default("cmp_engels_group") @map("company_id")
+  feedSourceId String     @map("feed_source_id")
+  sourceColumn String     @map("source_column")
+  targetField  String?    @map("target_field")
+  dataType     String?    @map("data_type")
+  sampleValue  String?    @map("sample_value")
+  isActive     Boolean    @default(true) @map("is_active")
+  position     Int        @default(0)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feedSource   FeedSource @relation(fields: [feedSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, feedSourceId, sourceColumn])
+  @@index([companyId])
+  @@map("feed_column_mappings")
+}
+
+model FeedItem {
+  id                String     @id @default(cuid())
+  companyId         String     @default("cmp_engels_group") @map("company_id")
+  feedSourceId      String     @map("feed_source_id")
+  externalKey       String?    @map("external_key")
+  rowIndex          Int        @map("row_index")
+  rawData           Json       @map("raw_data")
+  mappedData        Json?      @map("mapped_data")
+  status            String     @default("READY")
+  errorMessage      String?    @map("error_message")
+  importedProductId String?    @map("imported_product_id")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feedSource        FeedSource @relation(fields: [feedSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, feedSourceId, rowIndex])
+  @@index([companyId, status])
+  @@index([feedSourceId, externalKey])
+  @@map("feed_items")
+}
+
+model FeedSyncRun {
+  id           String         @id @default(cuid())
+  companyId    String         @default("cmp_engels_group") @map("company_id")
+  feedSourceId String         @map("feed_source_id")
+  status       FeedSyncStatus
+  startedAt    DateTime       @default(now()) @map("started_at")
+  completedAt  DateTime?      @map("completed_at")
+  itemCount    Int            @default(0) @map("item_count")
+  errorCount   Int            @default(0) @map("error_count")
+  warningCount Int            @default(0) @map("warning_count")
+  message      String?
+  details      Json?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feedSource   FeedSource     @relation(fields: [feedSourceId], references: [id], onDelete: Cascade)
+
+  @@index([startedAt])
+  @@index([companyId, startedAt])
+  @@map("feed_sync_runs")
+}
+
+model ProductFeedLink {
+  id              String     @id @default(cuid())
+  companyId       String     @default("cmp_engels_group") @map("company_id")
+  feedSourceId    String     @map("feed_source_id")
+  productId       String     @map("product_id")
+  externalKey     String     @map("external_key")
+  sourceUpdatedAt DateTime?  @map("source_updated_at")
+  lastSeenAt      DateTime   @default(now()) @map("last_seen_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  company         Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feedSource      FeedSource @relation(fields: [feedSourceId], references: [id], onDelete: Cascade)
+  product         Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, feedSourceId, externalKey])
+  @@unique([companyId, feedSourceId, productId])
+  @@index([companyId])
+  @@index([productId])
+  @@map("product_feed_links")
+}

@@ -1,0 +1,21 @@
+<svg width="520" height="140" viewBox="0 0 520 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="eyeBlue" x1="22" y1="30" x2="188" y2="114" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2458FF"/>
+      <stop offset="0.55" stop-color="#2F6CFF"/>
+      <stop offset="1" stop-color="#1F4FE8"/>
+    </linearGradient>
+    <linearGradient id="barBlue" x1="72" y1="62" x2="122" y2="113" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4C8BFF"/>
+      <stop offset="1" stop-color="#2458FF"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M18 70C44 39 77 23 109 23C142 23 174 39 201 70C174 101 142 117 109 117C77 117 44 101 18 70Z" stroke="url(#eyeBlue)" stroke-width="12" stroke-linejoin="round"/>
+
+  <rect x="72" y="82" width="16" height="27" rx="2.5" fill="url(#barBlue)"/>
+  <rect x="95" y="66" width="16" height="43" rx="2.5" fill="url(#barBlue)"/>
+  <rect x="118" y="49" width="16" height="60" rx="2.5" fill="url(#barBlue)"/>
+
+  <text x="229" y="92" fill="#102042" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="68" font-weight="700" letter-spacing="-2.6">Prysight</text>
+</svg>

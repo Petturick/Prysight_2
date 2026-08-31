@@ -1,0 +1,7 @@
+[build]
+command = "npm run lint && npm test && npm run build"
+publish = ".next"
+
+[build.environment]
+NODE_VERSION = "22"
+NEXT_DISABLE_NETLIFY_EDGE = "true"

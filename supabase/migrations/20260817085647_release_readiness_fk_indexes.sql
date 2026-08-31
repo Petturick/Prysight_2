@@ -1,0 +1,17 @@
+create index if not exists alert_rules_competitor_id_idx on public.alert_rules (competitor_id);
+create index if not exists alert_rules_country_id_idx on public.alert_rules (country_id);
+create index if not exists alert_rules_product_group_id_idx on public.alert_rules (product_group_id);
+create index if not exists alerts_competitor_offer_id_idx on public.alerts (competitor_offer_id);
+create index if not exists alerts_product_id_idx on public.alerts (product_id);
+create index if not exists audit_logs_user_id_idx on public.audit_logs (user_id);
+create index if not exists competitors_country_id_idx on public.competitors (country_id);
+create index if not exists feed_sync_runs_feed_source_id_idx on public.feed_sync_runs (feed_source_id);
+create index if not exists import_tasks_imported_by_idx on public.import_tasks (imported_by);
+create index if not exists own_price_history_product_id_idx on public.own_price_history (product_id);
+create index if not exists price_checks_competitor_offer_id_idx on public.price_checks (competitor_offer_id);
+create index if not exists price_history_competitor_offer_id_idx on public.price_history (competitor_offer_id);
+create index if not exists product_matches_approved_by_idx on public.product_matches (approved_by);
+create index if not exists product_matches_product_id_idx on public.product_matches (product_id);
+create index if not exists products_product_group_id_idx on public.products (product_group_id);
+create index if not exists webshops_competitor_id_idx on public.webshops (competitor_id);
+create index if not exists webshops_country_id_idx on public.webshops (country_id);
