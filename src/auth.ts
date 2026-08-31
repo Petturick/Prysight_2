@@ -76,11 +76,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         const user = users[0]
         if (!user || !user.companyId || !user.membershipRole) return null
 
-        let passwordMatches = false
-        if (user.hasSupabaseAuth) {
+        const localPasswordMatches = await bcrypt.compare(password, user.passwordHash)
+        let passwordMatches = localPasswordMatches
+        if (!passwordMatches && user.hasSupabaseAuth) {
           passwordMatches = (await verifySupabasePassword(email, password)) === 'valid'
-        } else {
-          passwordMatches = await bcrypt.compare(password, user.passwordHash)
         }
 
         if (!passwordMatches) return null
