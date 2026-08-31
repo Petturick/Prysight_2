@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic'
 import Link from 'next/link'
-import { MANUAL_CHECK_FREQUENCY_HOURS, updateCompetitorFrequencyAction } from '@/app/actions/productActions'
+import { updateCompetitorFrequencyAction } from '@/app/actions/productActions'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { deriveCompetitorMetrics, getCompetitorsOverview } from '@/lib/dashboard'
 import { formatDate, formatNumber } from '@/lib/format'
 import { safeDatabaseQuery } from '@/lib/safe-database'
+
+const MANUAL_CHECK_FREQUENCY_HOURS = 876000
 
 function frequencyLabel(hours: number) {
   if (hours >= MANUAL_CHECK_FREQUENCY_HOURS) return 'Handmatig'
