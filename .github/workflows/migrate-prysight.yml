@@ -47,7 +47,7 @@ jobs:
           const p = JSON.parse(fs.readFileSync('package.json', 'utf8'))
           p.name = 'prysight'
           p.scripts = p.scripts || {}
-          p.scripts['verify'] = 'npm run lint && npm test && npm run build'
+          p.scripts.verify = 'npm run lint && npm test && npm run build'
           fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n')
           NODE
 
@@ -88,42 +88,6 @@ jobs:
           STRIPE_WEBHOOK_SECRET=
           NEXT_PUBLIC_APP_URL=
           EOF
-
-      - name: Preserve migration workflow and add CI
-        run: |
-          mkdir -p .github/workflows
-          cp "$GITHUB_WORKSPACE/.github/workflows/migrate-prysight.yml" /tmp/migrate-prysight.yml
-          cat > .github/workflows/ci.yml <<'EOF'
-          name: CI
-
-          on:
-            pull_request:
-            push:
-              branches: [main]
-              paths-ignore:
-                - '**/*.md'
-
-          permissions:
-            contents: read
-
-          jobs:
-            verify:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 22
-                    cache: npm
-                - run: npm ci
-                - run: npm run lint
-                - run: npm test
-                - run: npm run build
-                  env:
-                    AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
-                    NEXTAUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
-          EOF
-          cp /tmp/migrate-prysight.yml .github/workflows/migrate-prysight.yml
 
       - name: Refresh lockfile after package metadata change
         run: npm install --package-lock-only --ignore-scripts
