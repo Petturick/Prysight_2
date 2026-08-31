@@ -39,36 +39,7 @@ function buildSupavisorConnection(projectId: string, password: string, region: s
   return { connectionString, configured: true, mode: 'supavisor', host }
 }
 
-/**
- * PricingTool uses Supabase Supavisor because Bolt hosting may not have IPv6
- * access to the direct db.<project>.supabase.co hostname. Session pooling on
- * port 5432 is the most compatible default for Prisma + node-postgres. Set
- * PRICING_DB_POOLER_PORT=6543 only when transaction pooling is explicitly
- * required. Bolt-safe PRICING_DB_* names take precedence over legacy names.
- *
- * node-postgres does not use libpq SSL semantics by default. For Supabase
- * pooler URLs using sslmode=require we explicitly enable uselibpqcompat so
- * require means encrypted transport without unexpectedly switching to full
- * CA verification. This prevents the Prisma/pg TLS regression that previously
- * made production unreachable while preserving encrypted database traffic.
- */
-export function resolveDatabaseConnection(
-  rawConnectionString = process.env.DATABASE_URL ?? '',
-  region = process.env.PRICING_DB_REGION ?? process.env.SUPABASE_DB_REGION ?? DEFAULT_SUPABASE_REGION,
-  projectId = process.env.PRICING_DB_PROJECT_ID ?? process.env.SUPABASE_PROJECT_ID ?? DEFAULT_SUPABASE_PROJECT_ID,
-  dbPassword = process.env.PRICING_DB_PASSWORD ?? process.env.SUPABASE_DB_PASSWORD ?? '',
-  poolerPort = process.env.PRICING_DB_POOLER_PORT ?? process.env.SUPABASE_DB_POOLER_PORT ?? DEFAULT_SUPAVISOR_PORT,
-): DatabaseConnectionInfo {
-  const cleanProjectId = projectId.trim()
-  const cleanPassword = dbPassword.trim()
-  const cleanRegion = region.trim() || DEFAULT_SUPABASE_REGION
-  if (cleanProjectId && cleanPassword) {
-    return buildSupavisorConnection(cleanProjectId, cleanPassword, cleanRegion, poolerPort)
-  }
-
-  const value = rawConnectionString.trim()
-  if (!value) return { connectionString: '', configured: false, mode: 'missing', host: null }
-
+function resolveConnectionString(value: string, region: string, poolerPort: string): DatabaseConnectionInfo {
   let url: URL
   try {
     url = new URL(value)
@@ -99,7 +70,7 @@ export function resolveDatabaseConnection(
   const projectRef = directMatch[1]
   const baseUsername = decodeURIComponent(url.username).split('.')[0] || 'postgres'
   const port = normalizePoolerPort(poolerPort)
-  url.hostname = `aws-0-${cleanRegion}.pooler.supabase.com`
+  url.hostname = `aws-0-${region}.pooler.supabase.com`
   url.port = port
   url.username = `${baseUsername}.${projectRef}`
   url.searchParams.set('sslmode', 'require')
@@ -111,6 +82,32 @@ export function resolveDatabaseConnection(
   url.searchParams.delete('pool_timeout')
 
   return { connectionString: url.toString(), configured: true, mode: 'supavisor', host: url.hostname }
+}
+
+/**
+ * Prefer an explicit DATABASE_URL in production. This makes the Netlify
+ * runtime deterministic and avoids depending on custom password variables
+ * being available during function initialization. PRICING_DB_* remains a
+ * fallback for Bolt and older environments.
+ */
+export function resolveDatabaseConnection(
+  rawConnectionString = process.env.DATABASE_URL ?? '',
+  region = process.env.PRICING_DB_REGION ?? process.env.SUPABASE_DB_REGION ?? DEFAULT_SUPABASE_REGION,
+  projectId = process.env.PRICING_DB_PROJECT_ID ?? process.env.SUPABASE_PROJECT_ID ?? DEFAULT_SUPABASE_PROJECT_ID,
+  dbPassword = process.env.PRICING_DB_PASSWORD ?? process.env.SUPABASE_DB_PASSWORD ?? '',
+  poolerPort = process.env.PRICING_DB_POOLER_PORT ?? process.env.SUPABASE_DB_POOLER_PORT ?? DEFAULT_SUPAVISOR_PORT,
+): DatabaseConnectionInfo {
+  const cleanRegion = region.trim() || DEFAULT_SUPABASE_REGION
+  const explicitUrl = rawConnectionString.trim()
+  if (explicitUrl) return resolveConnectionString(explicitUrl, cleanRegion, poolerPort)
+
+  const cleanProjectId = projectId.trim()
+  const cleanPassword = dbPassword.trim()
+  if (cleanProjectId && cleanPassword) {
+    return buildSupavisorConnection(cleanProjectId, cleanPassword, cleanRegion, poolerPort)
+  }
+
+  return { connectionString: '', configured: false, mode: 'missing', host: null }
 }
 
 export function getSafeDatabaseStatus() {
