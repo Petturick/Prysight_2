@@ -75,14 +75,6 @@ a[href],
   -webkit-tap-highlight-color: transparent;
 }
 
-button:active,
-a[href]:active,
-[role="button"]:active {
-  transform: scale(0.975);
-  filter: brightness(0.96);
-  transition-duration: 60ms !important;
-}
-
 aside nav {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -229,4 +221,14 @@ tbody tr:hover {
 
 hr {
   border-color: var(--border-strong);
+}
+
+button:active,
+a[href]:active,
+[role="button"]:active,
+.primary-action:active,
+.secondary-action:active {
+  transform: scale(0.975) !important;
+  filter: brightness(0.96);
+  transition-duration: 60ms !important;
 }
