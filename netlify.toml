@@ -6,3 +6,11 @@ publish = ".next"
 [build.environment]
 NODE_VERSION = "22"
 NEXT_DISABLE_NETLIFY_EDGE = "true"
+
+# Keep the generated Next.js server handler close to the Supabase database
+# in London. This removes the US to UK roundtrip on every server navigation.
+[functions."___netlify-server-handler"]
+region = "lhr"
+
+[functions."scheduled-price-check"]
+region = "lhr"
