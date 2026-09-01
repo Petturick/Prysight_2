@@ -10,7 +10,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const body = await request.json().catch(() => null) as { mappings?: Array<{ id?: string; targetField?: string | null }> } | null
   if (!body?.mappings || !Array.isArray(body.mappings)) return NextResponse.json({ error: 'Ongeldige mapping.' }, { status: 400 })
 
-  const allowedTargets = new Set(FEED_TARGET_FIELDS.map((field) => field.key))
+  const allowedTargets = new Set<string>(FEED_TARGET_FIELDS.map((field) => field.key))
   const columnIds = body.mappings.map((mapping) => mapping.id).filter((value): value is string => Boolean(value))
   const columns = await prisma.feedColumnMapping.findMany({
     where: { companyId: DEFAULT_COMPANY_ID, feedSourceId: id, id: { in: columnIds } },
@@ -21,7 +21,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const usedTargets = new Set<string>()
   for (const mapping of body.mappings) {
     const target = mapping.targetField?.trim() || null
-    if (target && !allowedTargets.has(target as never)) return NextResponse.json({ error: `Onbekend doelveld: ${target}` }, { status: 400 })
+    if (target && !allowedTargets.has(target)) return NextResponse.json({ error: `Onbekend doelveld: ${target}` }, { status: 400 })
     if (target && usedTargets.has(target)) return NextResponse.json({ error: `Doelveld ${target} is meer dan één keer gekoppeld.` }, { status: 400 })
     if (target) usedTargets.add(target)
   }
