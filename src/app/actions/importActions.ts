@@ -32,6 +32,7 @@ export async function processImportRowsAction(payload: unknown) {
       message: 'Import afgekeurd door validatie.',
       warnings: [],
       errors: parsed.error.issues.map((issue) => issue.message),
+      summary: { products: 0, markets: 0, competitorUrls: 0, readyForMonitoring: 0 },
     }
   }
 
@@ -67,31 +68,35 @@ export async function processImportRowsAction(payload: unknown) {
   }
 
   let processedRows = 0
+  let productRows = 0
+  let marketRows = 0
+  let competitorUrlRows = 0
+  let monitoringReadyRows = 0
 
   for (const [index, row] of parsed.data.rows.entries()) {
     try {
       const countryCode = (row.country || 'NL').toUpperCase()
       const country = await prisma.country.findUnique({ where: { code: countryCode } })
-      if (!country) {
-        warnings.push(`Rij ${index + 1}: land ${countryCode} bestaat niet en is overgeslagen.`)
-        continue
-      }
+      const licensedCountry = country
+        ? await prisma.companyCountry.findUnique({
+            where: { companyId_countryId: { companyId, countryId: country.id } },
+          })
+        : null
+      const marketIsActive = Boolean(country && licensedCountry?.isActive)
 
-      const licensedCountry = await prisma.companyCountry.findUnique({
-        where: { companyId_countryId: { companyId, countryId: country.id } },
-      })
-      if (!licensedCountry?.isActive) {
-        warnings.push(`Rij ${index + 1}: land ${countryCode} is niet actief voor dit bedrijf.`)
-        continue
+      if (!country) {
+        warnings.push(`Rij ${index + 1}: land ${countryCode} is niet herkend. Het product wordt wel geïmporteerd, maar niet aan een markt gekoppeld.`)
+      } else if (!licensedCountry?.isActive) {
+        warnings.push(`Rij ${index + 1}: land ${countryCode} is niet actief voor dit bedrijf. Het product wordt wel geïmporteerd, maar monitoring voor deze markt blijft uit.`)
       }
 
       const articleNumber = row.articleNumber?.trim()
-      if (!articleNumber && importsCompetitors) {
+      if (!articleNumber && importsCompetitors && !importsProducts) {
         warnings.push(`Rij ${index + 1}: artikelnummer ontbreekt, concurrent URL kan niet worden gekoppeld.`)
         continue
       }
 
-      const currency = row.currency || country.currency || 'EUR'
+      const currency = row.currency || country?.currency || 'EUR'
       const packagingQty = Number(row.packagingQty || 1) || 1
       const recordedAt = validDate(row.lastChecked)
 
@@ -113,6 +118,7 @@ export async function processImportRowsAction(payload: unknown) {
           where: { companyId_articleNumber: { companyId, articleNumber: resolvedArticleNumber } },
           update: {
             ean: row.ean || undefined,
+            gtin: row.ean || undefined,
             name: row.productName || undefined,
             productGroupId: productGroup.id,
             ownPrice: ownPrice ?? undefined,
@@ -120,6 +126,7 @@ export async function processImportRowsAction(payload: unknown) {
             packagingQty,
             stockStatus: row.ownStock || undefined,
             currency,
+            isActive: true,
           },
           create: {
             companyId,
@@ -134,12 +141,45 @@ export async function processImportRowsAction(payload: unknown) {
             packagingQty,
             stockStatus: row.ownStock || 'Onbekend',
             currency,
+            isActive: true,
           },
         })
+        productRows += 1
+
+        if (country && marketIsActive) {
+          await prisma.productMarket.upsert({
+            where: { companyId_productId_countryId: { companyId, productId: product.id, countryId: country.id } },
+            update: {
+              ownPrice: ownPrice ?? undefined,
+              currency,
+              ownUrl: row.engelsUrl || undefined,
+              stockStatus: row.ownStock || undefined,
+              isActive: true,
+            },
+            create: {
+              companyId,
+              productId: product.id,
+              countryId: country.id,
+              ownPrice,
+              currency,
+              ownUrl: row.engelsUrl || null,
+              stockStatus: row.ownStock || 'Onbekend',
+              isActive: true,
+            },
+          })
+          marketRows += 1
+        }
 
         if (ownPrice) {
           await prisma.ownPriceHistory.create({
-            data: { companyId, productId: product.id, recordedAt, price: ownPrice, currency },
+            data: {
+              companyId,
+              productId: product.id,
+              countryId: country && marketIsActive ? country.id : null,
+              recordedAt,
+              price: ownPrice,
+              currency,
+            },
           })
         }
       }
@@ -154,14 +194,22 @@ export async function processImportRowsAction(payload: unknown) {
         continue
       }
 
+      if (!country || !marketIsActive) {
+        if (importsProducts) processedRows += 1
+        warnings.push(`Rij ${index + 1}: concurrentmonitoring is niet gestart omdat markt ${countryCode} niet actief is.`)
+        continue
+      }
+
       const competitorName = (row.competitorName || row.webshop || '').trim()
       if (!competitorName) {
-        warnings.push(`Rij ${index + 1}: concurrentnaam ontbreekt.`)
+        if (importsProducts) processedRows += 1
+        warnings.push(`Rij ${index + 1}: concurrentnaam ontbreekt. Product is geïmporteerd, monitoring nog niet.`)
         continue
       }
 
       if (!row.competitorUrl) {
-        warnings.push(`Rij ${index + 1}: concurrent URL ontbreekt.`)
+        if (importsProducts) processedRows += 1
+        warnings.push(`Rij ${index + 1}: concurrent URL ontbreekt. Product is geïmporteerd, monitoring nog niet.`)
         continue
       }
 
@@ -187,6 +235,7 @@ export async function processImportRowsAction(payload: unknown) {
         include: { productMatch: true },
       })
       if (existingOffer?.productMatch && existingOffer.productMatch.productId !== product.id) {
+        if (importsProducts) processedRows += 1
         warnings.push(`Rij ${index + 1}: deze concurrent URL is al aan een ander product gekoppeld.`)
         continue
       }
@@ -201,7 +250,7 @@ export async function processImportRowsAction(payload: unknown) {
               packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
               packagingQty,
               stockStatus: row.competitorStock || undefined,
-              lastCheckedAt: recordedAt,
+              lastCheckedAt: rawPrice ? recordedAt : undefined,
               isActive: true,
             },
           })
@@ -217,10 +266,11 @@ export async function processImportRowsAction(payload: unknown) {
               packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
               packagingQty,
               stockStatus: row.competitorStock || 'Onbekend',
-              lastCheckedAt: recordedAt,
+              lastCheckedAt: rawPrice ? recordedAt : null,
               isActive: true,
             },
           })
+      competitorUrlRows += 1
 
       const matchResult = matchProducts(
         {
@@ -232,7 +282,7 @@ export async function processImportRowsAction(payload: unknown) {
           packagingQty: product.packagingQty,
         },
         {
-          sku: articleNumber,
+          sku: articleNumber || product.articleNumber,
           ean: row.ean,
           gtin: row.ean,
           productTitle: row.productName || product.name,
@@ -263,6 +313,7 @@ export async function processImportRowsAction(payload: unknown) {
           approvedAt: matchResult.status === 'CERTAIN' ? new Date() : null,
         },
       })
+      if (matchResult.status === 'CERTAIN') monitoringReadyRows += 1
 
       if (rawPrice) {
         await prisma.priceHistory.create({
@@ -277,25 +328,24 @@ export async function processImportRowsAction(payload: unknown) {
             source: 'Importwizard',
           },
         })
-      }
 
-      await prisma.priceCheck.create({
-        data: {
-          companyId,
-          competitorOfferId: offer.id,
-          checkedAt: recordedAt,
-          foundPrice: rawPrice,
-          currency,
-          stockStatus: row.competitorStock || 'Onbekend',
-          productTitle: row.productName || product.name,
-          packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
-          checkMethod: 'IMPORT',
-          statusCode: 200,
-          sourceUrl: offer.url,
-          isSuccess: Boolean(rawPrice),
-          errorMessage: rawPrice ? null : 'Prijs ontbrak in importbron',
-        },
-      })
+        await prisma.priceCheck.create({
+          data: {
+            companyId,
+            competitorOfferId: offer.id,
+            checkedAt: recordedAt,
+            foundPrice: rawPrice,
+            currency,
+            stockStatus: row.competitorStock || 'Onbekend',
+            productTitle: row.productName || product.name,
+            packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
+            checkMethod: 'IMPORT',
+            statusCode: 200,
+            sourceUrl: offer.url,
+            isSuccess: true,
+          },
+        })
+      }
 
       processedRows += 1
     } catch (error) {
@@ -319,13 +369,26 @@ export async function processImportRowsAction(payload: unknown) {
     action: 'IMPORT_CONFIRM',
     entityType: 'ImportTask',
     entityId: task.id,
-    newValue: { companyId, mode, filename: task.filename, totalRows: parsed.data.rows.length, processedRows },
+    newValue: {
+      companyId,
+      mode,
+      filename: task.filename,
+      totalRows: parsed.data.rows.length,
+      processedRows,
+      productRows,
+      marketRows,
+      competitorUrlRows,
+      monitoringReadyRows,
+    },
   })
 
   revalidatePath('/import')
   revalidatePath('/dashboard')
   revalidatePath('/producten')
   revalidatePath('/concurrenten')
+  revalidatePath('/productmatches')
+  revalidatePath('/waarschuwingen')
+  revalidatePath('/monitoring')
 
   return {
     message: errors.length
@@ -333,5 +396,11 @@ export async function processImportRowsAction(payload: unknown) {
       : `Import afgerond: ${processedRows} van ${parsed.data.rows.length} regels verwerkt.`,
     warnings,
     errors,
+    summary: {
+      products: productRows,
+      markets: marketRows,
+      competitorUrls: competitorUrlRows,
+      readyForMonitoring: monitoringReadyRows,
+    },
   }
 }
