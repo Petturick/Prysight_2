@@ -60,18 +60,18 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
   }))
 
   return (
-    <aside className="flex h-full w-full max-w-[272px] flex-col border-r border-[#2a3042] bg-[#171b29] text-white">
+    <aside className="flex h-full w-full max-w-[272px] flex-col border-r border-[#2a3042] bg-[linear-gradient(180deg,#14192a_0%,#171c2e_100%)] text-white shadow-[8px_0_28px_rgba(18,24,42,0.08)]">
       <div className="border-b border-[#2a3042] px-5 py-[18px]">
         <Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[188px]" />
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-5">
         {visibleGroups.map((group, groupIndex) => (
           <div key={group.label} className={groupIndex === 0 ? '' : 'mt-6'}>
-            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.11em] text-[#68728b]">{group.label}</p>
-            <div className="space-y-1">
+            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.11em] text-[#707b95]">{group.label}</p>
+            <div className="space-y-1.5">
               {group.items.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
-                return <Link key={item.href} href={item.href} className={cn('focus-ring flex items-center gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-[13px] font-medium text-[#c4cad8] transition-all hover:bg-[#202638] hover:text-white', active && 'border-[#3b445d] bg-[#272e43] text-white shadow-[inset_3px_0_0_#5f8bff]')}><span className={cn('text-[#7f8aa3]', active && 'text-[#7fa0ff]')}><NavIcon name={item.icon} /></span><span>{item.label}</span></Link>
+                return <Link key={item.href} href={item.href} className={cn('focus-ring flex items-center gap-3 rounded-[11px] border border-transparent px-3 py-2.5 text-[13px] font-medium text-[#c7cede] transition-all duration-150 hover:translate-x-[2px] hover:bg-[#20263a] hover:text-white', active && 'border-[#6b6ef4]/60 bg-[linear-gradient(135deg,#5058ea_0%,#614ff0_100%)] text-white shadow-[0_8px_20px_rgba(72,76,218,0.34),inset_0_1px_0_rgba(255,255,255,0.14)]')}><span className={cn('text-[#8994ad] transition-colors', active && 'text-white')}><NavIcon name={item.icon} /></span><span>{item.label}</span></Link>
               })}
             </div>
           </div>
@@ -79,7 +79,7 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
       </nav>
       <div className="border-t border-[#2a3042] p-4">
         {user ? (
-          <div className="rounded-[14px] border border-[#30384f] bg-[#1d2232] p-3.5">
+          <div className="rounded-[14px] border border-[#30384f] bg-[#1d2232] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#30384f] text-xs font-bold text-white">{initials}</div>
               <div className="min-w-0 flex-1">
@@ -87,9 +87,9 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
                 <p className="mt-0.5 truncate text-[10px] font-medium text-[#8e98af]">{roleLabel(user.role)}</p>
               </div>
             </div>
-            <Link href="/account/password" className="mt-3 block w-full rounded-[9px] border border-[#343c52] bg-[#22283a] px-3 py-2 text-center text-[11px] font-semibold text-[#cbd1df] transition hover:bg-[#2b3248] hover:text-white">Wachtwoord wijzigen</Link>
+            <Link href="/account/password" className="mt-3 block w-full rounded-[9px] border border-[#343c52] bg-[#22283a] px-3 py-2 text-center text-[11px] font-semibold text-[#cbd1df] transition hover:-translate-y-px hover:bg-[#2b3248] hover:text-white">Wachtwoord wijzigen</Link>
             <form action={logoutAction} className="mt-2">
-              <button type="submit" className="w-full rounded-[9px] border border-[#343c52] bg-transparent px-3 py-2 text-[11px] font-semibold text-[#aeb6c8] transition hover:bg-[#22283a] hover:text-white">Uitloggen</button>
+              <button type="submit" className="w-full rounded-[9px] border border-[#343c52] bg-transparent px-3 py-2 text-[11px] font-semibold text-[#aeb6c8] transition hover:-translate-y-px hover:bg-[#22283a] hover:text-white">Uitloggen</button>
             </form>
           </div>
         ) : null}
