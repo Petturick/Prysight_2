@@ -69,6 +69,40 @@ textarea {
   outline-offset: 2px;
 }
 
+button,
+a[href],
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active,
+a[href]:active,
+[role="button"]:active {
+  transform: scale(0.975);
+  filter: brightness(0.96);
+  transition-duration: 60ms !important;
+}
+
+aside nav {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+aside nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+@keyframes prysight-loading-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+.prysight-loading-bar {
+  animation: prysight-loading-slide 900ms ease-in-out infinite;
+}
+
 ::selection {
   background: var(--blue-soft);
   color: var(--foreground);
