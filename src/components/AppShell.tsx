@@ -16,12 +16,12 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
   const isAuthenticationRoute = pathname === '/' || pathname === '/login' || pathname === '/reset-password'
 
   if (isAuthenticationRoute) {
-    return <><InteractionFeedback /><main className="min-h-screen bg-[var(--background)]">{children}</main></>
+    return <><InteractionFeedback key={pathname} /><main className="min-h-screen bg-[var(--background)]">{children}</main></>
   }
 
   return (
     <>
-      <InteractionFeedback />
+      <InteractionFeedback key={pathname} />
       <div className="flex min-h-screen">
         <div className="hidden lg:block lg:w-[272px] lg:flex-none">
           <div className="fixed inset-y-0 w-[272px]">
