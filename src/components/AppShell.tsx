@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { InteractionFeedback } from '@/components/InteractionFeedback'
+import { RoutePrefetcher } from '@/components/RoutePrefetcher'
 import { Sidebar } from '@/components/Sidebar'
 import type { AppRole } from '@/lib/roles'
 
@@ -22,6 +23,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
   return (
     <>
       <InteractionFeedback key={pathname} />
+      <RoutePrefetcher />
       <div className="flex min-h-screen">
         <div className="hidden lg:block lg:w-[272px] lg:flex-none">
           <div className="fixed inset-y-0 w-[272px]">
