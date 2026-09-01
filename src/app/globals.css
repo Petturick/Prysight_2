@@ -1,28 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f5f8;
-  --foreground: #141824;
+  --background: #eef2f6;
+  --foreground: #0f1f33;
   --surface: #ffffff;
-  --surface-soft: #f8f9fc;
-  --border: #e1e5ec;
-  --border-strong: #cfd5df;
-  --muted: #667085;
-  --muted-soft: #98a2b3;
+  --surface-soft: #f5f7fa;
+  --border: #d3dae4;
+  --border-strong: #b9c3d1;
+  --muted: #56657a;
+  --muted-soft: #7f8ca0;
   --accent: #ef4057;
   --accent-soft: #fff0f3;
-  --blue: #3568f0;
-  --blue-soft: #eef3ff;
-  --green: #23945a;
-  --green-soft: #ecf8f1;
-  --violet: #6a54d8;
-  --violet-soft: #f2efff;
-  --amber: #c47b17;
-  --amber-soft: #fff5e4;
-  --ink: #171b29;
-  --ink-soft: #22283a;
-  --shadow-soft: 0 10px 30px rgba(20, 29, 48, 0.07);
-  --shadow-card: 0 4px 14px rgba(20, 29, 48, 0.06), 0 1px 2px rgba(20, 29, 48, 0.05);
+  --blue: #2563eb;
+  --blue-soft: #eaf1ff;
+  --green: #168553;
+  --green-soft: #e8f6ee;
+  --violet: #5b46c5;
+  --violet-soft: #efecff;
+  --amber: #a86610;
+  --amber-soft: #fff2dc;
+  --ink: #0f223a;
+  --ink-soft: #1b314b;
+  --shadow-soft: 0 12px 32px rgba(15, 31, 51, 0.09);
+  --shadow-card: 0 6px 18px rgba(15, 31, 51, 0.09), 0 1px 3px rgba(15, 31, 51, 0.08);
 }
 
 @theme inline {
@@ -43,7 +43,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--background);
+  background: linear-gradient(180deg, #f4f7fa 0%, var(--background) 100%);
   color: var(--foreground);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
@@ -75,29 +75,29 @@ textarea {
 }
 
 .surface-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: var(--shadow-card);
 }
 
 .surface-card-flat {
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .strong-panel {
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: var(--shadow-card);
 }
 
 .eyebrow {
-  color: var(--muted);
+  color: #4f6075;
   font-size: 0.69rem;
-  font-weight: 750;
+  font-weight: 800;
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
@@ -108,20 +108,22 @@ textarea {
   justify-content: center;
   gap: 0.45rem;
   min-height: 40px;
-  border-radius: 10px;
+  border: 1px solid #09192c;
+  border-radius: 9px;
   background: var(--ink);
   color: white;
   padding: 0.6rem 1rem;
   font-size: 0.75rem;
-  font-weight: 700;
-  box-shadow: 0 5px 14px rgba(23, 27, 41, 0.16);
-  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  font-weight: 750;
+  box-shadow: 0 6px 16px rgba(15, 34, 58, 0.22);
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
 .primary-action:hover {
-  background: #0d101b;
+  background: #09192c;
+  border-color: #06111f;
   transform: translateY(-1px);
-  box-shadow: 0 7px 18px rgba(23, 27, 41, 0.2);
+  box-shadow: 0 8px 20px rgba(15, 34, 58, 0.26);
 }
 
 .secondary-action {
@@ -130,38 +132,67 @@ textarea {
   justify-content: center;
   gap: 0.45rem;
   min-height: 40px;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border: 1px solid #aeb9c8;
+  border-radius: 9px;
   background: white;
-  color: #343a49;
+  color: #27384d;
   padding: 0.6rem 1rem;
   font-size: 0.75rem;
   font-weight: 700;
-  transition: background 160ms ease, border-color 160ms ease;
+  box-shadow: 0 2px 6px rgba(15, 31, 51, 0.06);
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
 }
 
 .secondary-action:hover {
-  background: #f7f8fb;
-  border-color: #bfc7d3;
+  background: #f1f5f9;
+  border-color: #8795a8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 31, 51, 0.09);
 }
 
 .toolbar-control {
   min-height: 42px;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border: 1px solid #aeb9c8;
+  border-radius: 9px;
   background: white;
-  color: #303647;
+  color: #23364c;
   padding: 0 0.8rem;
   font-size: 0.78rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(15, 31, 51, 0.04);
 }
 
 .toolbar-control:focus {
-  border-color: #9fb5e9;
-  box-shadow: 0 0 0 3px rgba(53, 104, 240, 0.08);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--blue) 42%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--blue) 52%, transparent);
   outline-offset: 2px;
+}
+
+table {
+  border-color: var(--border-strong);
+}
+
+thead {
+  background: #edf2f7;
+}
+
+th {
+  color: #415169;
+  font-weight: 750;
+}
+
+tbody tr {
+  border-color: var(--border);
+}
+
+tbody tr:hover {
+  background: #f7f9fc;
+}
+
+hr {
+  border-color: var(--border-strong);
 }
