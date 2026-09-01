@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { processImportRowsAction } from '@/app/actions/importActions'
 
@@ -129,6 +130,8 @@ export function ImportWizard() {
     URL.revokeObjectURL(url)
   }
 
+  const importSucceeded = Boolean(result && result.errors.length === 0)
+
   return (
     <div className="strong-panel overflow-hidden">
       <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
@@ -141,12 +144,12 @@ export function ImportWizard() {
         {step === 1 ? <div className="space-y-5">
           <div><h2 className="text-[16px] font-semibold text-[#252a37]">Wat wil je importeren</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Kies het type bron, daarna zie je alleen de relevante velden.</p></div>
           <div className="grid gap-3 md:grid-cols-3">
-            {([['products', 'Producten', 'Productdata, eigen prijzen, voorraad en markten.'], ['competitors', 'Concurrent URLs', 'Koppel concurrenten en product URLs in bulk aan bestaande artikelen.'], ['combined', 'Volledige import', 'Productdata en concurrentiedata samen in één bestand.']] as const).map(([value, title, description]) => <button key={value} type="button" onClick={() => setMode(value)} className={`rounded-[14px] border p-4 text-left ${mode === value ? 'border-[var(--blue)] bg-[var(--blue-soft)]' : 'border-[var(--border)] bg-white'}`}><p className="text-[12px] font-semibold text-[#252a37]">{title}</p><p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">{description}</p></button>)}
+            {([['products', 'Producten', 'Productdata, eigen prijzen, voorraad en markten.'], ['competitors', 'Concurrent URLs', 'Koppel concurrenten en product URLs in bulk aan bestaande artikelen.'], ['combined', 'Volledige import', 'Productdata en concurrentiedata samen in één bestand.']] as const).map(([value, title, description]) => <button key={value} type="button" onClick={() => { setMode(value); setResult(null) }} className={`rounded-[14px] border p-4 text-left transition ${mode === value ? 'border-[var(--blue)] bg-[var(--blue-soft)] shadow-sm' : 'border-[var(--border)] bg-white hover:border-[#b7c0cf] hover:bg-[#fafbfc]'}`}><p className="text-[12px] font-semibold text-[#252a37]">{title}</p><p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">{description}</p></button>)}
           </div>
           <div className="rounded-[14px] border border-dashed border-[#c9ced8] bg-[#fafbfc] p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[12px] font-semibold text-[#252a37]">CSV of Excel</p><p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Prysight herkent onder meer SKU, SKU_NEW, artikelnummer, EAN, GTIN, markt, concurrent en URL automatisch.</p></div><button type="button" onClick={downloadTemplate} className="secondary-action">Voorbeeldtemplate</button></div>
             <input type="file" accept=".csv,.xlsx" className="mt-4 block w-full rounded-xl border border-[var(--border)] bg-white p-3 text-[11px]" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileChange(file) }} />
-            {uploadError ? <p className="mt-2 text-[11px] text-rose-700">{uploadError}</p> : null}
+            {uploadError ? <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-[11px] font-medium text-rose-700">{uploadError}</p> : null}
           </div>
         </div> : null}
 
@@ -162,9 +165,10 @@ export function ImportWizard() {
         </div> : null}
 
         {step === 4 ? <div className="space-y-5">
-          <div><h2 className="text-[16px] font-semibold text-[#252a37]">Import uitvoeren</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Prysight verwerkt {rows.length} regels en werkt producten, concurrenten, prijzen en historie bij.</p></div>
-          <div className="flex gap-2"><button type="button" className="secondary-action" onClick={() => setStep(3)} disabled={isPending}>Terug</button><button type="button" disabled={isPending} className="primary-action disabled:opacity-50" onClick={() => startTransition(async () => setResult(await processImportRowsAction({ filename, format, mapping, rows: mappedRows })))}>{isPending ? 'Importeren…' : `Start import van ${rows.length} regels`}</button></div>
-          {result ? <div className="rounded-[14px] border border-[var(--border)] bg-[#f7f8fa] p-4 text-[11px]"><p className="font-semibold text-[#252a37]">{result.message}</p>{result.warnings.length ? <ul className="mt-2 list-disc pl-5">{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}{result.errors.length ? <ul className="mt-2 list-disc pl-5 text-rose-700">{result.errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}</div> : null}
+          <div><h2 className="text-[16px] font-semibold text-[#252a37]">Import uitvoeren</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Prysight verwerkt {rows.length} regels volgens de gekozen importmodus.</p></div>
+          {!importSucceeded ? <div className="flex flex-wrap gap-2"><button type="button" className="secondary-action" onClick={() => setStep(3)} disabled={isPending}>Terug</button><button type="button" disabled={isPending} className="primary-action disabled:cursor-not-allowed disabled:opacity-50" onClick={() => startTransition(async () => setResult(await processImportRowsAction({ filename, format, mode, mapping, rows: mappedRows })))}>{isPending ? 'Importeren, niet sluiten…' : `Start import van ${rows.length} regels`}</button></div> : null}
+          {result ? <div className={`rounded-[14px] border p-4 text-[11px] ${result.errors.length ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50'}`}><p className="font-semibold text-[#252a37]">{result.message}</p>{result.warnings.length ? <ul className="mt-2 list-disc pl-5 text-[#697386]">{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}{result.errors.length ? <ul className="mt-2 list-disc pl-5 text-rose-700">{result.errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}</div> : null}
+          {importSucceeded ? <div className="flex flex-wrap gap-2"><Link href="/producten" className="primary-action">Bekijk producten</Link><Link href="/concurrenten" className="secondary-action">Bekijk concurrenten</Link><button type="button" className="secondary-action" onClick={() => { setStep(1); setRows([]); setHeaders([]); setMapping({}); setFilename(''); setResult(null) }}>Nieuwe import</button></div> : null}
         </div> : null}
       </div>
     </div>
