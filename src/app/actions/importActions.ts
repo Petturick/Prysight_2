@@ -1,12 +1,13 @@
 'use server'
 
 import { ImportFormat, ImportStatus, MatchStatus, Prisma } from '@/generated/prisma/client'
-import { createAuditLog, getSystemUser } from '@/lib/audit'
+import { createAuditLog } from '@/lib/audit'
+import { requireWritableUser } from '@/lib/authz'
+import { assertCompanyCapacity } from '@/lib/company-license'
 import { matchProducts } from '@/lib/product-matching'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
-import { assertCompanyCapacity } from '@/lib/company-license'
+import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { importPayloadSchema } from '@/lib/validators'
 import { revalidatePath } from 'next/cache'
 
@@ -16,6 +17,12 @@ function toDecimal(value: string | number | null | undefined) {
   const numeric = Number(normalized)
   if (Number.isNaN(numeric)) return null
   return new Prisma.Decimal(numeric)
+}
+
+function validDate(value: string | undefined) {
+  if (!value) return new Date()
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed
 }
 
 export async function processImportRowsAction(payload: unknown) {
@@ -28,29 +35,36 @@ export async function processImportRowsAction(payload: unknown) {
     }
   }
 
-  const systemUser = await getSystemUser()
+  const user = await requireWritableUser()
+  const companyId = user.companyId
+  const mode = parsed.data.mode
+  const importsProducts = mode === 'products' || mode === 'combined'
+  const importsCompetitors = mode === 'competitors' || mode === 'combined'
   const warnings: string[] = []
   const errors: string[] = []
+
   const task = await prisma.importTask.create({
     data: {
-      companyId: DEFAULT_COMPANY_ID,
+      companyId,
       filename: parsed.data.filename,
       format: parsed.data.format as ImportFormat,
       status: ImportStatus.PROCESSING,
       totalRows: parsed.data.rows.length,
       processedRows: 0,
       errorRows: 0,
-      importedBy: systemUser.id,
+      importedBy: user.id,
     },
   })
 
-  const requestedArticleNumbers = [...new Set(parsed.data.rows.map((row, index) => row.articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`))]
-  const existingProducts = await prisma.product.findMany({
-    where: { companyId: DEFAULT_COMPANY_ID, articleNumber: { in: requestedArticleNumbers } },
-    select: { articleNumber: true },
-  })
-  const newSkuCount = requestedArticleNumbers.length - new Set(existingProducts.map((product) => product.articleNumber)).size
-  if (newSkuCount > 0) await assertCompanyCapacity(DEFAULT_COMPANY_ID, 'skus', newSkuCount)
+  if (importsProducts) {
+    const requestedArticleNumbers = [...new Set(parsed.data.rows.map((row, index) => row.articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`))]
+    const existingProducts = await prisma.product.findMany({
+      where: { companyId, articleNumber: { in: requestedArticleNumbers } },
+      select: { articleNumber: true },
+    })
+    const newSkuCount = requestedArticleNumbers.length - new Set(existingProducts.map((product) => product.articleNumber)).size
+    if (newSkuCount > 0) await assertCompanyCapacity(companyId, 'skus', newSkuCount)
+  }
 
   let processedRows = 0
 
@@ -62,108 +76,151 @@ export async function processImportRowsAction(payload: unknown) {
         warnings.push(`Rij ${index + 1}: land ${countryCode} bestaat niet en is overgeslagen.`)
         continue
       }
+
       const licensedCountry = await prisma.companyCountry.findUnique({
-        where: { companyId_countryId: { companyId: DEFAULT_COMPANY_ID, countryId: country.id } },
+        where: { companyId_countryId: { companyId, countryId: country.id } },
       })
       if (!licensedCountry?.isActive) {
-        warnings.push(`Rij ${index + 1}: land ${countryCode} valt niet binnen de actieve company licentie.`)
+        warnings.push(`Rij ${index + 1}: land ${countryCode} is niet actief voor dit bedrijf.`)
         continue
       }
 
-      const productGroupName = row.productGroup || 'Onbekend'
-      const productGroup = await prisma.productGroup.upsert({
-        where: { companyId_name: { companyId: DEFAULT_COMPANY_ID, name: productGroupName } },
-        update: {},
-        create: { companyId: DEFAULT_COMPANY_ID, name: productGroupName, description: `Automatisch aangemaakt via import ${parsed.data.filename}` },
-      })
+      const articleNumber = row.articleNumber?.trim()
+      if (!articleNumber && importsCompetitors) {
+        warnings.push(`Rij ${index + 1}: artikelnummer ontbreekt, concurrent URL kan niet worden gekoppeld.`)
+        continue
+      }
 
-      const articleNumber = row.articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`
-      const ownPrice = toDecimal(row.ownPrice)
-      const packagingQty = Number(row.packagingQty || 1) || 1
       const currency = row.currency || country.currency || 'EUR'
+      const packagingQty = Number(row.packagingQty || 1) || 1
+      const recordedAt = validDate(row.lastChecked)
 
-      const product = await prisma.product.upsert({
-        where: { companyId_articleNumber: { companyId: DEFAULT_COMPANY_ID, articleNumber } },
-        update: {
-          ean: row.ean || undefined,
-          name: row.productName || articleNumber,
-          productGroupId: productGroup.id,
-          ownPrice: ownPrice ?? undefined,
-          packagingUnit: row.packagingUnit || undefined,
-          packagingQty,
-          stockStatus: row.ownStock || undefined,
-          currency,
-        },
-        create: {
-          companyId: DEFAULT_COMPANY_ID,
-          articleNumber,
-          ean: row.ean || null,
-          gtin: row.ean || null,
-          name: row.productName || articleNumber,
-          productGroupId: productGroup.id,
-          ownPrice,
-          vatIncluded: true,
-          packagingUnit: row.packagingUnit || 'stuks',
-          packagingQty,
-          stockStatus: row.ownStock || 'Onbekend',
-          currency,
-        },
-      })
+      let product = articleNumber
+        ? await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId, articleNumber } } })
+        : null
 
-      if (ownPrice) {
-        await prisma.ownPriceHistory.create({
-          data: {
-            companyId: DEFAULT_COMPANY_ID,
-            productId: product.id,
-            recordedAt: row.lastChecked ? new Date(row.lastChecked) : new Date(),
-            price: ownPrice,
+      if (importsProducts) {
+        const resolvedArticleNumber = articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`
+        const productGroupName = row.productGroup || 'Onbekend'
+        const productGroup = await prisma.productGroup.upsert({
+          where: { companyId_name: { companyId, name: productGroupName } },
+          update: {},
+          create: { companyId, name: productGroupName, description: `Automatisch aangemaakt via import ${parsed.data.filename}` },
+        })
+        const ownPrice = toDecimal(row.ownPrice)
+
+        product = await prisma.product.upsert({
+          where: { companyId_articleNumber: { companyId, articleNumber: resolvedArticleNumber } },
+          update: {
+            ean: row.ean || undefined,
+            name: row.productName || undefined,
+            productGroupId: productGroup.id,
+            ownPrice: ownPrice ?? undefined,
+            packagingUnit: row.packagingUnit || undefined,
+            packagingQty,
+            stockStatus: row.ownStock || undefined,
+            currency,
+          },
+          create: {
+            companyId,
+            articleNumber: resolvedArticleNumber,
+            ean: row.ean || null,
+            gtin: row.ean || null,
+            name: row.productName || resolvedArticleNumber,
+            productGroupId: productGroup.id,
+            ownPrice,
+            vatIncluded: true,
+            packagingUnit: row.packagingUnit || 'stuks',
+            packagingQty,
+            stockStatus: row.ownStock || 'Onbekend',
             currency,
           },
         })
+
+        if (ownPrice) {
+          await prisma.ownPriceHistory.create({
+            data: { companyId, productId: product.id, recordedAt, price: ownPrice, currency },
+          })
+        }
       }
 
-      const competitorName = row.competitorName || row.webshop
-      if (!competitorName) {
-        warnings.push(`Rij ${index + 1}: geen concurrentnaam aanwezig.`)
+      if (!importsCompetitors) {
         processedRows += 1
         continue
       }
 
-      const competitorWhere = { companyId_name_countryId: { companyId: DEFAULT_COMPANY_ID, name: competitorName, countryId: country.id } }
+      if (!product) {
+        warnings.push(`Rij ${index + 1}: product ${articleNumber} bestaat niet. Importeer het product eerst of gebruik Volledige import.`)
+        continue
+      }
+
+      const competitorName = (row.competitorName || row.webshop || '').trim()
+      if (!competitorName) {
+        warnings.push(`Rij ${index + 1}: concurrentnaam ontbreekt.`)
+        continue
+      }
+
+      if (!row.competitorUrl) {
+        warnings.push(`Rij ${index + 1}: concurrent URL ontbreekt.`)
+        continue
+      }
+
+      const safeOfferUrl = (await assertSafeRemoteHttpUrl(row.competitorUrl)).toString()
+      const website = new URL(safeOfferUrl).origin
+      const competitorWhere = { companyId_name_countryId: { companyId, name: competitorName, countryId: country.id } }
       const existingCompetitor = await prisma.competitor.findUnique({ where: competitorWhere })
-      if (!existingCompetitor) await assertCompanyCapacity(DEFAULT_COMPANY_ID, 'competitors')
+      if (!existingCompetitor) await assertCompanyCapacity(companyId, 'competitors')
+
       const competitor = await prisma.competitor.upsert({
         where: competitorWhere,
-        update: { website: row.competitorUrl || row.engelsUrl || 'https://voorbeeld.nl' },
-        create: {
-          companyId: DEFAULT_COMPANY_ID,
-          name: competitorName,
-          website: row.competitorUrl || row.engelsUrl || 'https://voorbeeld.nl',
-          countryId: country.id,
-        },
+        update: { website, isActive: true },
+        create: { companyId, name: competitorName, website, countryId: country.id, isActive: true },
       })
 
       const rawPrice = toDecimal(row.competitorPrice)
       const normalized = rawPrice
-        ? normalizePrice(rawPrice, true, country.vatRate, currency, row.packagingUnit || 'stuks', packagingQty, true, 'EUR').amount
+        ? normalizePrice(rawPrice, true, country.vatRate, currency, row.packagingUnit || product.packagingUnit || 'stuks', packagingQty, true, 'EUR').amount
         : null
-      const offerUrl = row.competitorUrl || row.engelsUrl || `${competitor.website.replace(/\/$/, '')}/product/${articleNumber}`
 
-      const offer = await prisma.competitorOffer.create({
-        data: {
-          companyId: DEFAULT_COMPANY_ID,
-          competitorId: competitor.id,
-          url: offerUrl,
-          rawPrice,
-          normalizedPrice: normalized,
-          currency,
-          vatIncluded: true,
-          packagingUnit: row.packagingUnit || 'stuks',
-          packagingQty,
-          stockStatus: row.competitorStock || 'Onbekend',
-          lastCheckedAt: row.lastChecked ? new Date(row.lastChecked) : new Date(),
-        },
+      const existingOffer = await prisma.competitorOffer.findUnique({
+        where: { companyId_competitorId_url: { companyId, competitorId: competitor.id, url: safeOfferUrl } },
+        include: { productMatch: true },
       })
+      if (existingOffer?.productMatch && existingOffer.productMatch.productId !== product.id) {
+        warnings.push(`Rij ${index + 1}: deze concurrent URL is al aan een ander product gekoppeld.`)
+        continue
+      }
+
+      const offer = existingOffer
+        ? await prisma.competitorOffer.update({
+            where: { id: existingOffer.id },
+            data: {
+              rawPrice: rawPrice ?? undefined,
+              normalizedPrice: normalized ?? undefined,
+              currency,
+              packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
+              packagingQty,
+              stockStatus: row.competitorStock || undefined,
+              lastCheckedAt: recordedAt,
+              isActive: true,
+            },
+          })
+        : await prisma.competitorOffer.create({
+            data: {
+              companyId,
+              competitorId: competitor.id,
+              url: safeOfferUrl,
+              rawPrice,
+              normalizedPrice: normalized,
+              currency,
+              vatIncluded: true,
+              packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
+              packagingQty,
+              stockStatus: row.competitorStock || 'Onbekend',
+              lastCheckedAt: recordedAt,
+              isActive: true,
+            },
+          })
 
       const matchResult = matchProducts(
         {
@@ -175,25 +232,34 @@ export async function processImportRowsAction(payload: unknown) {
           packagingQty: product.packagingQty,
         },
         {
-          sku: row.articleNumber,
+          sku: articleNumber,
           ean: row.ean,
           gtin: row.ean,
-          productTitle: row.productName,
+          productTitle: row.productName || product.name,
           packagingUnit: row.packagingUnit,
           packagingQty,
           url: offer.url,
         },
       )
 
-      await prisma.productMatch.create({
-        data: {
-          companyId: DEFAULT_COMPANY_ID,
+      await prisma.productMatch.upsert({
+        where: { competitorOfferId: offer.id },
+        update: {
+          productId: product.id,
+          confidenceScore: matchResult.score,
+          matchStatus: matchResult.status as MatchStatus,
+          matchEvidence: matchResult.evidence as Prisma.InputJsonValue,
+          approvedBy: matchResult.status === 'CERTAIN' ? user.id : null,
+          approvedAt: matchResult.status === 'CERTAIN' ? new Date() : null,
+        },
+        create: {
+          companyId,
           productId: product.id,
           competitorOfferId: offer.id,
           confidenceScore: matchResult.score,
           matchStatus: matchResult.status as MatchStatus,
           matchEvidence: matchResult.evidence as Prisma.InputJsonValue,
-          approvedBy: matchResult.status === 'CERTAIN' ? systemUser.id : null,
+          approvedBy: matchResult.status === 'CERTAIN' ? user.id : null,
           approvedAt: matchResult.status === 'CERTAIN' ? new Date() : null,
         },
       })
@@ -201,9 +267,9 @@ export async function processImportRowsAction(payload: unknown) {
       if (rawPrice) {
         await prisma.priceHistory.create({
           data: {
-            companyId: DEFAULT_COMPANY_ID,
+            companyId,
             competitorOfferId: offer.id,
-            recordedAt: row.lastChecked ? new Date(row.lastChecked) : new Date(),
+            recordedAt,
             price: rawPrice,
             normalizedPrice: normalized,
             currency,
@@ -215,14 +281,14 @@ export async function processImportRowsAction(payload: unknown) {
 
       await prisma.priceCheck.create({
         data: {
-          companyId: DEFAULT_COMPANY_ID,
+          companyId,
           competitorOfferId: offer.id,
-          checkedAt: row.lastChecked ? new Date(row.lastChecked) : new Date(),
+          checkedAt: recordedAt,
           foundPrice: rawPrice,
           currency,
           stockStatus: row.competitorStock || 'Onbekend',
           productTitle: row.productName || product.name,
-          packagingUnit: row.packagingUnit || 'stuks',
+          packagingUnit: row.packagingUnit || product.packagingUnit || 'stuks',
           checkMethod: 'IMPORT',
           statusCode: 200,
           sourceUrl: offer.url,
@@ -249,11 +315,11 @@ export async function processImportRowsAction(payload: unknown) {
   })
 
   await createAuditLog({
-    userId: systemUser.id,
+    userId: user.id,
     action: 'IMPORT_CONFIRM',
     entityType: 'ImportTask',
     entityId: task.id,
-    newValue: { filename: task.filename, totalRows: parsed.data.rows.length, processedRows },
+    newValue: { companyId, mode, filename: task.filename, totalRows: parsed.data.rows.length, processedRows },
   })
 
   revalidatePath('/import')
@@ -262,7 +328,9 @@ export async function processImportRowsAction(payload: unknown) {
   revalidatePath('/concurrenten')
 
   return {
-    message: `Import verwerkt: ${processedRows} van ${parsed.data.rows.length} regels voltooid.`,
+    message: errors.length
+      ? `Import deels verwerkt: ${processedRows} van ${parsed.data.rows.length} regels voltooid, ${errors.length} fouten.`
+      : `Import afgerond: ${processedRows} van ${parsed.data.rows.length} regels verwerkt.`,
     warnings,
     errors,
   }

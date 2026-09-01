@@ -61,6 +61,7 @@ export const importRowSchema = z.record(z.string(), z.string())
 export const importPayloadSchema = z.object({
   filename: z.string().min(1),
   format: z.nativeEnum(ImportFormat),
+  mode: z.enum(['products', 'competitors', 'combined']).default('combined'),
   mapping: importColumnMappingSchema,
   rows: z.array(importRowSchema).min(1),
 })
