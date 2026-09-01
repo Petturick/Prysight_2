@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { loginAction, registerAction } from '@/app/actions/authActions'
 import { requestPasswordResetAction } from '@/app/actions/passwordResetActions'
 
@@ -44,6 +45,46 @@ function UserPlusIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19a6 6 0 0 0-12 0" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M16 11h6" /></svg>
 }
 
+function SpinnerIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" className="opacity-30" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function AuthSubmitButton({
+  idleLabel,
+  pendingLabel,
+  icon,
+}: {
+  idleLabel: string
+  pendingLabel: string
+  icon: React.ReactNode
+}) {
+  const { pending } = useFormStatus()
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="submit"
+        disabled={pending}
+        aria-busy={pending}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-wait disabled:opacity-80"
+      >
+        {pending ? <SpinnerIcon /> : icon}
+        {pending ? pendingLabel : idleLabel}
+      </button>
+      {pending ? (
+        <p role="status" aria-live="polite" className="text-center text-xs font-medium text-[#2458ff]">
+          Even geduld, Prysight verwerkt je aanvraag…
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearchParams; loginPath: '/' | '/login' }) {
   const [showPassword, setShowPassword] = useState(false)
   const forgotMode = params.mode === 'forgot'
@@ -81,7 +122,7 @@ export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearch
                 <form action={requestPasswordResetAction} className="mt-6 space-y-4">
                   <input type="hidden" name="loginPath" value={loginPath} />
                   <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label>
-                  <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white"><MailIcon />Resetlink versturen</button>
+                  <AuthSubmitButton idleLabel="Resetlink versturen" pendingLabel="Resetlink versturen…" icon={<MailIcon />} />
                 </form>
               ) : null}
               <Link href={loginPath} className="mt-4 block w-full text-center text-sm text-slate-500 hover:text-slate-800">Terug naar inloggen</Link>
@@ -97,7 +138,7 @@ export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearch
                 <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Bedrijfsnaam</span><input name="companyName" required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Bedrijfsnaam" /></label>
                 <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label>
                 <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Wachtwoord</span><span className="relative block"><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={12} required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Minimaal 12 tekens" /><button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><EyeIcon hidden={showPassword} /></button></span></label>
-                <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white"><UserPlusIcon />Start 9 dagen gratis</button>
+                <AuthSubmitButton idleLabel="Start 9 dagen gratis" pendingLabel="Account aanmaken…" icon={<UserPlusIcon />} />
               </form>
             </>
           ) : (
@@ -111,7 +152,7 @@ export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearch
                 <input type="hidden" name="loginPath" value={loginPath} />
                 <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label>
                 <label className="block"><span className="mb-1.5 flex items-center justify-between gap-4 text-sm font-medium text-slate-700"><span>Wachtwoord</span><Link href={`${loginPath}?mode=forgot`} className="text-xs font-medium text-[#2458ff] hover:text-[#1749dc]">Wachtwoord vergeten?</Link></span><span className="relative block"><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Voer je wachtwoord in" /><button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#2458ff]"><EyeIcon hidden={showPassword} /></button></span></label>
-                <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white"><MailIcon />Inloggen</button>
+                <AuthSubmitButton idleLabel="Inloggen" pendingLabel="Bezig met inloggen…" icon={<MailIcon />} />
               </form>
             </>
           )}
