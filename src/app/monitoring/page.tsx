@@ -35,7 +35,8 @@ export default async function MonitoringPage() {
   const companyId = user.companyId
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const last24Hours = new Date(today)
+  last24Hours.setDate(last24Hours.getDate() - 1)
 
   const result = await safeDatabaseQuery(async () => {
     const [
