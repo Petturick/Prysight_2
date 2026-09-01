@@ -6,6 +6,17 @@ import { processImportRowsAction } from '@/app/actions/importActions'
 
 type ImportMode = 'products' | 'competitors' | 'combined'
 type Row = Record<string, string>
+type ImportResult = {
+  message: string
+  warnings: string[]
+  errors: string[]
+  summary: {
+    products: number
+    markets: number
+    competitorUrls: number
+    readyForMonitoring: number
+  }
+}
 
 type PreviewResponse = {
   headers: string[]
@@ -83,7 +94,7 @@ export function ImportWizard() {
   const [headers, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
-  const [result, setResult] = useState<{ message: string; warnings: string[]; errors: string[] } | null>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -96,6 +107,7 @@ export function ImportWizard() {
     if ((mode === 'products' || mode === 'combined') && !mapping.productName) items.push('Productnaam ontbreekt, nieuwe producten krijgen dan het artikelnummer als naam.')
     if ((mode === 'competitors' || mode === 'combined') && !mapping.competitorName) items.push('Concurrentnaam ontbreekt, de aanbieder kan niet worden aangemaakt of herkend.')
     if ((mode === 'competitors' || mode === 'combined') && !mapping.competitorUrl) items.push('Concurrent URL ontbreekt, automatische controle vanaf de productpagina is dan niet mogelijk.')
+    if (!mapping.country) items.push('Land ontbreekt. Prysight gebruikt NL als standaardmarkt, controleer of dat voor deze import klopt.')
     return items
   }, [mapping, mode])
 
@@ -130,21 +142,30 @@ export function ImportWizard() {
     URL.revokeObjectURL(url)
   }
 
+  function executeImport() {
+    setStep(4)
+    setResult(null)
+    startTransition(async () => {
+      const response = await processImportRowsAction({ filename, format, mode, mapping, rows: mappedRows })
+      setResult(response)
+    })
+  }
+
   const importSucceeded = Boolean(result && result.errors.length === 0)
 
   return (
     <div className="strong-panel overflow-hidden">
       <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-[#8a93a5]">
-          {[1, 2, 3, 4].map((value) => <div key={value} className="flex items-center gap-2"><span className={`flex h-7 w-7 items-center justify-center rounded-full ${step >= value ? 'bg-[#202536] text-white' : 'bg-[#f1f3f6]'}`}>{value}</span><span>{value === 1 ? 'Bron' : value === 2 ? 'Kolommen' : value === 3 ? 'Controle' : 'Import'}</span>{value < 4 ? <span>›</span> : null}</div>)}
+          {[1, 2, 3, 4].map((value) => <div key={value} className="flex items-center gap-2"><span className={`flex h-7 w-7 items-center justify-center rounded-full ${step >= value ? 'bg-[#202536] text-white' : 'bg-[#f1f3f6]'}`}>{value}</span><span>{value === 1 ? 'Bron' : value === 2 ? 'Kolommen' : value === 3 ? 'Controle' : 'Resultaat'}</span>{value < 4 ? <span>›</span> : null}</div>)}
         </div>
       </div>
 
       <div className="p-5 sm:p-6">
         {step === 1 ? <div className="space-y-5">
-          <div><h2 className="text-[16px] font-semibold text-[#252a37]">Wat wil je importeren</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Kies het type bron, daarna zie je alleen de relevante velden.</p></div>
+          <div><h2 className="text-[16px] font-semibold text-[#252a37]">Wat wil je importeren</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Kies het type bron. Producten worden na bevestigen echt in Producten opgeslagen en, waar mogelijk, direct aan een markt gekoppeld.</p></div>
           <div className="grid gap-3 md:grid-cols-3">
-            {([['products', 'Producten', 'Productdata, eigen prijzen, voorraad en markten.'], ['competitors', 'Concurrent URLs', 'Koppel concurrenten en product URLs in bulk aan bestaande artikelen.'], ['combined', 'Volledige import', 'Productdata en concurrentiedata samen in één bestand.']] as const).map(([value, title, description]) => <button key={value} type="button" onClick={() => { setMode(value); setResult(null) }} className={`rounded-[14px] border p-4 text-left transition ${mode === value ? 'border-[var(--blue)] bg-[var(--blue-soft)] shadow-sm' : 'border-[var(--border)] bg-white hover:border-[#b7c0cf] hover:bg-[#fafbfc]'}`}><p className="text-[12px] font-semibold text-[#252a37]">{title}</p><p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">{description}</p></button>)}
+            {([['products', 'Producten', 'Productdata, eigen prijzen, voorraad en markten.'], ['competitors', 'Concurrent URLs', 'Koppel concurrenten en product URLs in bulk aan bestaande artikelen.'], ['combined', 'Volledige import', 'Productdata en concurrentiedata samen, direct voorbereiden voor monitoring.']] as const).map(([value, title, description]) => <button key={value} type="button" onClick={() => { setMode(value); setResult(null) }} className={`rounded-[14px] border p-4 text-left transition ${mode === value ? 'border-[var(--blue)] bg-[var(--blue-soft)] shadow-sm' : 'border-[var(--border)] bg-white hover:border-[#b7c0cf] hover:bg-[#fafbfc]'}`}><p className="text-[12px] font-semibold text-[#252a37]">{title}</p><p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">{description}</p></button>)}
           </div>
           <div className="rounded-[14px] border border-dashed border-[#c9ced8] bg-[#fafbfc] p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[12px] font-semibold text-[#252a37]">CSV of Excel</p><p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Prysight herkent onder meer SKU, SKU_NEW, artikelnummer, EAN, GTIN, markt, concurrent en URL automatisch.</p></div><button type="button" onClick={downloadTemplate} className="secondary-action">Voorbeeldtemplate</button></div>
@@ -159,16 +180,31 @@ export function ImportWizard() {
         </div> : null}
 
         {step === 3 ? <div className="space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-[16px] font-semibold text-[#252a37]">Preview en validatie</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Controleer de eerste regels voordat de database wordt gewijzigd.</p></div><div className="flex gap-2"><button type="button" className="secondary-action" onClick={() => setStep(2)}>Terug</button><button type="button" className="primary-action" onClick={() => setStep(4)}>Bevestigen</button></div></div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-[16px] font-semibold text-[#252a37]">Preview en validatie</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Na bevestigen wordt de import direct uitgevoerd. Er is geen verborgen extra importstap meer.</p></div><div className="flex gap-2"><button type="button" className="secondary-action" onClick={() => setStep(2)}>Terug</button><button type="button" className="primary-action" onClick={executeImport}>Bevestigen en importeren</button></div></div>
           <div className={`rounded-[14px] p-4 text-[11px] ${warnings.length ? 'bg-[var(--amber-soft)] text-[var(--amber)]' : 'bg-[var(--green-soft)] text-[var(--green)]'}`}><p className="font-semibold">{warnings.length ? `${warnings.length} aandachtspunten` : 'Mapping ziet er compleet uit'}</p>{warnings.length ? <ul className="mt-2 list-disc space-y-1 pl-5">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}</div>
           <div className="overflow-x-auto rounded-[14px] border border-[var(--border)]"><table className="min-w-full text-[11px]"><thead className="bg-[#f7f8fa]"><tr>{Object.keys(preview[0] ?? {}).map((header) => <th key={header} className="px-3 py-2 text-left">{header}</th>)}</tr></thead><tbody>{preview.map((row, index) => <tr key={index} className="border-t border-[var(--border)]">{Object.entries(row).map(([key, value]) => <td key={key} className="whitespace-nowrap px-3 py-2">{value || '—'}</td>)}</tr>)}</tbody></table></div>
         </div> : null}
 
         {step === 4 ? <div className="space-y-5">
-          <div><h2 className="text-[16px] font-semibold text-[#252a37]">Import uitvoeren</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Prysight verwerkt {rows.length} regels volgens de gekozen importmodus.</p></div>
-          {!importSucceeded ? <div className="flex flex-wrap gap-2"><button type="button" className="secondary-action" onClick={() => setStep(3)} disabled={isPending}>Terug</button><button type="button" disabled={isPending} className="primary-action disabled:cursor-not-allowed disabled:opacity-50" onClick={() => startTransition(async () => setResult(await processImportRowsAction({ filename, format, mode, mapping, rows: mappedRows })))}>{isPending ? 'Importeren, niet sluiten…' : `Start import van ${rows.length} regels`}</button></div> : null}
-          {result ? <div className={`rounded-[14px] border p-4 text-[11px] ${result.errors.length ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50'}`}><p className="font-semibold text-[#252a37]">{result.message}</p>{result.warnings.length ? <ul className="mt-2 list-disc pl-5 text-[#697386]">{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}{result.errors.length ? <ul className="mt-2 list-disc pl-5 text-rose-700">{result.errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}</div> : null}
-          {importSucceeded ? <div className="flex flex-wrap gap-2"><Link href="/producten" className="primary-action">Bekijk producten</Link><Link href="/concurrenten" className="secondary-action">Bekijk concurrenten</Link><button type="button" className="secondary-action" onClick={() => { setStep(1); setRows([]); setHeaders([]); setMapping({}); setFilename(''); setResult(null) }}>Nieuwe import</button></div> : null}
+          <div><h2 className="text-[16px] font-semibold text-[#252a37]">Importresultaat</h2><p className="mt-1 text-[11px] text-[#8a93a5]">{isPending ? `Prysight verwerkt nu ${rows.length} regels. Laat dit scherm open.` : 'De database is bijgewerkt. Hieronder zie je precies wat klaarstaat voor prijsmonitoring.'}</p></div>
+
+          {isPending ? <div className="rounded-[14px] border border-[var(--border)] bg-[#fafbfc] p-5"><div className="flex items-center gap-3"><span className="h-5 w-5 animate-spin rounded-full border-2 border-[#c8ced9] border-t-[var(--blue)]" /><div><p className="text-[12px] font-semibold text-[#252a37]">Import wordt uitgevoerd</p><p className="mt-1 text-[10px] text-[#8a93a5]">Producten, markten, URLs en matches worden gecontroleerd en opgeslagen.</p></div></div></div> : null}
+
+          {result ? <>
+            <div className={`rounded-[14px] border p-4 text-[11px] ${result.errors.length ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50'}`}><p className="font-semibold text-[#252a37]">{result.message}</p>{result.warnings.length ? <ul className="mt-2 max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-[#697386]">{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}{result.errors.length ? <ul className="mt-2 max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-rose-700">{result.errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}</div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[14px] border border-[var(--border)] bg-white p-4"><p className="eyebrow">Producten</p><p className="mt-2 text-[24px] font-semibold text-[#202536]">{result.summary.products}</p><p className="mt-1 text-[10px] text-[#8a93a5]">opgeslagen of bijgewerkt</p></div>
+              <div className="rounded-[14px] border border-[var(--border)] bg-white p-4"><p className="eyebrow">Markten</p><p className="mt-2 text-[24px] font-semibold text-[#202536]">{result.summary.markets}</p><p className="mt-1 text-[10px] text-[#8a93a5]">product markt koppelingen</p></div>
+              <div className="rounded-[14px] border border-[var(--border)] bg-white p-4"><p className="eyebrow">Concurrent URLs</p><p className="mt-2 text-[24px] font-semibold text-[#202536]">{result.summary.competitorUrls}</p><p className="mt-1 text-[10px] text-[#8a93a5]">beschikbaar voor controles</p></div>
+              <div className="rounded-[14px] border border-[var(--border)] bg-white p-4"><p className="eyebrow">Monitoring gereed</p><p className="mt-2 text-[24px] font-semibold text-[#202536]">{result.summary.readyForMonitoring}</p><p className="mt-1 text-[10px] text-[#8a93a5]">zekere productmatches</p></div>
+            </div>
+          </> : null}
+
+          {importSucceeded ? <div className="rounded-[14px] border border-[var(--border)] bg-[#fafbfc] p-4"><p className="text-[12px] font-semibold text-[#252a37]">Volgende stap</p><p className="mt-1 text-[10px] leading-5 text-[#697386]">Controleer eerst de producten. Voeg daarna ontbrekende concurrent URLs toe of beoordeel matches. Zodra een zekere match met URL bestaat kan Prysight de prijs automatisch controleren.</p><div className="mt-3 flex flex-wrap gap-2"><Link href="/producten" className="primary-action">Bekijk geïmporteerde producten</Link><Link href="/monitoring" className="secondary-action">Monitoringstatus</Link><Link href="/productmatches" className="secondary-action">Matches controleren</Link><Link href="/concurrenten" className="secondary-action">Concurrenten en frequentie</Link></div></div> : null}
+
+          {result && !importSucceeded ? <button type="button" className="secondary-action" onClick={() => setStep(3)}>Terug naar controle</button> : null}
+          {result ? <button type="button" className="secondary-action" onClick={() => { setStep(1); setRows([]); setHeaders([]); setMapping({}); setFilename(''); setResult(null) }}>Nieuwe import</button> : null}
         </div> : null}
       </div>
     </div>

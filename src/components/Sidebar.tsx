@@ -18,6 +18,7 @@ type SidebarUser = {
 const groups: Array<{ label: string; items: Array<{ href: string; label: string; icon: IconName }> }> = [
   { label: 'Prijsmonitoring', items: [
     { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { href: '/monitoring', label: 'Monitoringstatus', icon: 'dashboard' },
     { href: '/producten', label: 'Producten', icon: 'products' },
     { href: '/concurrenten', label: 'Concurrenten', icon: 'competitors' },
   ] },
