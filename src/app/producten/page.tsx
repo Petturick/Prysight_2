@@ -72,6 +72,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
             <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Vergelijk eigen prijzen met actuele concurrentieprijzen, per product, markt en databron.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href="/import" className="secondary-action">Bulk importeren</Link>
             <Link href="/feeds" className="secondary-action">Feeds beheren</Link>
             <Link href="/producten/nieuw" className="primary-action"><span className="text-base leading-none">+</span> Product toevoegen</Link>
           </div>
@@ -81,6 +82,33 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <div className="border-y border-[var(--border)] px-5 py-4 sm:border-x sm:border-y-0 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Prijsdekking</p><div className="mt-1 flex items-end gap-2"><p className="text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{coverage}%</p><p className="pb-1 text-[10px] text-[#8a93a5]">{formatNumber(comparableCount)} vergelijkbaar</p></div></div>
           <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Aandacht nodig</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(attentionCount)}</p></div>
         </div>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Link href="/import" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+          <p className="eyebrow">Bulkbestand</p>
+          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">CSV of Excel importeren</h2>
+          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Voeg veel producten, eigen prijzen en concurrent URLs tegelijk toe, met kolomherkenning en preview.</p>
+          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Import openen</p>
+        </Link>
+        <Link href="/feeds" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+          <p className="eyebrow">Automatisch</p>
+          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Productfeed koppelen</h2>
+          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Gebruik een terugkerende feed als bron voor productdata en prijsmonitoring.</p>
+          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Feeds beheren</p>
+        </Link>
+        <Link href="/productmatches" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+          <p className="eyebrow">Matching</p>
+          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Productmatches controleren</h2>
+          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Beoordeel automatische matches voordat concurrentieprijzen meetellen in analyses.</p>
+          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Matches openen</p>
+        </Link>
+        <Link href="/producten/nieuw" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+          <p className="eyebrow">Handmatig</p>
+          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Eén product toevoegen</h2>
+          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Voeg een los product toe als een bulkbestand of feed niet nodig is.</p>
+          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Product toevoegen</p>
+        </Link>
       </section>
 
       <form className="strong-panel p-4">
