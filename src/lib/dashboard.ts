@@ -14,14 +14,14 @@ export type DashboardFilters = {
 const productInclude = {
   productGroup: true,
   productMarkets: { include: { country: true } },
-  ownPriceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 8 },
+  ownPriceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 1 },
   matches: {
     include: {
       competitorOffer: {
         include: {
           competitor: { include: { country: true } },
-          priceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 5 },
-          priceChecks: { orderBy: { checkedAt: 'desc' as const }, take: 3 },
+          priceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 2 },
+          priceChecks: { orderBy: { checkedAt: 'desc' as const }, take: 2 },
         },
       },
     },
@@ -35,8 +35,8 @@ const competitorInclude = {
   offers: {
     include: {
       productMatch: { include: { product: true } },
-      priceChecks: true,
-      priceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 3 },
+      priceChecks: { orderBy: { checkedAt: 'desc' as const }, take: 20 },
+      priceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 2 },
     },
   },
 } satisfies Prisma.CompetitorInclude
