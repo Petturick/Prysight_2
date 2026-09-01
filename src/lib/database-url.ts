@@ -3,7 +3,7 @@ const SUPABASE_POOLER_HOST = /\.pooler\.supabase\.com$/i
 
 const DEFAULT_SUPABASE_PROJECT_ID = 'xmedaatjwxkmwkjmwuuz'
 const DEFAULT_SUPABASE_REGION = 'eu-west-2'
-const DEFAULT_SUPAVISOR_PORT = '6543'
+const DEFAULT_SUPAVISOR_PORT = '5432'
 
 export type DatabaseConnectionInfo = {
   connectionString: string
@@ -13,7 +13,7 @@ export type DatabaseConnectionInfo = {
 }
 
 function normalizePoolerPort(value: string) {
-  return value.trim() === '5432' ? '5432' : DEFAULT_SUPAVISOR_PORT
+  return value.trim() === '6543' ? '6543' : DEFAULT_SUPAVISOR_PORT
 }
 
 function enforceSupabasePoolerTls(url: URL) {
@@ -51,8 +51,6 @@ function resolveConnectionString(value: string, region: string, poolerPort: stri
   if (!directMatch) {
     if (SUPABASE_POOLER_HOST.test(url.hostname)) {
       enforceSupabasePoolerTls(url)
-      if (!url.port) url.port = normalizePoolerPort(poolerPort)
-      if (url.port === '6543') url.searchParams.set('pgbouncer', 'true')
       return {
         connectionString: url.toString(),
         configured: true,
