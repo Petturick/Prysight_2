@@ -1,2 +1,2 @@
-Production deploy trigger 2026-09-01 12:13 Europe/Amsterdam
-Includes Syntrx inspired Prysight warning UX, stronger cards and hierarchy, violet action styling, clearer sidebar state, tactile click feedback, KPI summaries, status chips and monitoring guidance.
+Production deploy trigger 2026-09-01 16:19 Europe/Amsterdam
+Includes the global Syntrx inspired Prysight design system across all shared panels, tables, workspace backgrounds, buttons, focus states and interaction feedback. Production source includes merged commit 9d15c5a95d8247c3219e7c8bee22b7ccec5a0e99.
