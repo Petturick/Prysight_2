@@ -4,7 +4,7 @@ import { createCompetitorAction, updateCompetitorFrequencyAction } from '@/app/a
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAuthenticatedUser } from '@/lib/authz'
-import { deriveCompetitorMetrics, getCompetitorsOverview } from '@/lib/dashboard'
+import { deriveCompetitorMetrics } from '@/lib/dashboard'
 import { formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
@@ -33,7 +33,21 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
   const canWrite = user.role !== 'READONLY' && user.membershipRole !== 'READONLY'
   const result = await safeDatabaseQuery(async () => {
     const [competitors, companyCountries] = await Promise.all([
-      getCompetitorsOverview(),
+      prisma.competitor.findMany({
+        where: { companyId: user.companyId, isActive: true },
+        include: {
+          country: true,
+          offers: {
+            where: { isActive: true },
+            include: {
+              productMatch: { include: { product: true } },
+              priceChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
+              priceHistory: { orderBy: { recordedAt: 'desc' }, take: 2 },
+            },
+          },
+        },
+        orderBy: [{ country: { name: 'asc' } }, { name: 'asc' }],
+      }),
       prisma.companyCountry.findMany({
         where: { companyId: user.companyId, isActive: true, country: { isActive: true } },
         include: { country: true },
