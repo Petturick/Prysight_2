@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertSeverity } from '@/generated/prisma/client'
 import { markAlertReadAction } from '@/app/actions/alertActions'
@@ -14,7 +15,7 @@ function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function KpiCard({ label, value, helper, tone, icon }: { label: string; value: number; helper: string; tone: 'blue' | 'red' | 'green' | 'amber'; icon: React.ReactNode }) {
+function KpiCard({ label, value, helper, tone, icon }: { label: string; value: number; helper: string; tone: 'blue' | 'red' | 'green' | 'amber'; icon: ReactNode }) {
   const toneClasses = {
     blue: 'bg-[#eef2ff] text-[#4255ff]',
     red: 'bg-[#fff0f1] text-[#ef434f]',
