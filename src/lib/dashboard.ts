@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculatePriceDifference } from '@/lib/price-normalization'
@@ -14,7 +15,6 @@ export type DashboardFilters = {
 const productInclude = {
   productGroup: true,
   productMarkets: { include: { country: true } },
-  ownPriceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 1 },
   matches: {
     include: {
       competitorOffer: {
@@ -36,21 +36,29 @@ const competitorInclude = {
     include: {
       productMatch: { include: { product: true } },
       priceChecks: { orderBy: { checkedAt: 'desc' as const }, take: 20 },
-      priceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 2 },
+      priceHistory: { orderBy: { recordedAt: 'desc' as const }, take: 1 },
     },
   },
 } satisfies Prisma.CompetitorInclude
 
 export type CompetitorWithRelations = Prisma.CompetitorGetPayload<{ include: typeof competitorInclude }>
 
-export async function getFilterOptions() {
-  const [countries, productGroups, competitors] = await Promise.all([
-    prisma.country.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
-    prisma.productGroup.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
-    prisma.competitor.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),
-  ])
+const getCachedFilterOptions = unstable_cache(
+  async () => {
+    const [countries, productGroups, competitors] = await Promise.all([
+      prisma.country.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
+      prisma.productGroup.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
+      prisma.competitor.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),
+    ])
 
-  return { countries, productGroups, competitors }
+    return { countries, productGroups, competitors }
+  },
+  ['prysight-filter-options'],
+  { revalidate: 60 },
+)
+
+export async function getFilterOptions() {
+  return getCachedFilterOptions()
 }
 
 export async function getFilteredProducts(filters: DashboardFilters = {}) {
