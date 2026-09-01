@@ -1,17 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
 
 export function InteractionFeedback() {
-  const pathname = usePathname()
   const [loading, setLoading] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    setLoading(false)
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-  }, [pathname])
 
   useEffect(() => {
     const startLoading = () => {
