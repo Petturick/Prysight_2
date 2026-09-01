@@ -30,10 +30,18 @@ function createPrismaClient() {
   const { connectionString, configured } = resolveDatabaseConnection()
   if (!configured) return createUnavailableClient()
 
-  const adapter = new PrismaPg({ connectionString })
+  const adapter = new PrismaPg({
+    connectionString,
+    max: 3,
+    connectionTimeoutMillis: 4_000,
+    idleTimeoutMillis: 10_000,
+    maxLifetimeSeconds: 300,
+  })
   return new PrismaClient({ adapter })
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Reuse one pool in warm runtimes as well as local development. This avoids
+// creating a fresh PostgreSQL pool during ordinary server navigations.
+globalForPrisma.prisma = prisma
