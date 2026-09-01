@@ -82,6 +82,34 @@ export async function createProductAction(formData: FormData) {
   redirect(`/producten/${product.id}?toegevoegd=1`)
 }
 
+export async function createCompetitorAction(formData: FormData) {
+  const user = await requireWritableUser()
+  const name = text(formData, 'name')
+  const websiteInput = text(formData, 'website')
+  const countryId = text(formData, 'countryId')
+  const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
+
+  if (!name || !websiteInput || !countryId) throw new Error('Naam, website en land zijn verplicht.')
+
+  await requireLicensedCountry(user.companyId, countryId)
+  const safeWebsite = (await assertSafeRemoteHttpUrl(websiteInput)).toString()
+  const website = new URL(safeWebsite).origin
+  const where = { companyId_name_countryId: { companyId: user.companyId, name, countryId } }
+  const existing = await prisma.competitor.findUnique({ where })
+  if (!existing) await assertCompanyCapacity(user.companyId, 'competitors')
+
+  await prisma.competitor.upsert({
+    where,
+    update: { website, isActive: true, checkFrequencyHours },
+    create: { companyId: user.companyId, name, website, countryId, isActive: true, checkFrequencyHours },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath('/concurrenten')
+  redirect('/concurrenten?toegevoegd=1')
+}
+
 export async function addCompetitorOfferAction(formData: FormData) {
   const user = await requireWritableUser()
   const productId = text(formData, 'productId')
