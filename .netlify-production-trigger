@@ -1,2 +1,2 @@
-Production deploy trigger 2026-09-01 08:55 Europe/Amsterdam
-Includes all current main changes: performance optimizations, competitor management, bulk import UX, login/navigation loading feedback, and stronger Syntrx-style visual system.
+Production deploy trigger 2026-09-01 09:58 Europe/Amsterdam
+Includes app wide click and navigation feedback, supported-device haptics, and hidden sidebar scrollbar from PR #9.
