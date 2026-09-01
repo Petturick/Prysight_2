@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
-import { deriveProductMetrics, getFilterOptions, getFilteredProducts } from '@/lib/dashboard'
+import { deriveProductMetrics, getFilterOptions } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
@@ -23,20 +23,69 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const page = Math.max(Number(readParam(params.pagina) ?? '1') || 1, 1)
   const pageSize = 12
 
+  const where = {
+    isActive: true,
+    productGroupId: filters.productGroupId || undefined,
+    AND: [
+      filters.q
+        ? {
+            OR: [
+              { articleNumber: { contains: filters.q, mode: 'insensitive' as const } },
+              { name: { contains: filters.q, mode: 'insensitive' as const } },
+              { ean: { contains: filters.q } },
+            ],
+          }
+        : {},
+      filters.countryId
+        ? {
+            OR: [
+              { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
+              { matches: { some: { competitorOffer: { competitor: { countryId: filters.countryId } } } } },
+            ],
+          }
+        : {},
+    ],
+  }
+
   const result = await safeDatabaseQuery(
     async () => {
-      const [products, filterOptions] = await Promise.all([getFilteredProducts(filters), getFilterOptions()])
-      return { products, filterOptions }
+      const [products, totalCount, filterOptions] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: {
+            productGroup: true,
+            productMarkets: { include: { country: true } },
+            ownPriceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
+            matches: {
+              include: {
+                competitorOffer: {
+                  include: {
+                    competitor: { include: { country: true } },
+                    priceHistory: { orderBy: { recordedAt: 'desc' }, take: 2 },
+                    priceChecks: { orderBy: { checkedAt: 'desc' }, take: 2 },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ productGroup: { name: 'asc' } }, { articleNumber: 'asc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.product.count({ where }),
+        getFilterOptions(),
+      ])
+      return { products, totalCount, filterOptions }
     },
-    { products: [], filterOptions: { countries: [], productGroups: [], competitors: [] } },
+    { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } },
   )
-  const { products, filterOptions } = result.data
+  const { products, totalCount, filterOptions } = result.data
   const rows = products.map((product) => deriveProductMetrics(product, filters))
-  const paged = rows.slice((page - 1) * pageSize, page * pageSize)
-  const totalPages = Math.max(Math.ceil(rows.length / pageSize), 1)
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1)
+
   const sourceResult = await safeDatabaseQuery(
     () => prisma.productFeedLink.findMany({
-      where: { productId: { in: paged.map((item) => item.product.id) } },
+      where: { productId: { in: rows.map((item) => item.product.id) } },
       include: { feedSource: true },
       orderBy: { lastSeenAt: 'desc' },
     }),
@@ -78,9 +127,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           </div>
         </div>
         <div className="grid border-t border-[var(--border)] sm:grid-cols-3">
-          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Producten in selectie</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(rows.length)}</p></div>
-          <div className="border-y border-[var(--border)] px-5 py-4 sm:border-x sm:border-y-0 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Prijsdekking</p><div className="mt-1 flex items-end gap-2"><p className="text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{coverage}%</p><p className="pb-1 text-[10px] text-[#8a93a5]">{formatNumber(comparableCount)} vergelijkbaar</p></div></div>
-          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Aandacht nodig</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(attentionCount)}</p></div>
+          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Producten in selectie</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(totalCount)}</p></div>
+          <div className="border-y border-[var(--border)] px-5 py-4 sm:border-x sm:border-y-0 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Prijsdekking op pagina</p><div className="mt-1 flex items-end gap-2"><p className="text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{coverage}%</p><p className="pb-1 text-[10px] text-[#8a93a5]">{formatNumber(comparableCount)} vergelijkbaar</p></div></div>
+          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Aandacht op pagina</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(attentionCount)}</p></div>
         </div>
       </section>
 
@@ -135,7 +184,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           columns={[
             { key: 'artikelnummer', header: 'Artikel' }, { key: 'productnaam', header: 'Product' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Bron' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste marktprijs' }, { key: 'gemiddeld', header: 'Gem. marktprijs' }, { key: 'verschilEuro', header: 'Verschil €' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' },
           ]}
-          rows={paged.map((item) => ({
+          rows={rows.map((item) => ({
             artikelnummer: <Link href={`/producten/${item.product.id}`} className="font-semibold text-[var(--blue)]">{item.product.articleNumber}</Link>,
             productnaam: <Link href={`/producten/${item.product.id}`} className="font-medium text-[#252a37]">{item.product.name}</Link>,
             groep: item.product.productGroup.name,
