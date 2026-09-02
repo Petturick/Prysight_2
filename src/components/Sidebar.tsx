@@ -60,36 +60,36 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
   }))
 
   return (
-    <aside className="flex h-full w-full max-w-[272px] flex-col border-r border-[#2a3042] bg-[linear-gradient(180deg,#14192a_0%,#171c2e_100%)] text-white shadow-[8px_0_28px_rgba(18,24,42,0.08)]">
-      <div className="border-b border-[#2a3042] px-5 py-[18px]">
-        <Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[188px]" />
+    <aside className="flex h-full w-full max-w-[272px] flex-col bg-[linear-gradient(180deg,#06102d_0%,#091433_62%,#0b1738_100%)] text-white shadow-[12px_0_34px_rgba(8,18,47,0.10)]">
+      <div className="px-5 pb-4 pt-5">
+        <Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[180px]" />
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-5">
+      <nav className="flex-1 overflow-y-auto px-3 py-3">
         {visibleGroups.map((group, groupIndex) => (
-          <div key={group.label} className={groupIndex === 0 ? '' : 'mt-6'}>
-            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.11em] text-[#707b95]">{group.label}</p>
-            <div className="space-y-1.5">
+          <div key={group.label} className={groupIndex === 0 ? '' : 'mt-5'}>
+            <p className="px-3 pb-2 text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#68759b]">{group.label}</p>
+            <div className="space-y-1">
               {group.items.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
-                return <Link key={item.href} href={item.href} className={cn('focus-ring flex items-center gap-3 rounded-[11px] border border-transparent px-3 py-2.5 text-[13px] font-medium text-[#c7cede] transition-all duration-150 hover:translate-x-[2px] hover:bg-[#20263a] hover:text-white', active && 'border-[#6b6ef4]/60 bg-[linear-gradient(135deg,#5058ea_0%,#614ff0_100%)] text-white shadow-[0_8px_20px_rgba(72,76,218,0.34),inset_0_1px_0_rgba(255,255,255,0.14)]')}><span className={cn('text-[#8994ad] transition-colors', active && 'text-white')}><NavIcon name={item.icon} /></span><span>{item.label}</span></Link>
+                return <Link key={item.href} href={item.href} className={cn('focus-ring flex min-h-[42px] items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] font-semibold text-[#c8d0e5] transition-all duration-150 hover:bg-white/7 hover:text-white', active && 'bg-[linear-gradient(135deg,#7547ff_0%,#5b2ae8_100%)] text-white shadow-[0_8px_22px_rgba(92,43,233,0.34)]')}><span className={cn('text-[#8290b5] transition-colors', active && 'text-white')}><NavIcon name={item.icon} /></span><span>{item.label}</span></Link>
               })}
             </div>
           </div>
         ))}
       </nav>
-      <div className="border-t border-[#2a3042] p-4">
+      <div className="p-4">
         {user ? (
-          <div className="rounded-[14px] border border-[#30384f] bg-[#1d2232] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
+          <div className="rounded-[16px] border border-white/8 bg-white/5 p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] backdrop-blur-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#30384f] text-xs font-bold text-white">{initials}</div>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7547ff,#5b2ae8)] text-xs font-bold text-white shadow-[0_5px_14px_rgba(92,43,233,.28)]">{initials}</div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-white">{user.name || user.email}</p>
-                <p className="mt-0.5 truncate text-[10px] font-medium text-[#8e98af]">{roleLabel(user.role)}</p>
+                <p className="mt-0.5 truncate text-[10px] font-medium text-[#8f9abb]">{roleLabel(user.role)}</p>
               </div>
             </div>
-            <Link href="/account/password" className="mt-3 block w-full rounded-[9px] border border-[#343c52] bg-[#22283a] px-3 py-2 text-center text-[11px] font-semibold text-[#cbd1df] transition hover:-translate-y-px hover:bg-[#2b3248] hover:text-white">Wachtwoord wijzigen</Link>
+            <Link href="/account/password" className="mt-3 block w-full rounded-[9px] bg-white/7 px-3 py-2 text-center text-[11px] font-semibold text-[#d3d9ea] transition hover:bg-white/12 hover:text-white">Wachtwoord wijzigen</Link>
             <form action={logoutAction} className="mt-2">
-              <button type="submit" className="w-full rounded-[9px] border border-[#343c52] bg-transparent px-3 py-2 text-[11px] font-semibold text-[#aeb6c8] transition hover:-translate-y-px hover:bg-[#22283a] hover:text-white">Uitloggen</button>
+              <button type="submit" className="w-full rounded-[9px] px-3 py-2 text-[11px] font-semibold text-[#9fa9c6] transition hover:bg-white/7 hover:text-white">Uitloggen</button>
             </form>
           </div>
         ) : null}
