@@ -31,6 +31,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         { articleNumber: { contains: filters.q, mode: 'insensitive' as const } },
         { name: { contains: filters.q, mode: 'insensitive' as const } },
         { ean: { contains: filters.q } },
+        { gtin: { contains: filters.q } },
       ] } : {},
       filters.countryId ? { OR: [
         { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
@@ -120,7 +121,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       <form className="strong-panel p-4">
         <div className="mb-3 flex items-center justify-between"><div><h2 className="text-[14px] font-black text-[#111827]">Filter productonderzoek</h2><p className="mt-1 text-[10px] font-semibold text-[#6f7b91]">Filter eerst op markt, daarna op productgroep of concurrent voor een zuivere vergelijking.</p></div>{(filters.q || filters.productGroupId || filters.countryId || filters.competitorId) ? <Link href="/producten" className="secondary-action min-h-0 px-3 py-2 text-[10px]">Filters wissen</Link> : null}</div>
         <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
-          <input name="q" defaultValue={filters.q} placeholder="Zoek op artikel, EAN of productnaam" className="toolbar-control w-full" />
+          <input name="q" defaultValue={filters.q} placeholder="Zoek op artikel, EAN, GTIN of productnaam" className="toolbar-control w-full" />
           <select name="productgroep" defaultValue={filters.productGroupId} className="toolbar-control w-full"><option value="">Alle productgroepen</option>{filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
           <select name="land" defaultValue={filters.countryId} className="toolbar-control w-full"><option value="">Alle landen</option>{filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
           <select name="concurrent" defaultValue={filters.competitorId} className="toolbar-control w-full"><option value="">Alle concurrenten</option>{filterOptions.competitors.map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}</select>
@@ -130,14 +131,15 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       </form>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">Prijsverschil en marktpositie staan centraal, technische broninformatie blijft beschikbaar maar visueel secundair.</p></div></div>
+        <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">EAN of GTIN uit de feed staat direct naast het artikelnummer, prijsverschil en marktpositie blijven centraal staan.</p></div></div>
         <DataTable
           emptyText="Nog geen producten in deze selectie. Voeg een product toe of koppel een feed."
           columns={[
-            { key: 'artikelnummer', header: 'Artikel' }, { key: 'productnaam', header: 'Product' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste markt' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Databron' },
+            { key: 'artikelnummer', header: 'Artikel' }, { key: 'ean', header: 'EAN / GTIN' }, { key: 'productnaam', header: 'Product' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste markt' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Databron' },
           ]}
           rows={rows.map((item) => ({
             artikelnummer: <Link href={`/producten/${item.product.id}`} className="font-black text-[var(--blue)]">{item.product.articleNumber}</Link>,
+            ean: item.product.ean || item.product.gtin ? <span className="whitespace-nowrap font-mono text-[11px] font-black text-[#27364f]">{item.product.ean ?? item.product.gtin}</span> : <span className="text-[10px] font-bold text-[#9a5b00]">Niet aangeleverd</span>,
             productnaam: <Link href={`/producten/${item.product.id}`} className="font-bold text-[#111827]">{item.product.name}</Link>,
             eigenPrijs: <span className="font-black text-[#111827]">{formatCurrency(item.ownPrice, item.ownCurrency)}</span>,
             laagste: formatCurrency(item.lowestPrice),
