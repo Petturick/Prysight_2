@@ -103,4 +103,49 @@ button:active,a[href]:active,[role="button"]:active,.primary-action:active,.seco
 .status-danger,.status-error { background:#fff0f0!important; color:#c64f52!important; border-color:#f1cfd0!important; }
 .status-info { background:#edf4ff!important; color:#3d73d4!important; border-color:#d6e5fb!important; }
 
+/* Full-tool migration layer: neutralise legacy prototype styling everywhere inside the authenticated workspace. */
+main [class*="border-2"] { border-width:1px!important; }
+main [class*="rounded-[14px]"],main [class*="rounded-[15px]"],main [class*="rounded-[16px]"] { border-radius:10px!important; }
+main [class*="font-black"] { font-weight:700!important; }
+main [class*="shadow-[0_8px"],main [class*="shadow-[0_10px"],main [class*="shadow-[0_12px"],main [class*="shadow-[0_16px"] { box-shadow:var(--shadow-card)!important; }
+main [class*="bg-[#edf1f6]"],main [class*="bg-[#f3f5f9]"],main [class*="bg-[#dfe4ee]"] { background:#f6f8fb!important; }
+main [class*="border-[#94a0b5]"],main [class*="border-[#aeb8c9]"],main [class*="border-[#cbd2df]"] { border-color:#e2e7ee!important; }
+main [class*="text-[#647087]"],main [class*="text-[#64748b]"] { color:#718096!important; }
+main [class*="bg-[#2457d6]"] { background:#4f86e8!important; }
+main [class*="text-[#1b43a6]"] { color:#3d73d4!important; }
+main [class*="bg-[#dfe8ff]"] { background:#edf4ff!important; }
+main [class*="bg-[#d9f0e4]"],main [class*="bg-[#e3f3ea]"] { background:#ecf8f2!important; }
+main [class*="border-[#0d7a49]"] { border-color:#cfeadf!important; }
+main [class*="text-[#065f38]"],main [class*="text-[#0d7a49]"] { color:#21835d!important; }
+main [class*="bg-[#f8e4bd]"] { background:#fff6e4!important; }
+main [class*="border-[#9a5b00]"] { border-color:#f2ddb1!important; }
+main [class*="text-[#7b4700]"] { color:#a96a08!important; }
+main [class*="bg-[#f6d7dd]"] { background:#fff0f0!important; }
+main [class*="border-[#b4233d]"] { border-color:#f1cfd0!important; }
+main [class*="text-[#8e1d32]"],main [class*="text-[#b4233d]"] { color:#c64f52!important; }
+
+/* KPI strips on legacy pages now match the dashboard visual language. */
+main .strong-panel > .grid { background:#fff!important; border-top:1px solid #e6ebf1!important; }
+main .strong-panel > .grid > div { position:relative; background:#fff!important; color:#17233a!important; border-color:#e8edf3!important; padding-top:1rem!important; padding-bottom:1rem!important; }
+main .strong-panel > .grid > div:first-child::before { content:""; position:absolute; inset-block:12px; left:0; width:3px; border-radius:3px; background:#4f86e8; }
+main .strong-panel > .grid > div p:first-child { color:#718096!important; font-size:.68rem!important; font-weight:650!important; letter-spacing:.02em!important; text-transform:none!important; }
+main .strong-panel > .grid > div p:nth-child(2) { color:#17233a!important; font-weight:720!important; }
+
+/* Legacy section headers and details become quiet SaaS surfaces. */
+main .surface-card > [class*="bg-[#111827]"],main details > summary { background:#f8fafc!important; color:#17233a!important; border-color:#e5eaf0!important; }
+main .surface-card > [class*="bg-[#111827]"] h2,main .surface-card > [class*="bg-[#111827]"] p { color:#33445d!important; }
+main details { border:1px solid #e2e7ee!important; border-radius:10px!important; background:#fff!important; box-shadow:var(--shadow-card)!important; }
+main details > summary { border-bottom:1px solid transparent; }
+main details[open] > summary { border-bottom-color:#e7ecf2!important; }
+
+/* Forms, tabs and inline action bars share one density. */
+main label { color:#536278!important; font-weight:600!important; }
+main fieldset { border-color:#e3e8ef!important; }
+main [role="tablist"],main nav[class*="rounded"] { border-color:#e2e7ee!important; }
+main [class*="uppercase"] { letter-spacing:.055em; }
+
+/* Error / empty / informational surfaces use the same restrained visual hierarchy. */
+main [class*="bg-[#fff"] [class*="border"] { border-color:#e2e7ee; }
+main [class*="bg-[#edf1f6]"] { color:#536278!important; }
+
 @media (max-width:768px) { .surface-card,.strong-panel,.prysight-elevated-card { border-radius:9px; } }
