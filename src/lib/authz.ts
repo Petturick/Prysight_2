@@ -106,7 +106,8 @@ export async function requirePermission(permission: Permission) {
   if (user.role !== 'SUPER_ADMIN' && !user.permissions.includes(permission)) throw new Error('Onvoldoende rechten voor deze actie.')
   return user
 }
-export async function requireWritableUser() { return requirePermission('products.write') }
+// Legacy naam, uitsluitend behouden voor de bestaande importpipeline.
+export async function requireWritableUser() { return requirePermission('imports.run') }
 export async function requireAdmin() {
   const user = await requireAuthenticatedUser()
   if (!isAdminRole(user.role) && !user.permissions.includes('settings.manage')) throw new Error('Onvoldoende rechten')
