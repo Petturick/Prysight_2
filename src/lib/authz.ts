@@ -23,8 +23,8 @@ export const PERMISSIONS = [
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
-
 type CustomRoleRow = { id: string | null; name: string | null; permissions: unknown }
+type MembershipRow = { companyId: string; role: string }
 
 const READ_PERMISSIONS: Permission[] = ['products.read', 'competitors.read', 'feeds.read', 'reports.read']
 const ANALYST_PERMISSIONS: Permission[] = [...READ_PERMISSIONS, 'products.write', 'competitors.write', 'feeds.write', 'imports.run', 'alerts.manage', 'pricing.manage']
@@ -42,12 +42,10 @@ function withImpliedPermissions(source: Permission[]) {
   for (const permission of source) for (const implied of IMPLIED_PERMISSIONS[permission] ?? []) resolved.add(implied)
   return [...resolved]
 }
-
 function normalizePermissions(value: unknown): Permission[] {
   if (!Array.isArray(value)) return []
   return withImpliedPermissions(value.filter((item): item is Permission => typeof item === 'string' && (PERMISSIONS as readonly string[]).includes(item)))
 }
-
 function builtInPermissions(membershipRole: string): Permission[] {
   if (membershipRole === 'OWNER' || membershipRole === 'ADMIN') return ADMIN_PERMISSIONS
   if (membershipRole === 'ANALYST') return ANALYST_PERMISSIONS
@@ -59,38 +57,41 @@ const getAuthenticatedUser = cache(async () => {
   if (!session?.user?.id) throw new Error('Niet geauthenticeerd')
 
   const cookieStore = await cookies()
-  const requestedCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value || session.user.companyId || undefined
+  const requestedCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value || undefined
+  const sessionCompanyId = session.user.companyId || undefined
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
       id: true, email: true, name: true, role: true, isSuperAdmin: true,
       memberships: {
-        where: { isActive: true, company: { status: 'ACTIVE' }, ...(requestedCompanyId ? { companyId: requestedCompanyId } : {}) },
-        select: { companyId: true, role: true }, orderBy: { createdAt: 'asc' }, take: 1,
+        where: { isActive: true, company: { status: 'ACTIVE' } },
+        select: { companyId: true, role: true }, orderBy: { createdAt: 'asc' },
       },
     },
   })
+  if (!user || user.id === 'system_pricing') throw new Error('Niet geauthenticeerd')
 
-  let membership = user?.memberships[0]
-  if (user?.isSuperAdmin && requestedCompanyId && !membership) {
+  const memberships = user.memberships as MembershipRow[]
+  let membership = requestedCompanyId ? memberships.find((item) => item.companyId === requestedCompanyId) : undefined
+  if (!membership && sessionCompanyId) membership = memberships.find((item) => item.companyId === sessionCompanyId)
+  if (!membership) membership = memberships[0]
+
+  if (user.isSuperAdmin && requestedCompanyId && !membership) {
     const company = await prisma.company.findFirst({ where: { id: requestedCompanyId, status: 'ACTIVE' }, select: { id: true } })
-    if (company) membership = { companyId: company.id, role: 'OWNER' as const }
+    if (company) membership = { companyId: company.id, role: 'OWNER' }
   }
-  if (!user || user.id === 'system_pricing' || !membership) throw new Error('Niet geauthenticeerd')
+  if (!membership) throw new Error('Niet geauthenticeerd')
 
-  let customRole: CustomRoleRow | null = null
-  try {
-    const rows = await prisma.$queryRaw<CustomRoleRow[]>`
-      SELECT cr.id, cr.name, cr.permissions
-      FROM company_memberships cm
-      LEFT JOIN custom_roles cr ON cr.id = cm.custom_role_id AND cr.is_active = true
-      WHERE cm.user_id = ${user.id} AND cm.company_id = ${membership.companyId} AND cm.is_active = true
-      LIMIT 1
-    `
-    customRole = rows[0] ?? null
-  } catch { customRole = null }
-
+  const rows = await prisma.$queryRaw<CustomRoleRow[]>`
+    SELECT cr.id, cr.name, cr.permissions
+    FROM company_memberships cm
+    LEFT JOIN custom_roles cr ON cr.id = cm.custom_role_id AND cr.is_active = true
+    WHERE cm.user_id = ${user.id} AND cm.company_id = ${membership.companyId} AND cm.is_active = true
+    LIMIT 1
+  `
+  const customRole = rows[0] ?? null
   const permissions = user.isSuperAdmin ? ADMIN_PERMISSIONS : customRole?.id ? normalizePermissions(customRole.permissions) : builtInPermissions(membership.role)
+
   return {
     id: user.id, email: user.email, name: user.name,
     role: user.isSuperAdmin ? 'SUPER_ADMIN' as const : user.role,
