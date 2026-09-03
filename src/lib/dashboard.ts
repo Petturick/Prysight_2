@@ -44,26 +44,33 @@ const competitorInclude = {
 export type CompetitorWithRelations = Prisma.CompetitorGetPayload<{ include: typeof competitorInclude }>
 
 const getCachedFilterOptions = unstable_cache(
-  async () => {
+  async (companyId?: string) => {
     const [countries, productGroups, competitors] = await Promise.all([
-      prisma.country.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
-      prisma.productGroup.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
-      prisma.competitor.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),
+      companyId
+        ? prisma.companyCountry.findMany({
+            where: { companyId, isActive: true, country: { isActive: true } },
+            include: { country: true },
+            orderBy: { country: { name: 'asc' } },
+          }).then((rows) => rows.map((row) => row.country))
+        : prisma.country.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
+      prisma.productGroup.findMany({ where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' } }),
+      prisma.competitor.findMany({ where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),
     ])
 
     return { countries, productGroups, competitors }
   },
-  ['prysight-filter-options'],
+  ['prysight-filter-options-v2'],
   { revalidate: 60 },
 )
 
-export async function getFilterOptions() {
-  return getCachedFilterOptions()
+export async function getFilterOptions(companyId?: string) {
+  return getCachedFilterOptions(companyId)
 }
 
-export async function getFilteredProducts(filters: DashboardFilters = {}) {
+export async function getFilteredProducts(filters: DashboardFilters = {}, companyId?: string) {
   return prisma.product.findMany({
     where: {
+      companyId: companyId || undefined,
       isActive: true,
       productGroupId: filters.productGroupId || undefined,
       AND: [
@@ -79,8 +86,8 @@ export async function getFilteredProducts(filters: DashboardFilters = {}) {
         filters.countryId
           ? {
               OR: [
-                { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
-                { matches: { some: { competitorOffer: { competitor: { countryId: filters.countryId } } } } },
+                { productMarkets: { some: { companyId: companyId || undefined, countryId: filters.countryId, isActive: true } } },
+                { matches: { some: { companyId: companyId || undefined, competitorOffer: { competitor: { companyId: companyId || undefined, countryId: filters.countryId } } } } },
               ],
             }
           : {},
@@ -155,15 +162,14 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
   }
 }
 
-export type DashboardSnapshot = Awaited<ReturnType<typeof getDashboardSnapshot>>
-
-export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
+async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string) {
   const [products, failedChecks, staleOffers, filterOptions] = await Promise.all([
-    getFilteredProducts(filters),
+    getFilteredProducts(filters, companyId),
     prisma.priceCheck.findMany({
       where: {
+        companyId: companyId || undefined,
         isSuccess: false,
-        competitorOffer: filters.countryId ? { competitor: { countryId: filters.countryId } } : undefined,
+        competitorOffer: filters.countryId ? { companyId: companyId || undefined, competitor: { companyId: companyId || undefined, countryId: filters.countryId } } : undefined,
       },
       include: { competitorOffer: { include: { competitor: true, productMatch: { include: { product: true } } } } },
       orderBy: { checkedAt: 'desc' },
@@ -171,15 +177,16 @@ export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
     }),
     prisma.competitorOffer.findMany({
       where: {
+        companyId: companyId || undefined,
         isActive: true,
-        competitor: filters.countryId ? { isActive: true, countryId: filters.countryId } : { isActive: true },
+        competitor: filters.countryId ? { companyId: companyId || undefined, isActive: true, countryId: filters.countryId } : { companyId: companyId || undefined, isActive: true },
         OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lt: new Date(Date.now() - 72 * 60 * 60 * 1000) } }],
       },
       include: { competitor: true, productMatch: { include: { product: true } } },
       orderBy: { lastCheckedAt: 'asc' },
       take: 10,
     }),
-    getFilterOptions(),
+    getFilterOptions(companyId),
   ])
 
   const metrics = products.map((product) => deriveProductMetrics(product, filters))
@@ -192,17 +199,7 @@ export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
         const currentPrice = decimalToNumber(current.normalizedPrice ?? current.price)
         const previousPrice = decimalToNumber(previous.normalizedPrice ?? previous.price)
         if (currentPrice === null || previousPrice === null) return []
-        return [
-          {
-            id: `${product.id}-${match.id}`,
-            productName: product.name,
-            competitor: match.competitorOffer.competitor.name,
-            latestPrice: currentPrice,
-            previousPrice,
-            delta: currentPrice - previousPrice,
-            recordedAt: current.recordedAt,
-          },
-        ]
+        return [{ id: `${product.id}-${match.id}`, productName: product.name, competitor: match.competitorOffer.competitor.name, latestPrice: currentPrice, previousPrice, delta: currentPrice - previousPrice, recordedAt: current.recordedAt }]
       }),
     )
     .sort((a, b) => b.delta - a.delta)
@@ -234,9 +231,22 @@ export async function getDashboardSnapshot(filters: DashboardFilters = {}) {
   }
 }
 
-export async function getCompetitorsOverview() {
+const getCachedDashboardSnapshot = unstable_cache(
+  async (companyId: string, filters: DashboardFilters) => buildDashboardSnapshot(filters, companyId),
+  ['prysight-dashboard-snapshot-v3'],
+  { revalidate: 15 },
+)
+
+export async function getDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string) {
+  if (!companyId) return buildDashboardSnapshot(filters)
+  return getCachedDashboardSnapshot(companyId, filters)
+}
+
+export type DashboardSnapshot = Awaited<ReturnType<typeof getDashboardSnapshot>>
+
+export async function getCompetitorsOverview(companyId?: string) {
   return prisma.competitor.findMany({
-    where: { isActive: true },
+    where: { companyId: companyId || undefined, isActive: true },
     include: competitorInclude,
     orderBy: [{ country: { name: 'asc' } }, { name: 'asc' }],
   })
@@ -253,10 +263,7 @@ export function deriveCompetitorMetrics(competitor: CompetitorWithRelations) {
   const lowerCount = positions.filter((position) => position.position === 'LAAGSTE').length
   const failedChecks = competitor.offers.flatMap((offer) => offer.priceChecks).filter((check) => !check.isSuccess)
   const totalChecks = competitor.offers.flatMap((offer) => offer.priceChecks)
-  const lastChecked = validPrices
-    .map((offer) => offer.lastCheckedAt)
-    .filter((value): value is Date => Boolean(value))
-    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
+  const lastChecked = validPrices.map((offer) => offer.lastCheckedAt).filter((value): value is Date => Boolean(value)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
 
   return {
     linkedProducts: matchedOffers.length,
