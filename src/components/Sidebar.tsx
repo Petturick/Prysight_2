@@ -5,15 +5,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logoutAction } from '@/app/actions/authActions'
 import { cn } from '@/lib/format'
-import { isAdminRole, roleLabel, type AppRole } from '@/lib/roles'
+import { roleLabel, type AppRole } from '@/lib/roles'
 
 type IconName = 'dashboard' | 'products' | 'competitors' | 'matches' | 'alerts' | 'strategy' | 'reports' | 'feeds' | 'import' | 'integrations' | 'settings'
-
-type SidebarUser = {
-  name?: string | null
-  email?: string | null
-  role?: AppRole | null
-}
+type SidebarUser = { name?: string | null; email?: string | null; role?: AppRole | null }
 
 const groups: Array<{ label: string; items: Array<{ href: string; label: string; icon: IconName }> }> = [
   { label: 'Prijsmonitoring', items: [
@@ -32,7 +27,7 @@ const groups: Array<{ label: string; items: Array<{ href: string; label: string;
     { href: '/feeds', label: 'Feeds', icon: 'feeds' },
     { href: '/import', label: 'Import', icon: 'import' },
     { href: '/integraties', label: 'Integraties', icon: 'integrations' },
-    { href: '/beheer', label: 'Beheer', icon: 'settings' },
+    { href: '/instellingen', label: 'Instellingen', icon: 'settings' },
   ] },
 ]
 
@@ -54,46 +49,5 @@ function NavIcon({ name }: { name: IconName }) {
 export function Sidebar({ user }: { user?: SidebarUser | null }) {
   const pathname = usePathname()
   const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
-  const visibleGroups = groups.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => item.href !== '/beheer' || isAdminRole(user?.role)),
-  }))
-
-  return (
-    <aside className="flex h-full w-full max-w-[280px] flex-col border-r-2 border-[#18284f] bg-[linear-gradient(180deg,#07112e_0%,#0a1534_55%,#0b183b_100%)] text-white shadow-[14px_0_34px_rgba(8,18,47,0.16)]">
-      <div className="border-b-2 border-white/10 px-5 pb-5 pt-5">
-        <Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[184px]" />
-      </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {visibleGroups.map((group, groupIndex) => (
-          <div key={group.label} className={groupIndex === 0 ? '' : 'mt-6'}>
-            <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#8b98ba]">{group.label}</p>
-            <div className="space-y-1.5">
-              {group.items.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
-                return <Link key={item.href} href={item.href} className={cn('focus-ring flex min-h-[46px] items-center gap-3 rounded-[10px] border-2 border-transparent px-3 py-2.5 text-[13px] font-bold text-[#d5dbea] transition-all duration-150 hover:border-white/10 hover:bg-white/10 hover:text-white', active && 'border-[#8c6fff] bg-[linear-gradient(135deg,#6637f0_0%,#4c25cf_100%)] text-white shadow-[0_9px_22px_rgba(76,37,207,0.42)]')}><span className={cn('text-[#9aa8cc] transition-colors', active && 'text-white')}><NavIcon name={item.icon} /></span><span>{item.label}</span></Link>
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-      <div className="border-t-2 border-white/10 p-4">
-        {user ? (
-          <div className="rounded-[14px] border-2 border-white/12 bg-white/8 p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.14)] backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-white/20 bg-[linear-gradient(135deg,#6637f0,#4c25cf)] text-xs font-black text-white shadow-[0_5px_14px_rgba(76,37,207,.34)]">{initials}</div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-white">{user.name || user.email}</p>
-                <p className="mt-0.5 truncate text-[10px] font-bold text-[#a8b3cf]">{roleLabel(user.role)}</p>
-              </div>
-            </div>
-            <Link href="/account/password" className="mt-3 block w-full rounded-[9px] border-2 border-white/10 bg-white/10 px-3 py-2.5 text-center text-[11px] font-bold text-[#e2e6f1] transition hover:border-white/20 hover:bg-white/16 hover:text-white">Wachtwoord wijzigen</Link>
-            <form action={logoutAction} className="mt-2">
-              <button type="submit" className="w-full rounded-[9px] border-2 border-transparent px-3 py-2.5 text-[11px] font-bold text-[#b5bfd7] transition hover:border-white/10 hover:bg-white/10 hover:text-white">Uitloggen</button>
-            </form>
-          </div>
-        ) : null}
-      </div>
-    </aside>
-  )
+  return <aside className="flex h-full w-full max-w-[280px] flex-col border-r-2 border-[#18284f] bg-[linear-gradient(180deg,#07112e_0%,#0a1534_55%,#0b183b_100%)] text-white shadow-[14px_0_34px_rgba(8,18,47,0.16)]"><div className="border-b-2 border-white/10 px-5 pb-5 pt-5"><Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[184px]" /></div><nav className="flex-1 overflow-y-auto px-3 py-4">{groups.map((group, groupIndex) => <div key={group.label} className={groupIndex === 0 ? '' : 'mt-6'}><p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#8b98ba]">{group.label}</p><div className="space-y-1.5">{group.items.map((item) => { const active = pathname === item.href || pathname.startsWith(`${item.href}/`); return <Link key={item.href} href={item.href} prefetch className={cn('focus-ring flex min-h-[46px] items-center gap-3 rounded-[10px] border-2 border-transparent px-3 py-2.5 text-[13px] font-bold text-[#d5dbea] transition-all duration-150 hover:border-white/10 hover:bg-white/10 hover:text-white', active && 'border-[#8c6fff] bg-[linear-gradient(135deg,#6637f0_0%,#4c25cf_100%)] text-white shadow-[0_9px_22px_rgba(76,37,207,0.42)]')}><span className={cn('text-[#9aa8cc] transition-colors', active && 'text-white')}><NavIcon name={item.icon} /></span><span>{item.label}</span></Link>})}</div></div>)}</nav><div className="border-t-2 border-white/10 p-4">{user ? <div className="rounded-[14px] border-2 border-white/12 bg-white/8 p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.14)] backdrop-blur-sm"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-white/20 bg-[linear-gradient(135deg,#6637f0,#4c25cf)] text-xs font-black text-white">{initials}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{user.name || user.email}</p><p className="mt-0.5 truncate text-[10px] font-bold text-[#a8b3cf]">{roleLabel(user.role)}</p></div></div><Link href="/instellingen/profiel" className="mt-3 block w-full rounded-[9px] border-2 border-white/10 bg-white/10 px-3 py-2.5 text-center text-[11px] font-bold text-[#e2e6f1] transition hover:border-white/20 hover:bg-white/16 hover:text-white">Mijn profiel</Link><form action={logoutAction} className="mt-2"><button type="submit" className="w-full rounded-[9px] border-2 border-transparent px-3 py-2.5 text-[11px] font-bold text-[#b5bfd7] transition hover:border-white/10 hover:bg-white/10 hover:text-white">Uitloggen</button></form></div> : null}</div></aside>
 }
