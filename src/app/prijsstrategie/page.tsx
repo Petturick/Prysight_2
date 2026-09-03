@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { DataTable } from '@/components/DataTable'
+import { requirePermission } from '@/lib/authz'
+import { profileStep } from '@/lib/performance-profile'
 import { getPricingRecommendations, type PricingStrategy } from '@/lib/pricing-engine'
 
 const labels: Record<PricingStrategy, string> = {
@@ -16,6 +18,7 @@ function numberValue(value: string | undefined, fallback: number) { const parsed
 function money(value: number | null) { return value === null ? '—' : new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value) }
 
 export default async function PricingStrategyPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const actor = await requirePermission('pricing.manage')
   const params = await searchParams
   const requestedStrategy = read(params.strategy) as PricingStrategy | undefined
   const strategy: PricingStrategy = requestedStrategy && requestedStrategy in labels ? requestedStrategy : 'MARKET_MEDIAN'
@@ -23,7 +26,7 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
   const maxChangePct = Math.max(0, numberValue(read(params.maxChangePct), 5))
   const minimumSignalPct = Math.max(0, numberValue(read(params.minimumSignalPct), 1))
   const onlyInStock = read(params.onlyInStock) !== 'false'
-  const { recommendations } = await getPricingRecommendations({ strategy, adjustmentPct, maxChangePct, minimumSignalPct, onlyInStock })
+  const { recommendations } = await profileStep('/prijsstrategie', 'recommendations', () => getPricingRecommendations(actor.companyId, { strategy, adjustmentPct, maxChangePct, minimumSignalPct, onlyInStock }), { companyId: actor.companyId }, 450)
   const actionable = recommendations.filter((item) => item.action === 'LOWER' || item.action === 'RAISE')
   const raises = recommendations.filter((item) => item.action === 'RAISE').length
   const lowers = recommendations.filter((item) => item.action === 'LOWER').length
