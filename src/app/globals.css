@@ -111,9 +111,10 @@ main [class*="shadow-[0_8px"],main [class*="shadow-[0_10px"],main [class*="shado
 main [class*="bg-[#edf1f6]"],main [class*="bg-[#f3f5f9]"],main [class*="bg-[#dfe4ee]"] { background:#f6f8fb!important; }
 main [class*="border-[#94a0b5]"],main [class*="border-[#aeb8c9]"],main [class*="border-[#cbd2df]"] { border-color:#e2e7ee!important; }
 main [class*="text-[#647087]"],main [class*="text-[#64748b]"] { color:#718096!important; }
-main [class*="bg-[#2457d6]"] { background:#4f86e8!important; }
-main [class*="text-[#1b43a6]"] { color:#3d73d4!important; }
-main [class*="bg-[#dfe8ff]"] { background:#edf4ff!important; }
+main [class*="bg-[#2457d6]"],main [class*="bg-[#5b2be8]"] { background:#4f86e8!important; }
+main [class*="text-[#1b43a6]"],main [class*="text-[#4320b8]"] { color:#3d73d4!important; }
+main [class*="bg-[#dfe8ff]"],main [class*="bg-[#e4dcff]"],main [class*="bg-[#f0edff]"] { background:#edf4ff!important; }
+main [class*="border-[#5b2be8]"] { border-color:#d6e5fb!important; }
 main [class*="bg-[#d9f0e4]"],main [class*="bg-[#e3f3ea]"] { background:#ecf8f2!important; }
 main [class*="border-[#0d7a49]"] { border-color:#cfeadf!important; }
 main [class*="text-[#065f38]"],main [class*="text-[#0d7a49]"] { color:#21835d!important; }
@@ -143,9 +144,6 @@ main label { color:#536278!important; font-weight:600!important; }
 main fieldset { border-color:#e3e8ef!important; }
 main [role="tablist"],main nav[class*="rounded"] { border-color:#e2e7ee!important; }
 main [class*="uppercase"] { letter-spacing:.055em; }
-
-/* Error / empty / informational surfaces use the same restrained visual hierarchy. */
-main [class*="bg-[#fff"] [class*="border"] { border-color:#e2e7ee; }
 main [class*="bg-[#edf1f6]"] { color:#536278!important; }
 
 @media (max-width:768px) { .surface-card,.strong-panel,.prysight-elevated-card { border-radius:9px; } }
