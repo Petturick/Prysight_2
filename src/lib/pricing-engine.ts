@@ -20,10 +20,19 @@ function strategyTarget(strategy: PricingStrategy, prices: number[], adjustmentP
 }
 function clampChange(current: number, target: number, maxChangePct: number) { const maxDelta = current * (Math.max(maxChangePct, 0) / 100); return Math.max(current - maxDelta, Math.min(current + maxDelta, target)) }
 
-export async function getPricingRecommendations(configOverrides: Partial<PricingEngineConfig> = {}, limit = 200): Promise<{ config: PricingEngineConfig; recommendations: PricingRecommendation[] }> {
+export async function getPricingRecommendations(companyId: string, configOverrides: Partial<PricingEngineConfig> = {}, limit = 200): Promise<{ config: PricingEngineConfig; recommendations: PricingRecommendation[] }> {
   const config: PricingEngineConfig = { ...defaultConfig, ...configOverrides }
-  const products = await prisma.product.findMany({ where: { isActive: true }, include: { matches: { where: { matchStatus: MatchStatus.CERTAIN }, include: { competitorOffer: { include: { competitor: true } } } } }, orderBy: { name: 'asc' }, take: Math.min(Math.max(limit, 1), 500) })
-
+  const products = await prisma.product.findMany({
+    where: { companyId, isActive: true },
+    select: {
+      id: true, articleNumber: true, name: true, ownPrice: true,
+      matches: {
+        where: { companyId, matchStatus: MatchStatus.CERTAIN },
+        select: { competitorOffer: { select: { isActive: true, normalizedPrice: true, stockStatus: true } } },
+      },
+    },
+    orderBy: { name: 'asc' }, take: Math.min(Math.max(limit, 1), 500),
+  })
   const recommendations = products.map<PricingRecommendation>((product) => {
     const ownPrice = numeric(product.ownPrice)
     const offers = product.matches.map((match) => match.competitorOffer).filter((offer) => offer.isActive && offer.normalizedPrice !== null).filter((offer) => !config.onlyInStock || isStockRelevant(offer.stockStatus))
@@ -32,9 +41,7 @@ export async function getPricingRecommendations(configOverrides: Partial<Pricing
     const marketSecondLowest = prices[1] ?? marketLowest
     const marketMedian = median(prices)
     const marketAverage = prices.length > 0 ? prices.reduce((sum, price) => sum + price, 0) / prices.length : null
-
     if (!ownPrice || prices.length === 0) return { productId: product.id, articleNumber: product.articleNumber, productName: product.name, ownPrice, marketLowest, marketSecondLowest, marketMedian, marketAverage, competitorCount: prices.length, recommendedPrice: null, changePct: null, action: 'NO_DATA', marketPosition: null, reason: ownPrice ? 'Nog geen bruikbare, goedgekeurde concurrentieprijs beschikbaar.' : 'Eigen verkoopprijs ontbreekt.', guardrailNotes: ['Kostprijs en minimum marge zijn nog niet als productveld beschikbaar.'] }
-
     const rawTarget = strategyTarget(config.strategy, prices, config.adjustmentPct) ?? ownPrice
     const roundedTarget = Math.round(clampChange(ownPrice, rawTarget, config.maxChangePct) * 100) / 100
     const changePct = ((roundedTarget - ownPrice) / ownPrice) * 100
