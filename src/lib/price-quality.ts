@@ -66,7 +66,9 @@ export function assessPriceQuality(input: PriceQualityInput): PriceQualityResult
 
   const skuComparable = Boolean(articleNumber && extractedSku)
   const skuMatch = skuComparable && articleNumber === extractedSku
-  if (skuComparable && !skuMatch) reasons.push('SKU of artikelnummer komt niet exact overeen.')
+  if (skuComparable && !skuMatch) {
+    return { accepted: false, confidence: 'REJECTED', reasons: ['SKU of artikelnummer van de concurrentpagina wijkt af van het gekoppelde product.'] }
+  }
 
   const similarity = titleSimilarity(input.productName, input.extractedTitle)
   const plausible = isPlausibleMarketPrice(input.ownPrice, input.normalizedPrice)
@@ -74,11 +76,11 @@ export function assessPriceQuality(input: PriceQualityInput): PriceQualityResult
 
   if (eanMatch) {
     if (!plausible) return { accepted: false, confidence: 'REJECTED', reasons }
-    return { accepted: true, confidence: 'HIGH', reasons: reasons.length ? reasons : ['EAN of GTIN komt exact overeen.'] }
+    return { accepted: true, confidence: 'HIGH', reasons: ['EAN of GTIN komt exact overeen.'] }
   }
 
   if (skuMatch && plausible && input.method !== 'HTML_REGEX') {
-    return { accepted: true, confidence: 'HIGH', reasons: reasons.length ? reasons : ['Artikelnummer of SKU komt exact overeen.'] }
+    return { accepted: true, confidence: 'HIGH', reasons: ['Artikelnummer of SKU komt exact overeen.'] }
   }
 
   if (input.method === 'JSON_LD' || input.method === 'META') {
@@ -92,7 +94,7 @@ export function assessPriceQuality(input: PriceQualityInput): PriceQualityResult
   if (input.method === 'HTML_REGEX') {
     if (!plausible) return { accepted: false, confidence: 'REJECTED', reasons }
     if (similarity !== null && similarity >= 0.75) {
-      return { accepted: false, confidence: 'LOW', reasons: ['Los HTML bedrag gevonden, handmatige of aanvullende validatie vereist voordat dit als marktprijs mag meetellen.'] }
+      return { accepted: false, confidence: 'LOW', reasons: ['Los HTML bedrag gevonden, aanvullende validatie vereist voordat dit als marktprijs mag meetellen.'] }
     }
     return { accepted: false, confidence: 'REJECTED', reasons: ['Los bedrag uit HTML is onvoldoende betrouwbaar als productprijs.'] }
   }
