@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { requireWritableUser } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { assertCompanyCapacity } from '@/lib/company-license'
+import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
@@ -76,10 +77,21 @@ export async function createProductAction(formData: FormData) {
   const product = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId: user.companyId, articleNumber } } })
   if (!product) throw new Error('Product is verwerkt, maar kon niet opnieuw worden geladen.')
 
+  let suggestionCount = 0
+  if (product.ean && country) {
+    try {
+      const discovery = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId: product.id, countryId: country.id })
+      suggestionCount = discovery.created
+    } catch (error) {
+      console.error('Automatic EAN competitor discovery failed', error)
+    }
+  }
+
   revalidatePath('/dashboard')
   revalidatePath('/producten')
   revalidatePath('/feeds')
-  redirect(`/producten/${product.id}?toegevoegd=1`)
+  revalidatePath('/productmatches')
+  redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestionCount}`)
 }
 
 export async function createCompetitorAction(formData: FormData) {
@@ -185,6 +197,22 @@ export async function addCompetitorOfferAction(formData: FormData) {
   revalidatePath(`/producten/${product.id}`)
   revalidatePath('/concurrenten')
   redirect(`/producten/${product.id}?bron=toegevoegd`)
+}
+
+export async function discoverCompetitorUrlsAction(formData: FormData) {
+  const user = await requireWritableUser()
+  const productId = text(formData, 'productId')
+  const countryId = text(formData, 'countryId')
+  if (!productId || !countryId) throw new Error('Product en land zijn verplicht voor EAN onderzoek.')
+  await requireLicensedCountry(user.companyId, countryId)
+
+  const result = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId, countryId })
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/productmatches')
+  revalidatePath('/concurrenten')
+  redirect(`/producten/${productId}?suggesties=${result.created}&gevonden=${result.found}`)
 }
 
 export async function updateCompetitorFrequencyAction(formData: FormData) {
