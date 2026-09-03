@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
+import { requirePermission } from '@/lib/authz'
 import { deriveProductMetrics, getFilterOptions } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
@@ -13,7 +15,10 @@ function readParam(value: string | string[] | undefined) {
 }
 
 export default async function ProductenPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const actor = await requirePermission('products.read')
   const params = await searchParams
+  const deletedCount = Math.max(Number(readParam(params.verwijderd) ?? '0') || 0, 0)
+  const selectionState = readParam(params.selectie)
   const filters = {
     q: readParam(params.q),
     productGroupId: readParam(params.productgroep),
@@ -25,6 +30,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const pageSize = 12
 
   const where = {
+    companyId: actor.companyId,
     isActive: true,
     productGroupId: filters.productGroupId || undefined,
     AND: [
@@ -35,8 +41,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         { gtin: { contains: filters.q } },
       ] } : {},
       filters.countryId ? { OR: [
-        { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
-        { matches: { some: { competitorOffer: { competitor: { countryId: filters.countryId } } } } },
+        { productMarkets: { some: { companyId: actor.companyId, countryId: filters.countryId, isActive: true } } },
+        { matches: { some: { companyId: actor.companyId, competitorOffer: { competitor: { companyId: actor.companyId, countryId: filters.countryId } } } } },
       ] } : {},
       filters.identifierStatus === 'ontbreekt'
         ? { AND: [{ ean: null }, { gtin: null }] }
@@ -52,12 +58,12 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         where,
         include: {
           productGroup: true,
-          productMarkets: { include: { country: true } },
-          ownPriceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
-          matches: { include: { competitorOffer: { include: {
+          productMarkets: { where: { companyId: actor.companyId }, include: { country: true } },
+          ownPriceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 1 },
+          matches: { where: { companyId: actor.companyId }, include: { competitorOffer: { include: {
             competitor: { include: { country: true } },
-            priceHistory: { orderBy: { recordedAt: 'desc' }, take: 2 },
-            priceChecks: { orderBy: { checkedAt: 'desc' }, take: 2 },
+            priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
+            priceChecks: { where: { companyId: actor.companyId }, orderBy: { checkedAt: 'desc' }, take: 2 },
           } } } },
         },
         orderBy: [{ productGroup: { name: 'asc' } }, { articleNumber: 'asc' }],
@@ -65,7 +71,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         take: pageSize,
       }),
       prisma.product.count({ where }),
-      getFilterOptions(),
+      getFilterOptions(actor.companyId),
     ])
     return { products, totalCount, filterOptions }
   }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } })
@@ -75,7 +81,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1)
 
   const sourceResult = await safeDatabaseQuery(() => prisma.productFeedLink.findMany({
-    where: { productId: { in: rows.map((item) => item.product.id) } },
+    where: { companyId: actor.companyId, productId: { in: rows.map((item) => item.product.id) } },
     include: { feedSource: true },
     orderBy: { lastSeenAt: 'desc' },
   }), [])
@@ -99,6 +105,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-5">
       {!result.available && <DatabaseNotice />}
+      {deletedCount > 0 ? <div className="rounded-[10px] border border-[#b9dfcd] bg-[#eef9f3] px-4 py-3 text-[11px] font-semibold text-[#126a49]">{formatNumber(deletedCount)} product{deletedCount === 1 ? '' : 'en'} verwijderd.</div> : null}
+      {selectionState === 'leeg' ? <div className="rounded-[10px] border border-[#eed9b7] bg-[#fff8eb] px-4 py-3 text-[11px] font-semibold text-[#86520f]">Selecteer eerst één of meerdere producten.</div> : null}
 
       <section className="strong-panel overflow-hidden">
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
@@ -142,14 +150,18 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         <p className="mt-3 text-[10px] font-semibold text-[#6f7b91]">{selectedCountry ? `Actief voor ${selectedCountry.name}, eigen marktprijzen en concurrenten zijn op dit land gefilterd.` : 'Alle markten gecombineerd, kies een land voor lokale prijsvergelijking.'}</p>
       </form>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">EAN of GTIN uit de feed staat direct naast het artikelnummer, ontbrekende identificatie wordt expliciet gemarkeerd.</p></div></div>
+      <form action={deleteSelectedProductsAction} className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-1">
+          <div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">Selecteer meerdere producten met de selectievakjes en verwijder ze in één actie.</p></div>
+          <button type="submit" className="inline-flex min-h-[38px] items-center justify-center rounded-[8px] border border-[#d9a7ae] bg-[#fff4f5] px-4 text-[10px] font-black text-[#96313b] transition hover:bg-[#fcebed]">Verwijder geselecteerd</button>
+        </div>
         <DataTable
           emptyText="Nog geen producten in deze selectie. Voeg een product toe of koppel een feed."
           columns={[
-            { key: 'artikelnummer', header: 'Artikel' }, { key: 'ean', header: 'EAN / GTIN' }, { key: 'productnaam', header: 'Product' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste markt' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Databron' },
+            { key: 'selectie', header: 'Selecteer' }, { key: 'artikelnummer', header: 'Artikel' }, { key: 'ean', header: 'EAN / GTIN' }, { key: 'productnaam', header: 'Product' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste markt' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Databron' },
           ]}
           rows={rows.map((item) => ({
+            selectie: <input type="checkbox" name="productIds" value={item.product.id} aria-label={`Selecteer ${item.product.name}`} className="h-4 w-4 cursor-pointer rounded border-[#cbd5e1] accent-[#1769aa]" />,
             artikelnummer: <Link href={`/producten/${item.product.id}`} className="font-black text-[var(--blue)]">{item.product.articleNumber}</Link>,
             ean: item.product.ean || item.product.gtin ? <span className="whitespace-nowrap font-mono text-[11px] font-black text-[#27364f]">{item.product.ean ?? item.product.gtin}</span> : <Link href={`/producten/${item.product.id}`} className="inline-flex rounded-[7px] bg-[#f8e4bd] px-2.5 py-1 text-[9px] font-black text-[#7a4700]">EAN ontbreekt</Link>,
             productnaam: <Link href={`/producten/${item.product.id}`} className="font-bold text-[#111827]">{item.product.name}</Link>,
@@ -163,7 +175,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
             bron: sourceByProduct.get(item.product.id)?.join(', ') ?? 'Handmatig',
           }))}
         />
-      </section>
+      </form>
 
       <div className="flex items-center justify-between rounded-[14px] border-2 border-[var(--border)] bg-white px-4 py-3 text-[11px] font-bold text-[#4b5870]">
         <p>Pagina {page} van {totalPages}</p>
