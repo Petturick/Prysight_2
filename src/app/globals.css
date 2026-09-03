@@ -146,4 +146,72 @@ main [role="tablist"],main nav[class*="rounded"] { border-color:#e2e7ee!importan
 main [class*="uppercase"] { letter-spacing:.055em; }
 main [class*="bg-[#edf1f6]"] { color:#536278!important; }
 
-@media (max-width:768px) { .surface-card,.strong-panel,.prysight-elevated-card { border-radius:9px; } }
+/* Complete visual refresh: every page follows the dashboard shell and density. */
+main > div[class*="space-y"] { max-width:1530px; margin-inline:auto; }
+main section.strong-panel:first-of-type { border-color:#e3e8ef!important; box-shadow:0 2px 8px rgba(31,49,77,.035)!important; }
+main section.strong-panel:first-of-type > div:first-child { padding-top:1.35rem!important; padding-bottom:1.35rem!important; }
+main section.strong-panel:first-of-type h1 { font-size:1.85rem!important; }
+main section.strong-panel:first-of-type p:not(.eyebrow) { color:#718096!important; }
+
+/* Cards, widgets, settings panels and form blocks all become one family. */
+main [class*="rounded-[12px]"][class*="border"],
+main [class*="rounded-[13px]"][class*="border"],
+main [class*="rounded-[14px]"][class*="border"],
+main [class*="rounded-[15px]"][class*="border"],
+main [class*="rounded-[16px]"][class*="border"] {
+  border-color:#e2e7ee!important;
+  border-width:1px!important;
+  border-radius:10px!important;
+  box-shadow:0 2px 8px rgba(31,49,77,.035)!important;
+}
+main [class*="bg-white"][class*="border"] { border-color:#e2e7ee!important; }
+main [class*="shadow-["] { box-shadow:0 2px 8px rgba(31,49,77,.04)!important; }
+main [class*="hover:-translate-y"]:hover { transform:translateY(-1px)!important; }
+
+/* Remove remaining purple/indigo prototype accents globally in authenticated pages. */
+main [class*="#5b2be8"], main [class*="#4320b8"], main [class*="#6d4aff"], main [class*="#7c3aed"] { color:#3d73d4!important; border-color:#d6e5fb!important; }
+main [class*="bg-[#5b2be8]"], main [class*="bg-[#6d4aff]"], main [class*="bg-[#7c3aed]"] { background:#4f86e8!important; color:#fff!important; }
+main [class*="from-[#5b2be8]"], main [class*="via-[#5b2be8]"], main [class*="to-[#2457d6]"] { --tw-gradient-from:#4f86e8!important; --tw-gradient-to:#3d73d4!important; }
+
+/* Tables across products, competitors, monitoring, feeds and admin. */
+main table { width:100%; border-radius:9px!important; }
+main table thead tr { background:#f6f8fb!important; }
+main table th { padding-top:.7rem!important; padding-bottom:.7rem!important; color:#5d6c80!important; font-size:.68rem!important; font-weight:650!important; }
+main table td { padding-top:.78rem!important; padding-bottom:.78rem!important; border-color:#edf0f4!important; }
+main table tbody tr:hover { background:#f8fbff!important; }
+main table a { color:#3977db; font-weight:600; }
+
+/* Filters and search controls read as one horizontal toolbar family. */
+main form[class*="grid"], main form[class*="flex"] { align-items:end; }
+main input, main select, main textarea { background:#fff!important; border-color:#dce3eb!important; border-radius:7px!important; color:#33445d!important; }
+main input::placeholder, main textarea::placeholder { color:#97a3b4!important; }
+main input:disabled, main select:disabled, main textarea:disabled { background:#f5f7fa!important; color:#98a4b4!important; }
+
+/* Buttons and action links: blue primary, white secondary, no noisy gradients. */
+main button[class*="bg-[#111827]"], main a[class*="bg-[#111827]"] { background:#4f86e8!important; border-color:#4f86e8!important; color:#fff!important; }
+main button[class*="border-2"], main a[class*="border-2"] { border-width:1px!important; }
+main button[class*="rounded-[10px]"], main a[class*="rounded-[10px]"] { border-radius:7px!important; }
+
+/* Success, warning, error and info banners across every route. */
+main [class*="bg-[#d9f0e4]"],main [class*="bg-[#e3f3ea]"],main [class*="bg-[#e8f6f0]"] { background:#ecf8f2!important; }
+main [class*="bg-[#f8e4bd]"],main [class*="bg-[#fff4df]"] { background:#fff6e4!important; }
+main [class*="bg-[#f6d7dd]"],main [class*="bg-[#fcebed]"] { background:#fff0f0!important; }
+main [class*="bg-[#dfe8ff]"],main [class*="bg-[#e8f2fa]"] { background:#edf4ff!important; }
+
+/* Admin, settings and account cards. */
+main [class*="max-w-"][class*="mx-auto"] > [class*="border"],
+main [class*="grid"] > [class*="border"][class*="bg-white"] { border-color:#e2e7ee!important; border-radius:10px!important; box-shadow:0 2px 8px rgba(31,49,77,.035)!important; }
+main [class*="divide-y"] > * { border-color:#edf0f4!important; }
+
+/* Empty states and errors should look intentional rather than technical. */
+main [class*="text-center"][class*="py-16"],main [class*="text-center"][class*="py-12"] { color:#8491a2!important; }
+main code, main pre { border-radius:8px; border:1px solid #e1e7ee; background:#f7f9fc; color:#33445d; }
+
+/* Auth and standalone states get the same product DNA. */
+body > main:not(:has(aside)) { background:linear-gradient(180deg,#f7f9fc 0%,#f2f6fb 100%); }
+body > main:not(:has(aside)) [class*="rounded"][class*="border"] { border-color:#e2e7ee!important; box-shadow:0 16px 42px rgba(31,49,77,.08)!important; }
+
+@media (max-width:768px) {
+  .surface-card,.strong-panel,.prysight-elevated-card { border-radius:9px; }
+  main section.strong-panel:first-of-type h1 { font-size:1.55rem!important; }
+}
