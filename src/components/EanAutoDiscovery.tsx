@@ -28,10 +28,7 @@ export function EanAutoDiscovery() {
   }, [pathname])
 
   useEffect(() => {
-    if (!productId) {
-      setState('idle')
-      return
-    }
+    if (!productId) return
 
     const storageKey = `prysight:ean-discovery:${productId}`
     const lastRun = Number(window.localStorage.getItem(storageKey) ?? '0')
@@ -77,7 +74,7 @@ export function EanAutoDiscovery() {
     return () => { cancelled = true }
   }, [productId, router])
 
-  if (state === 'idle') return null
+  if (!productId || state === 'idle') return null
 
   const tone = state === 'found'
     ? 'border-[#0d7a49] bg-[#d9f0e4] text-[#075d38]'
