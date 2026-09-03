@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
+import { BulkProductDelete } from '@/components/BulkProductDelete'
 import { deriveProductMetrics, getFilterOptions } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
@@ -144,6 +145,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">EAN of GTIN uit de feed staat direct naast het artikelnummer, ontbrekende identificatie wordt expliciet gemarkeerd.</p></div></div>
+        <BulkProductDelete productIds={rows.map((item) => item.product.id)} />
         <DataTable
           emptyText="Nog geen producten in deze selectie. Voeg een product toe of koppel een feed."
           columns={[
