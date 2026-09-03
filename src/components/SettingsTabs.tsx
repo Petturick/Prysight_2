@@ -25,8 +25,8 @@ export function SettingsTabs({ role, permissions = [] }: { role?: AppRole | null
     if (tab.permission && !isSuperAdmin && !permissions.includes(tab.permission)) return false
     return true
   })
-  return <div className="overflow-x-auto rounded-[14px] border-2 border-[var(--border)] bg-white p-2 shadow-sm"><div className="flex min-w-max items-center gap-1">{visible.map((tab) => {
+  return <div className="overflow-x-auto rounded-[10px] border border-[#e2e7ee] bg-white p-1.5 shadow-[0_2px_8px_rgba(31,49,77,.03)]"><div className="flex min-w-max items-center gap-1">{visible.map((tab) => {
     const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
-    return <Link key={tab.href} href={tab.href} prefetch className={cn('rounded-[9px] px-3 py-2 text-[12px] font-bold text-[#667085] transition hover:bg-[#f3f5f9] hover:text-[#344054]', active && 'bg-[var(--blue-soft)] text-[var(--blue)]')}>{tab.label}</Link>
+    return <Link key={tab.href} href={tab.href} prefetch className={cn('rounded-[7px] px-3 py-2 text-[10px] font-semibold text-[#6b788b] transition hover:bg-[#f7f9fc] hover:text-[#33445d]', active && 'bg-[#edf4ff] text-[#3d73d4]')}>{tab.label}</Link>
   })}</div></div>
 }

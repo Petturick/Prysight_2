@@ -14,12 +14,12 @@ const tabs = [
 export function FeedTabs() {
   const pathname = usePathname()
   return (
-    <div className="overflow-x-auto border-b border-[var(--border)] bg-white px-4 sm:px-5">
-      <div className="flex min-w-max items-center gap-1 py-2">
-        <span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9aa3b5]">Feeds</span>
+    <div className="overflow-x-auto border-b border-[#e7ebf1] bg-white px-4 sm:px-5">
+      <div className="flex min-w-max items-center gap-1 py-2.5">
+        <span className="mr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#94a0b1]">Feeds</span>
         {tabs.map((tab) => {
           const active = pathname === tab.href
-          return <Link key={tab.href} href={tab.href} className={`rounded-lg px-3 py-2 text-[11px] font-medium transition-colors ${active ? 'bg-[var(--blue-soft)] text-[var(--blue)]' : 'text-[#596174] hover:bg-[#f7f8fb] hover:text-[#202536]'}`}>{tab.label}</Link>
+          return <Link key={tab.href} href={tab.href} className={`rounded-[7px] px-3 py-2 text-[10px] font-semibold transition-colors ${active ? 'bg-[#edf4ff] text-[#3d73d4]' : 'text-[#66758a] hover:bg-[#f7f9fc] hover:text-[#24344d]'}`}>{tab.label}</Link>
         })}
       </div>
     </div>
