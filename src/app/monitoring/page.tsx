@@ -7,25 +7,25 @@ import { formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
-function StatusCard({ label, value, helper, tone = 'neutral' }: { label: string; value: number; helper: string; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
+function Signal({ label, value, helper, tone = 'neutral' }: { label: string; value: number; helper: string; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
   const toneClass = tone === 'good'
-    ? 'bg-[var(--green-soft)] text-[var(--green)]'
+    ? 'border-[#0d7a49] bg-[#e3f3ea] text-[#065f38]'
     : tone === 'warn'
-      ? 'bg-[var(--amber-soft)] text-[var(--amber)]'
+      ? 'border-[#9a5b00] bg-[#f8e4bd] text-[#7b4700]'
       : tone === 'bad'
-        ? 'bg-rose-50 text-rose-700'
-        : 'bg-[#f1f3f6] text-[#5f6878]'
+        ? 'border-[#b4233d] bg-[#f6d7dd] text-[#8e1d32]'
+        : 'border-[#94a0b5] bg-[#edf1f6] text-[#334155]'
 
   return (
-    <div className="strong-panel p-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className={`rounded-[14px] border-2 p-4 ${toneClass}`}>
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="eyebrow">{label}</p>
-          <p className="mt-2 text-[25px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(value)}</p>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">{helper}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.08em]">{label}</p>
+          <p className="mt-2 text-[30px] font-black tracking-[-0.04em] text-[#111827]">{formatNumber(value)}</p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.06em] ${toneClass}`}>{tone === 'good' ? 'goed' : tone === 'warn' ? 'actie' : tone === 'bad' ? 'probleem' : 'status'}</span>
+        <span className="rounded-[8px] bg-white/70 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.06em]">{tone === 'good' ? 'goed' : tone === 'warn' ? 'actie' : tone === 'bad' ? 'probleem' : 'status'}</span>
       </div>
+      <p className="mt-2 text-[11px] font-semibold leading-5 text-[#4b5870]">{helper}</p>
     </div>
   )
 }
@@ -39,18 +39,7 @@ export default async function MonitoringPage() {
   last24Hours.setDate(last24Hours.getDate() - 1)
 
   const result = await safeDatabaseQuery(async () => {
-    const [
-      products,
-      marketLinks,
-      productsWithoutCompetitor,
-      competitorUrls,
-      certainMatches,
-      reviewMatches,
-      checksToday,
-      failedChecks24h,
-      unreadAlerts,
-      latestCheck,
-    ] = await Promise.all([
+    const [products, marketLinks, productsWithoutCompetitor, competitorUrls, certainMatches, reviewMatches, checksToday, failedChecks24h, unreadAlerts, latestCheck] = await Promise.all([
       prisma.product.count({ where: { companyId, isActive: true } }),
       prisma.productMarket.count({ where: { companyId, isActive: true } }),
       prisma.product.count({ where: { companyId, isActive: true, matches: { none: {} } } }),
@@ -62,23 +51,15 @@ export default async function MonitoringPage() {
       prisma.alert.count({ where: { companyId, isRead: false } }),
       prisma.priceCheck.findFirst({ where: { companyId }, orderBy: { checkedAt: 'desc' }, select: { checkedAt: true, isSuccess: true } }),
     ])
-
     return { products, marketLinks, productsWithoutCompetitor, competitorUrls, certainMatches, reviewMatches, checksToday, failedChecks24h, unreadAlerts, latestCheck }
   }, {
-    products: 0,
-    marketLinks: 0,
-    productsWithoutCompetitor: 0,
-    competitorUrls: 0,
-    certainMatches: 0,
-    reviewMatches: 0,
-    checksToday: 0,
-    failedChecks24h: 0,
-    unreadAlerts: 0,
+    products: 0, marketLinks: 0, productsWithoutCompetitor: 0, competitorUrls: 0, certainMatches: 0, reviewMatches: 0, checksToday: 0, failedChecks24h: 0, unreadAlerts: 0,
     latestCheck: null as { checkedAt: Date; isSuccess: boolean } | null,
   })
 
   const data = result.data
   const readyCoverage = data.products ? Math.round((Math.min(data.certainMatches, data.products) / data.products) * 100) : 0
+  const actionTotal = data.productsWithoutCompetitor + data.reviewMatches + data.failedChecks24h + data.unreadAlerts
 
   return (
     <div className="space-y-5">
@@ -88,58 +69,52 @@ export default async function MonitoringPage() {
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
           <div>
             <p className="eyebrow">Prijsmonitoring</p>
-            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Monitoringstatus</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Hier zie je de volledige keten van geïmporteerd product tot daadwerkelijke prijscontrole. Een product is pas volledig gemonitord als markt, concurrent URL en zekere productmatch aanwezig zijn.</p>
+            <h1 className="mt-2">Monitoringstatus</h1>
+            <p className="mt-2 max-w-3xl text-[12px] font-medium leading-6 text-[#4b5870]">Zie direct waar de monitoringketen breekt en welke stap nu aandacht vraagt.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/import" className="secondary-action">Nieuwe import</Link>
             <Link href="/producten" className="primary-action">Producten bekijken</Link>
           </div>
         </div>
-        <div className="grid border-t border-[var(--border)] sm:grid-cols-3">
-          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Monitoringdekking</p><p className="mt-1 text-[23px] font-semibold text-[#202536]">{readyCoverage}%</p></div>
-          <div className="border-y border-[var(--border)] px-5 py-4 sm:border-x sm:border-y-0 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Laatste controle</p><p className="mt-1 text-[15px] font-semibold text-[#202536]">{data.latestCheck ? formatDate(data.latestCheck.checkedAt) : 'Nog geen controle'}</p></div>
-          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Status laatste controle</p><p className={`mt-1 text-[15px] font-semibold ${data.latestCheck?.isSuccess ? 'text-[var(--green)]' : data.latestCheck ? 'text-rose-700' : 'text-[#697386]'}`}>{data.latestCheck ? data.latestCheck.isSuccess ? 'Succesvol' : 'Mislukt' : 'Nog niet gestart'}</p></div>
+        <div className="grid border-t-2 border-[var(--border-strong)] md:grid-cols-4">
+          <div className="bg-[#111827] px-5 py-4 text-white sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#cbd5e1]">Monitoringdekking</p><p className="mt-1 text-[28px] font-black">{readyCoverage}%</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Actiepunten</p><p className="mt-1 text-[28px] font-black text-[#b4233d]">{formatNumber(actionTotal)}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Laatste controle</p><p className="mt-1 text-[14px] font-black text-[#111827]">{data.latestCheck ? formatDate(data.latestCheck.checkedAt) : 'Nog geen controle'}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Laatste status</p><p className={`mt-1 text-[14px] font-black ${data.latestCheck?.isSuccess ? 'text-[#0d7a49]' : data.latestCheck ? 'text-[#b4233d]' : 'text-[#64748b]'}`}>{data.latestCheck ? data.latestCheck.isSuccess ? 'Succesvol' : 'Mislukt' : 'Nog niet gestart'}</p></div>
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatusCard label="Producten" value={data.products} helper="actieve producten in Prysight" />
-        <StatusCard label="Marktkoppelingen" value={data.marketLinks} helper="producten met actieve land en marktconfiguratie" tone={data.marketLinks ? 'good' : 'warn'} />
-        <StatusCard label="Zonder concurrent" value={data.productsWithoutCompetitor} helper="producten die nog geen productmatch hebben" tone={data.productsWithoutCompetitor ? 'warn' : 'good'} />
-        <StatusCard label="Concurrent URLs" value={data.competitorUrls} helper="actieve URLs die gecontroleerd kunnen worden" tone={data.competitorUrls ? 'good' : 'warn'} />
-        <StatusCard label="Monitoring gereed" value={data.certainMatches} helper="zekere matches die automatisch mee kunnen tellen" tone={data.certainMatches ? 'good' : 'warn'} />
-        <StatusCard label="Match controleren" value={data.reviewMatches} helper="automatische matches die handmatige controle vragen" tone={data.reviewMatches ? 'warn' : 'good'} />
-        <StatusCard label="Controles vandaag" value={data.checksToday} helper="werkelijk uitgevoerde prijscontroles" tone={data.checksToday ? 'good' : 'warn'} />
-        <StatusCard label="Mislukt in 24 uur" value={data.failedChecks24h} helper="URLs waarvoor geen geldige meting kon worden gedaan" tone={data.failedChecks24h ? 'bad' : 'good'} />
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Signal label="Zonder concurrent" value={data.productsWithoutCompetitor} helper="Producten zonder bruikbare productmatch" tone={data.productsWithoutCompetitor ? 'warn' : 'good'} />
+        <Signal label="Matches controleren" value={data.reviewMatches} helper="Automatische matches die nog goedkeuring vragen" tone={data.reviewMatches ? 'warn' : 'good'} />
+        <Signal label="Mislukt in 24 uur" value={data.failedChecks24h} helper="URLs waarvoor geen geldige prijsmeting kon worden gedaan" tone={data.failedChecks24h ? 'bad' : 'good'} />
+        <Signal label="Ongelezen alerts" value={data.unreadAlerts} helper="Prijsafwijkingen en signalen die opvolging vragen" tone={data.unreadAlerts ? 'bad' : 'good'} />
+      </section>
+
+      <section className="surface-card overflow-hidden">
+        <div className="border-b-2 border-[var(--border-strong)] bg-[#111827] px-5 py-4 text-white">
+          <h2 className="text-[15px] font-black">Dataketen</h2>
+          <p className="mt-1 text-[11px] font-medium text-[#cbd5e1]">De vier cijfers hieronder tonen of de technische basis van prijsmonitoring gevuld is.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ['Producten', data.products, 'Actieve producten'],
+            ['Marktkoppelingen', data.marketLinks, 'Producten met marktconfiguratie'],
+            ['Concurrent URLs', data.competitorUrls, 'Actieve meetbare URLs'],
+            ['Monitoring gereed', data.certainMatches, 'Zekere productmatches'],
+          ].map(([label, value, helper], index) => <div key={String(label)} className={`px-5 py-4 ${index ? 'border-t-2 border-[var(--border)] sm:border-l-2 sm:border-t-0' : ''}`}><p className="text-[10px] font-black uppercase tracking-[0.07em] text-[#6f7b91]">{label}</p><p className="mt-1 text-[24px] font-black text-[#111827]">{formatNumber(value as number)}</p><p className="mt-1 text-[10px] font-semibold text-[#6f7b91]">{helper}</p></div>)}
+        </div>
       </section>
 
       <section className="grid gap-3 lg:grid-cols-4">
-        <Link href="/producten" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Stap 1</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Producten controleren</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Controleer artikelnummer, eigen prijs, markt en databron na import.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Productonderzoek openen</p>
-        </Link>
-        <Link href="/concurrenten" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Stap 2</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Concurrenten en frequentie</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Voeg concurrenten toe, controleer URLs en bepaal hoe vaak deze worden gemeten.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Concurrenten openen</p>
-        </Link>
-        <Link href="/productmatches" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Stap 3</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Matches bevestigen</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Zorg dat elke concurrent URL aan het juiste Engels product is gekoppeld.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Matches controleren</p>
-        </Link>
-        <Link href="/waarschuwingen" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Stap 4</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Afwijkingen opvolgen</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Er staan {formatNumber(data.unreadAlerts)} ongelezen waarschuwingen klaar voor opvolging.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Waarschuwingen openen</p>
-        </Link>
+        <Link href="/producten" className="surface-card p-5 transition hover:-translate-y-0.5"><p className="eyebrow">Stap 1</p><h2 className="mt-2">Producten controleren</h2><p className="mt-2 text-[11px] font-medium leading-5 text-[#647087]">Controleer artikelnummer, eigen prijs, markt en databron.</p><p className="mt-4 text-[11px] font-black text-[var(--blue)]">Open productonderzoek</p></Link>
+        <Link href="/concurrenten" className="surface-card p-5 transition hover:-translate-y-0.5"><p className="eyebrow">Stap 2</p><h2 className="mt-2">Concurrenten koppelen</h2><p className="mt-2 text-[11px] font-medium leading-5 text-[#647087]">Voeg concurrenten en meetfrequenties toe.</p><p className="mt-4 text-[11px] font-black text-[var(--blue)]">Open concurrenten</p></Link>
+        <Link href="/productmatches" className="surface-card p-5 transition hover:-translate-y-0.5"><p className="eyebrow">Stap 3</p><h2 className="mt-2">Matches bevestigen</h2><p className="mt-2 text-[11px] font-medium leading-5 text-[#647087]">Bevestig dat iedere URL bij het juiste product hoort.</p><p className="mt-4 text-[11px] font-black text-[var(--blue)]">Open matches</p></Link>
+        <Link href="/waarschuwingen" className="surface-card p-5 transition hover:-translate-y-0.5"><p className="eyebrow">Stap 4</p><h2 className="mt-2">Afwijkingen opvolgen</h2><p className="mt-2 text-[11px] font-medium leading-5 text-[#647087]">Pak prijsafwijkingen en technische fouten gericht op.</p><p className="mt-4 text-[11px] font-black text-[var(--blue)]">Open waarschuwingen</p></Link>
       </section>
+
+      <div className="rounded-[14px] border-2 border-[#94a0b5] bg-[#edf1f6] px-4 py-3 text-[11px] font-semibold text-[#4b5870]">Vandaag uitgevoerd, <strong>{formatNumber(data.checksToday)}</strong> prijscontroles.</div>
     </div>
   )
 }

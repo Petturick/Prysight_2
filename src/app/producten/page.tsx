@@ -27,70 +27,51 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     isActive: true,
     productGroupId: filters.productGroupId || undefined,
     AND: [
-      filters.q
-        ? {
-            OR: [
-              { articleNumber: { contains: filters.q, mode: 'insensitive' as const } },
-              { name: { contains: filters.q, mode: 'insensitive' as const } },
-              { ean: { contains: filters.q } },
-            ],
-          }
-        : {},
-      filters.countryId
-        ? {
-            OR: [
-              { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
-              { matches: { some: { competitorOffer: { competitor: { countryId: filters.countryId } } } } },
-            ],
-          }
-        : {},
+      filters.q ? { OR: [
+        { articleNumber: { contains: filters.q, mode: 'insensitive' as const } },
+        { name: { contains: filters.q, mode: 'insensitive' as const } },
+        { ean: { contains: filters.q } },
+      ] } : {},
+      filters.countryId ? { OR: [
+        { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
+        { matches: { some: { competitorOffer: { competitor: { countryId: filters.countryId } } } } },
+      ] } : {},
     ],
   }
 
-  const result = await safeDatabaseQuery(
-    async () => {
-      const [products, totalCount, filterOptions] = await Promise.all([
-        prisma.product.findMany({
-          where,
-          include: {
-            productGroup: true,
-            productMarkets: { include: { country: true } },
-            ownPriceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
-            matches: {
-              include: {
-                competitorOffer: {
-                  include: {
-                    competitor: { include: { country: true } },
-                    priceHistory: { orderBy: { recordedAt: 'desc' }, take: 2 },
-                    priceChecks: { orderBy: { checkedAt: 'desc' }, take: 2 },
-                  },
-                },
-              },
-            },
-          },
-          orderBy: [{ productGroup: { name: 'asc' } }, { articleNumber: 'asc' }],
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-        }),
-        prisma.product.count({ where }),
-        getFilterOptions(),
-      ])
-      return { products, totalCount, filterOptions }
-    },
-    { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } },
-  )
+  const result = await safeDatabaseQuery(async () => {
+    const [products, totalCount, filterOptions] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          productGroup: true,
+          productMarkets: { include: { country: true } },
+          ownPriceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
+          matches: { include: { competitorOffer: { include: {
+            competitor: { include: { country: true } },
+            priceHistory: { orderBy: { recordedAt: 'desc' }, take: 2 },
+            priceChecks: { orderBy: { checkedAt: 'desc' }, take: 2 },
+          } } } },
+        },
+        orderBy: [{ productGroup: { name: 'asc' } }, { articleNumber: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.product.count({ where }),
+      getFilterOptions(),
+    ])
+    return { products, totalCount, filterOptions }
+  }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } })
+
   const { products, totalCount, filterOptions } = result.data
   const rows = products.map((product) => deriveProductMetrics(product, filters))
   const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1)
 
-  const sourceResult = await safeDatabaseQuery(
-    () => prisma.productFeedLink.findMany({
-      where: { productId: { in: rows.map((item) => item.product.id) } },
-      include: { feedSource: true },
-      orderBy: { lastSeenAt: 'desc' },
-    }),
-    [],
-  )
+  const sourceResult = await safeDatabaseQuery(() => prisma.productFeedLink.findMany({
+    where: { productId: { in: rows.map((item) => item.product.id) } },
+    include: { feedSource: true },
+    orderBy: { lastSeenAt: 'desc' },
+  }), [])
   const sourceByProduct = new Map<string, string[]>()
   for (const link of sourceResult.data) {
     const current = sourceByProduct.get(link.productId) ?? []
@@ -101,13 +82,10 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const selectedCountry = filterOptions.countries.find((country) => country.id === filters.countryId)
   const comparableCount = rows.filter((item) => item.lowestPrice !== null && item.ownPrice !== null).length
   const coverage = rows.length ? Math.round((comparableCount / rows.length) * 100) : 0
+  const expensiveCount = rows.filter((item) => item.marketPosition === 'Engels duurder').length
   const attentionCount = rows.filter((item) => item.reviewMatches > 0 || item.lowestPrice === null).length
 
-  const paginationParams = Object.fromEntries(
-    Object.entries(filters)
-      .filter(([, value]) => Boolean(value))
-      .map(([key, value]) => [key === 'productGroupId' ? 'productgroep' : key === 'countryId' ? 'land' : key === 'competitorId' ? 'concurrent' : key, value as string]),
-  )
+  const paginationParams = Object.fromEntries(Object.entries(filters).filter(([, value]) => Boolean(value)).map(([key, value]) => [key === 'productGroupId' ? 'productgroep' : key === 'countryId' ? 'land' : key === 'competitorId' ? 'concurrent' : key, value as string]))
 
   return (
     <div className="space-y-5">
@@ -117,50 +95,30 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
           <div>
             <p className="eyebrow">Prijsmonitoring</p>
-            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Productonderzoek</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Vergelijk eigen prijzen met actuele concurrentieprijzen, per product, markt en databron.</p>
+            <h1 className="mt-2">Producten</h1>
+            <p className="mt-2 max-w-3xl text-[12px] font-medium leading-6 text-[#4b5870]">Vind direct producten zonder marktprijs, producten boven de markt en records die handmatige controle vragen.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/import" className="secondary-action">Bulk importeren</Link>
-            <Link href="/feeds" className="secondary-action">Feeds beheren</Link>
-            <Link href="/producten/nieuw" className="primary-action"><span className="text-base leading-none">+</span> Product toevoegen</Link>
+            <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
           </div>
         </div>
-        <div className="grid border-t border-[var(--border)] sm:grid-cols-3">
-          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Producten in selectie</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(totalCount)}</p></div>
-          <div className="border-y border-[var(--border)] px-5 py-4 sm:border-x sm:border-y-0 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Prijsdekking op pagina</p><div className="mt-1 flex items-end gap-2"><p className="text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{coverage}%</p><p className="pb-1 text-[10px] text-[#8a93a5]">{formatNumber(comparableCount)} vergelijkbaar</p></div></div>
-          <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Aandacht op pagina</p><p className="mt-1 text-[23px] font-semibold tracking-[-0.03em] text-[#202536]">{formatNumber(attentionCount)}</p></div>
+        <div className="grid border-t-2 border-[var(--border-strong)] sm:grid-cols-4">
+          <div className="bg-[#111827] px-5 py-4 text-white sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#cbd5e1]">Producten</p><p className="mt-1 text-[27px] font-black">{formatNumber(totalCount)}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Prijsdekking</p><p className="mt-1 text-[27px] font-black text-[#111827]">{coverage}%</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Boven markt</p><p className={`mt-1 text-[27px] font-black ${expensiveCount ? 'text-[#b4233d]' : 'text-[#0d7a49]'}`}>{formatNumber(expensiveCount)}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Aandacht</p><p className={`mt-1 text-[27px] font-black ${attentionCount ? 'text-[#9a5b00]' : 'text-[#0d7a49]'}`}>{formatNumber(attentionCount)}</p></div>
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Link href="/import" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Bulkbestand</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">CSV of Excel importeren</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Voeg veel producten, eigen prijzen en concurrent URLs tegelijk toe, met kolomherkenning en preview.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Import openen</p>
-        </Link>
-        <Link href="/feeds" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Automatisch</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Productfeed koppelen</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Gebruik een terugkerende feed als bron voor productdata en prijsmonitoring.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Feeds beheren</p>
-        </Link>
-        <Link href="/productmatches" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Matching</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Productmatches controleren</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Beoordeel automatische matches voordat concurrentieprijzen meetellen in analyses.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Matches openen</p>
-        </Link>
-        <Link href="/producten/nieuw" className="strong-panel p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-          <p className="eyebrow">Handmatig</p>
-          <h2 className="mt-2 text-[14px] font-semibold text-[#252a37]">Eén product toevoegen</h2>
-          <p className="mt-1 text-[10px] leading-5 text-[#8a93a5]">Voeg een los product toe als een bulkbestand of feed niet nodig is.</p>
-          <p className="mt-3 text-[11px] font-semibold text-[var(--blue)]">Product toevoegen</p>
-        </Link>
+      <section className="grid gap-3 md:grid-cols-3">
+        <Link href="/productmatches" className={`rounded-[14px] border-2 p-4 ${attentionCount ? 'border-[#9a5b00] bg-[#f8e4bd]' : 'border-[#0d7a49] bg-[#d9f0e4]'}`}><p className="text-[10px] font-black uppercase tracking-[0.08em]">Matchcontrole</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">{formatNumber(attentionCount)} producten vragen aandacht</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Controleer ontbrekende marktprijzen en open matches.</p></Link>
+        <Link href="/feeds" className="rounded-[14px] border-2 border-[#2457d6] bg-[#dfe8ff] p-4"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#1b43a6]">Databronnen</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">Feeds en productdata beheren</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Ga naar de bron wanneer productdata of eigen prijzen ontbreken.</p></Link>
+        <Link href="/concurrenten" className="rounded-[14px] border-2 border-[#5b2be8] bg-[#e4dcff] p-4"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#4320b8]">Concurrentdekking</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">Concurrent URLs en frequentie</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Beheer meetbare URLs en controleplanning.</p></Link>
       </section>
 
       <form className="strong-panel p-4">
+        <div className="mb-3 flex items-center justify-between"><div><h2 className="text-[14px] font-black text-[#111827]">Filter productonderzoek</h2><p className="mt-1 text-[10px] font-semibold text-[#6f7b91]">Filter eerst op markt, daarna op productgroep of concurrent voor een zuivere vergelijking.</p></div>{(filters.q || filters.productGroupId || filters.countryId || filters.competitorId) ? <Link href="/producten" className="secondary-action min-h-0 px-3 py-2 text-[10px]">Filters wissen</Link> : null}</div>
         <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
           <input name="q" defaultValue={filters.q} placeholder="Zoek op artikel, EAN of productnaam" className="toolbar-control w-full" />
           <select name="productgroep" defaultValue={filters.productGroupId} className="toolbar-control w-full"><option value="">Alle productgroepen</option>{filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
@@ -168,45 +126,34 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <select name="concurrent" defaultValue={filters.competitorId} className="toolbar-control w-full"><option value="">Alle concurrenten</option>{filterOptions.competitors.map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}</select>
           <button className="primary-action min-w-[112px]">Toepassen</button>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[#8790a2]">
-          <p>{selectedCountry ? `Onderzoek actief voor ${selectedCountry.name}. Eigen marktprijzen en concurrenten worden op dit land gefilterd.` : 'Alle markten worden gecombineerd. Kies een land voor een zuivere lokale prijsvergelijking.'}</p>
-          {(filters.q || filters.productGroupId || filters.countryId || filters.competitorId) ? <Link href="/producten" className="font-semibold text-[var(--blue)]">Filters wissen</Link> : null}
-        </div>
+        <p className="mt-3 text-[10px] font-semibold text-[#6f7b91]">{selectedCountry ? `Actief voor ${selectedCountry.name}, eigen marktprijzen en concurrenten zijn op dit land gefilterd.` : 'Alle markten gecombineerd, kies een land voor lokale prijsvergelijking.'}</p>
       </form>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div><h2 className="text-[14px] font-semibold text-[#252a37]">Prijsvergelijking</h2><p className="mt-1 text-[10px] text-[#8a93a5]">Open een product voor prijsverloop, gekoppelde concurrent URLs en handmatige prijscontroles.</p></div>
-          <Link href="/productmatches" className="text-[11px] font-semibold text-[var(--blue)]">Productmatches controleren</Link>
-        </div>
+        <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">Prijsverschil en marktpositie staan centraal, technische broninformatie blijft beschikbaar maar visueel secundair.</p></div></div>
         <DataTable
           emptyText="Nog geen producten in deze selectie. Voeg een product toe of koppel een feed."
           columns={[
-            { key: 'artikelnummer', header: 'Artikel' }, { key: 'productnaam', header: 'Product' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Bron' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste marktprijs' }, { key: 'gemiddeld', header: 'Gem. marktprijs' }, { key: 'verschilEuro', header: 'Verschil €' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' },
+            { key: 'artikelnummer', header: 'Artikel' }, { key: 'productnaam', header: 'Product' }, { key: 'eigenPrijs', header: 'Eigen prijs' }, { key: 'laagste', header: 'Laagste markt' }, { key: 'verschilPct', header: 'Verschil %' }, { key: 'positie', header: 'Positie' }, { key: 'aantalConcurrenten', header: 'Bronnen' }, { key: 'laatsteControle', header: 'Controle' }, { key: 'groep', header: 'Groep' }, { key: 'bron', header: 'Databron' },
           ]}
           rows={rows.map((item) => ({
-            artikelnummer: <Link href={`/producten/${item.product.id}`} className="font-semibold text-[var(--blue)]">{item.product.articleNumber}</Link>,
-            productnaam: <Link href={`/producten/${item.product.id}`} className="font-medium text-[#252a37]">{item.product.name}</Link>,
-            groep: item.product.productGroup.name,
-            bron: sourceByProduct.get(item.product.id)?.join(', ') ?? 'Handmatig',
-            eigenPrijs: formatCurrency(item.ownPrice, item.ownCurrency),
+            artikelnummer: <Link href={`/producten/${item.product.id}`} className="font-black text-[var(--blue)]">{item.product.articleNumber}</Link>,
+            productnaam: <Link href={`/producten/${item.product.id}`} className="font-bold text-[#111827]">{item.product.name}</Link>,
+            eigenPrijs: <span className="font-black text-[#111827]">{formatCurrency(item.ownPrice, item.ownCurrency)}</span>,
             laagste: formatCurrency(item.lowestPrice),
-            gemiddeld: formatCurrency(item.averagePrice),
-            verschilEuro: formatCurrency(item.difference.diff),
-            verschilPct: item.difference.pctDiff ? `${formatNumber(Number(item.difference.pctDiff), 1)}%` : '—',
-            positie: <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.marketPosition === 'Engels laagste' ? 'bg-[var(--green-soft)] text-[var(--green)]' : item.marketPosition === 'Engels duurder' ? 'bg-[var(--amber-soft)] text-[var(--amber)]' : item.marketPosition === 'Geen concurrentieprijs' ? 'bg-[#f1f3f6] text-[#717b8e]' : 'bg-[var(--blue-soft)] text-[var(--blue)]'}`}>{item.marketPosition}</span>,
+            verschilPct: item.difference.pctDiff ? <span className={`font-black ${Number(item.difference.pctDiff) > 0 ? 'text-[#b4233d]' : 'text-[#0d7a49]'}`}>{formatNumber(Number(item.difference.pctDiff), 1)}%</span> : '—',
+            positie: <span className={`inline-flex rounded-[7px] px-2.5 py-1 text-[9px] font-black ${item.marketPosition === 'Engels laagste' ? 'bg-[#0d7a49] text-white' : item.marketPosition === 'Engels duurder' ? 'bg-[#b4233d] text-white' : item.marketPosition === 'Geen concurrentieprijs' ? 'bg-[#dfe4ee] text-[#334155]' : 'bg-[#2457d6] text-white'}`}>{item.marketPosition}</span>,
             aantalConcurrenten: formatNumber(item.offerCount),
             laatsteControle: formatDate(item.lastCheckedAt),
+            groep: item.product.productGroup.name,
+            bron: sourceByProduct.get(item.product.id)?.join(', ') ?? 'Handmatig',
           }))}
         />
       </section>
 
-      <div className="flex items-center justify-between rounded-[14px] bg-white px-4 py-3 text-[11px] font-medium text-[#697386] shadow-[0_1px_2px_rgba(20,29,48,0.05)]">
+      <div className="flex items-center justify-between rounded-[14px] border-2 border-[var(--border)] bg-white px-4 py-3 text-[11px] font-bold text-[#4b5870]">
         <p>Pagina {page} van {totalPages}</p>
-        <div className="flex gap-2">
-          <Link href={`?${new URLSearchParams({ ...paginationParams, pagina: String(Math.max(page - 1, 1)) }).toString()}`} className="secondary-action min-h-0 px-3 py-2">Vorige</Link>
-          <Link href={`?${new URLSearchParams({ ...paginationParams, pagina: String(Math.min(page + 1, totalPages)) }).toString()}`} className="secondary-action min-h-0 px-3 py-2">Volgende</Link>
-        </div>
+        <div className="flex gap-2"><Link href={`?${new URLSearchParams({ ...paginationParams, pagina: String(Math.max(page - 1, 1)) }).toString()}`} className="secondary-action min-h-0 px-3 py-2">Vorige</Link><Link href={`?${new URLSearchParams({ ...paginationParams, pagina: String(Math.min(page + 1, totalPages)) }).toString()}`} className="secondary-action min-h-0 px-3 py-2">Volgende</Link></div>
       </div>
     </div>
   )
