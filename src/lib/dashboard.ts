@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculatePriceDifference } from '@/lib/price-normalization'
+import { isPlausibleMarketPrice } from '@/lib/price-quality'
 import { decimalToNumber } from '@/lib/format'
 
 export type DashboardFilters = {
@@ -108,22 +109,26 @@ function getFilteredMatches(product: ProductWithRelations, filters: DashboardFil
   })
 }
 
-function hasVerifiedMeasurement(match: ProductWithRelations['matches'][number]) {
+function hasVerifiedMeasurement(match: ProductWithRelations['matches'][number], ownPrice?: number | null) {
   const offer = match.competitorOffer
-  return offer.normalizedPrice !== null && offer.priceHistory.length > 0 && offer.priceChecks.some((check) => check.isSuccess)
+  const competitorPrice = decimalToNumber(offer.normalizedPrice)
+  return competitorPrice !== null
+    && offer.priceHistory.length > 0
+    && offer.priceChecks.some((check) => check.isSuccess)
+    && isPlausibleMarketPrice(ownPrice, competitorPrice)
 }
 
 export function deriveProductMetrics(product: ProductWithRelations, filters: DashboardFilters = {}) {
   const relevantMatches = getFilteredMatches(product, filters)
-  const pricedOffers = relevantMatches.filter(hasVerifiedMeasurement)
+  const selectedMarket = filters.countryId ? product.productMarkets.find((market) => market.countryId === filters.countryId && market.isActive) : null
+  const ownPrice = decimalToNumber(selectedMarket?.ownPrice ?? product.ownPrice)
+  const ownCurrency = selectedMarket?.currency ?? product.currency
+  const pricedOffers = relevantMatches.filter((match) => hasVerifiedMeasurement(match, ownPrice))
   const prices = pricedOffers.map((match) => decimalToNumber(match.competitorOffer.normalizedPrice)).filter((value): value is number => value !== null)
   const lowestPrice = prices.length ? Math.min(...prices) : null
   const averagePrice = prices.length ? prices.reduce((sum, value) => sum + value, 0) / prices.length : null
   const lastCheckedDates = pricedOffers.map((match) => match.competitorOffer.lastCheckedAt).filter((value): value is Date => Boolean(value))
   const lastCheckedAt = lastCheckedDates.length ? new Date(Math.max(...lastCheckedDates.map((value) => value.getTime()))) : null
-  const selectedMarket = filters.countryId ? product.productMarkets.find((market) => market.countryId === filters.countryId && market.isActive) : null
-  const ownPrice = decimalToNumber(selectedMarket?.ownPrice ?? product.ownPrice)
-  const ownCurrency = selectedMarket?.currency ?? product.currency
   const difference = calculatePriceDifference(ownPrice, lowestPrice)
   const trendSource = pricedOffers
     .flatMap((match) => match.competitorOffer.priceHistory)
@@ -193,12 +198,14 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
   const allOfferMoves = products
     .flatMap((product) =>
       product.matches.flatMap((match) => {
-        if (!hasVerifiedMeasurement(match)) return []
+        const ownPrice = decimalToNumber(product.ownPrice)
+        if (!hasVerifiedMeasurement(match, ownPrice)) return []
         const [current, previous] = match.competitorOffer.priceHistory
         if (!current || !previous) return []
         const currentPrice = decimalToNumber(current.normalizedPrice ?? current.price)
         const previousPrice = decimalToNumber(previous.normalizedPrice ?? previous.price)
         if (currentPrice === null || previousPrice === null) return []
+        if (!isPlausibleMarketPrice(ownPrice, currentPrice) || !isPlausibleMarketPrice(ownPrice, previousPrice)) return []
         return [{ id: `${product.id}-${match.id}`, productName: product.name, competitor: match.competitorOffer.competitor.name, latestPrice: currentPrice, previousPrice, delta: currentPrice - previousPrice, recordedAt: current.recordedAt }]
       }),
     )
@@ -233,7 +240,7 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
 
 const getCachedDashboardSnapshot = unstable_cache(
   async (companyId: string, filters: DashboardFilters) => buildDashboardSnapshot(filters, companyId),
-  ['prysight-dashboard-snapshot-v3'],
+  ['prysight-dashboard-snapshot-v4-price-quality'],
   { revalidate: 15 },
 )
 
@@ -254,7 +261,14 @@ export async function getCompetitorsOverview(companyId?: string) {
 
 export function deriveCompetitorMetrics(competitor: CompetitorWithRelations) {
   const matchedOffers = competitor.offers.filter((offer) => offer.productMatch)
-  const validPrices = competitor.offers.filter((offer) => offer.normalizedPrice !== null && offer.priceHistory.length > 0 && offer.priceChecks.some((check) => check.isSuccess))
+  const validPrices = competitor.offers.filter((offer) => {
+    const competitorPrice = decimalToNumber(offer.normalizedPrice)
+    const ownPrice = decimalToNumber(offer.productMatch?.product.ownPrice)
+    return competitorPrice !== null
+      && offer.priceHistory.length > 0
+      && offer.priceChecks.some((check) => check.isSuccess)
+      && isPlausibleMarketPrice(ownPrice, competitorPrice)
+  })
   const positions = matchedOffers.map((offer) => {
     const ownPrice = decimalToNumber(offer.productMatch?.product.ownPrice)
     const competitorPrice = validPrices.some((validOffer) => validOffer.id === offer.id) ? decimalToNumber(offer.normalizedPrice) : null
