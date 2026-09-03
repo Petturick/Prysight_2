@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { EanAutoDiscovery } from '@/components/EanAutoDiscovery'
 import { InteractionFeedback } from '@/components/InteractionFeedback'
 import { RoutePrefetcher } from '@/components/RoutePrefetcher'
 import { Sidebar } from '@/components/Sidebar'
@@ -24,6 +25,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
     <>
       <InteractionFeedback key={pathname} />
       <RoutePrefetcher />
+      <EanAutoDiscovery />
       <div className="flex min-h-screen bg-[radial-gradient(circle_at_80%_0%,rgba(103,88,238,0.07),transparent_32%),linear-gradient(180deg,#fafbfe_0%,#f2f4f9_100%)]">
         <div className="hidden lg:block lg:w-[272px] lg:flex-none">
           <div className="fixed inset-y-0 z-20 w-[272px] shadow-[12px_0_34px_rgba(17,24,39,0.06)]">
