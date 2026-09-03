@@ -11,8 +11,8 @@ type IconName = 'dashboard' | 'products' | 'competitors' | 'alerts' | 'strategy'
 type SidebarUser = { name?: string | null; email?: string | null; role?: AppRole | null }
 type NavItem = { href: string; label: string; icon: IconName; aliases?: string[] }
 
-const primaryGroups: Array<{ label: string; items: NavItem[] }> = [
-  { label: 'Overzicht', items: [{ href: '/dashboard', label: 'Prijsdashboard', icon: 'dashboard' }] },
+const groups: Array<{ label?: string; items: NavItem[] }> = [
+  { items: [{ href: '/dashboard', label: 'Dashboard', icon: 'dashboard' }] },
   { label: 'Prijsbeheer', items: [
     { href: '/producten', label: 'Producten', icon: 'products', aliases: ['/productmatches'] },
     { href: '/concurrenten', label: 'Concurrenten', icon: 'competitors' },
@@ -23,12 +23,13 @@ const primaryGroups: Array<{ label: string; items: NavItem[] }> = [
     { href: '/monitoring', label: 'Monitoring', icon: 'monitoring' },
     { href: '/feeds', label: 'Databronnen', icon: 'feeds', aliases: ['/import'] },
   ] },
-]
-
-const utilityItems: NavItem[] = [
-  { href: '/rapportages', label: 'Rapportages', icon: 'reports' },
-  { href: '/integraties', label: 'Integraties', icon: 'integrations' },
-  { href: '/instellingen', label: 'Instellingen', icon: 'settings' },
+  { label: 'Analyse & rapportage', items: [
+    { href: '/rapportages', label: 'Rapportages', icon: 'reports' },
+  ] },
+  { label: 'Instellingen', items: [
+    { href: '/integraties', label: 'Integraties', icon: 'integrations' },
+    { href: '/instellingen', label: 'Instellingen', icon: 'settings' },
+  ] },
 ]
 
 function NavIcon({ name }: { name: IconName }) {
@@ -45,33 +46,30 @@ function NavIcon({ name }: { name: IconName }) {
   return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L14.5 3h-5l-.3 3a8 8 0 0 0-1.7 1L5 6 3 9.5 5.1 11a7 7 0 0 0 0 2L3 14.5 5 18l2.5-1a8 8 0 0 0 1.7 1l.3 3h5l.3-3a8 8 0 0 0 1.7-1l2.5 1 2-3.5-2.1-1.5c.1-.3.1-.7.1-1Z" /></svg>
 }
 
-function itemIsActive(pathname: string, item: NavItem) {
-  if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return true
-  return item.aliases?.some((alias) => pathname === alias || pathname.startsWith(`${alias}/`)) ?? false
-}
-
-function NavRow({ item, pathname }: { item: NavItem; pathname: string }) {
-  const active = itemIsActive(pathname, item)
-  return <Link href={item.href} prefetch className={cn('focus-ring group flex min-h-[40px] items-center gap-3 rounded-[8px] border border-transparent px-3 py-2 text-[12px] font-semibold transition-all duration-150', 'text-[#b8c4d1] hover:bg-white/6 hover:text-white', active && 'border-[#2f5274] bg-[#1b3650] text-white shadow-[inset_3px_0_0_#3f8fc8]')}><span className={cn('text-[#7f91a3] transition-colors group-hover:text-[#b7c6d4]', active && 'text-[#68a9d6]')}><NavIcon name={item.icon} /></span><span className="min-w-0 flex-1 truncate">{item.label}</span>{active ? <span className="h-1.5 w-1.5 rounded-full bg-[#68a9d6]" /> : null}</Link>
+function activeFor(pathname: string, item: NavItem) {
+  return pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.aliases?.some((alias) => pathname === alias || pathname.startsWith(`${alias}/`)) ?? false)
 }
 
 export function Sidebar({ user }: { user?: SidebarUser | null }) {
   const pathname = usePathname()
   const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
 
-  return <aside className="flex h-dvh w-full max-w-[256px] flex-col overflow-hidden border-r border-[#26384c] bg-[#101c2c] text-white shadow-[8px_0_24px_rgba(16,28,44,.08)]">
-    <div className="shrink-0 border-b border-white/8 px-4 pb-4 pt-4">
-      <Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[160px]" />
-      <div className="mt-3 flex items-center justify-between rounded-[8px] border border-white/8 bg-white/[.035] px-3 py-2"><div><p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[#708297]">Workspace</p><p className="mt-0.5 text-[11px] font-semibold text-[#e7edf3]">Pricing intelligence</p></div><span className="h-2 w-2 rounded-full bg-[#47a77d]" /></div>
+  return <aside className="flex h-dvh w-[245px] flex-col overflow-hidden bg-[#101d30] text-white shadow-[8px_0_28px_rgba(15,29,48,.08)]">
+    <div className="shrink-0 px-6 pb-5 pt-5">
+      <Image src="/prysight-logo-sidebar.svg" width={188} height={47} alt="Prysight" priority className="h-auto w-[162px]" />
     </div>
-
-    <nav className="min-h-0 flex-1 px-3 py-3">
-      {primaryGroups.map((group, groupIndex) => <div key={group.label} className={groupIndex === 0 ? '' : 'mt-4'}><p className="px-3 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64778b]">{group.label}</p><div className="space-y-1">{group.items.map((item) => <NavRow key={item.href} item={item} pathname={pathname} />)}</div></div>)}
+    <nav className="min-h-0 flex-1 px-3 pb-3">
+      {groups.map((group, index) => <div key={group.label ?? 'dashboard'} className={index === 0 ? '' : 'mt-6'}>
+        {group.label ? <p className="px-4 pb-2 text-[10px] font-semibold uppercase tracking-[.08em] text-[#93a2b7]">{group.label}</p> : null}
+        <div className="space-y-1">{group.items.map((item) => { const active = activeFor(pathname, item); return <Link key={item.href} href={item.href} prefetch className={cn('flex min-h-[44px] items-center gap-3 rounded-[7px] px-4 text-[13px] font-semibold transition', active ? 'bg-[#294b79] text-white shadow-[0_4px_12px_rgba(3,15,31,.18)]' : 'text-[#d6dfeb] hover:bg-white/[.06] hover:text-white')}><span className={active ? 'text-[#d9e8ff]' : 'text-[#a9b7c9]'}><NavIcon name={item.icon} /></span><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.href === '/waarschuwingen' ? <span className="rounded-full bg-[#ec5b5d] px-2 py-0.5 text-[9px] font-bold text-white">!</span> : null}</Link>})}</div>
+      </div>)}
     </nav>
-
-    <div className="shrink-0 border-t border-white/8 px-3 pb-3 pt-2.5">
-      <div className="grid grid-cols-3 gap-1">{utilityItems.map((item) => { const active = itemIsActive(pathname, item); return <Link key={item.href} href={item.href} title={item.label} className={cn('flex min-h-[50px] flex-col items-center justify-center gap-1 rounded-[8px] border border-transparent text-[9px] font-semibold text-[#7f91a3] transition hover:bg-white/6 hover:text-[#d8e1e9]', active && 'border-white/10 bg-white/7 text-white')}><NavIcon name={item.icon} /><span>{item.label}</span></Link>})}</div>
-      {user ? <div className="mt-2.5 rounded-[10px] border border-white/8 bg-white/[.035] p-2.5"><div className="flex items-center gap-2.5"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#1b3650] text-[11px] font-bold text-[#dce8f0]">{initials}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-white">{user.name || user.email}</p><p className="mt-0.5 truncate text-[9px] font-medium text-[#8091a3]">{roleLabel(user.role)}</p></div><Link href="/instellingen/profiel" className="rounded-[7px] border border-white/8 px-2 py-1.5 text-[9px] font-semibold text-[#aebdca] hover:bg-white/6">Profiel</Link></div><form action={logoutAction} className="mt-2"><button type="submit" className="w-full rounded-[7px] px-2 py-1.5 text-[9px] font-semibold text-[#718398] transition hover:bg-white/6 hover:text-white">Uitloggen</button></form></div> : null}
-    </div>
+    {user ? <div className="shrink-0 border-t border-white/10 px-5 py-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#4d86e8] text-[12px] font-bold text-white">{initials}</div>
+        <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-semibold text-white">{user.name || user.email}</p><p className="mt-0.5 truncate text-[10px] text-[#9fb0c6]">{roleLabel(user.role)}</p></div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2"><Link href="/instellingen/profiel" className="rounded-[7px] border border-white/10 px-2 py-2 text-center text-[10px] font-semibold text-[#cbd7e6] hover:bg-white/[.06]">Profiel</Link><form action={logoutAction}><button type="submit" className="w-full rounded-[7px] border border-white/10 px-2 py-2 text-[10px] font-semibold text-[#cbd7e6] hover:bg-white/[.06]">Uitloggen</button></form></div>
+    </div> : null}
   </aside>
 }
