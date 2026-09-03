@@ -42,7 +42,7 @@ export async function createCompanyAction(formData: FormData) {
 }
 
 export async function switchCompanyAction(formData: FormData) {
-  const actor = await requireSuperAdmin()
+  await requireSuperAdmin()
   const companyId = String(formData.get('companyId') ?? '')
   const company = await prisma.company.findFirst({ where: { id: companyId, status: 'ACTIVE' }, select: { id: true } })
   if (!company) throw new Error('Deze organisatie bestaat niet of is niet actief.')
@@ -119,13 +119,17 @@ export async function deleteProductGroupAction(formData: FormData) {
 export async function saveUserAction(formData: FormData) {
   const actor = await requirePermission('users.manage')
   const parsed = userSchema.parse({ id: formData.get('id') || undefined, email: formData.get('email'), name: formData.get('name'), password: formData.get('password'), role: formData.get('role') })
+  const requestedMembershipRole = parsed.role as CompanyMemberRole
+  if (actor.role !== 'SUPER_ADMIN' && (requestedMembershipRole === CompanyMemberRole.ADMIN || requestedMembershipRole === CompanyMemberRole.OWNER)) {
+    throw new Error('Alleen een super admin kan administratorrechten toekennen.')
+  }
   const existingMembership = parsed.id ? await prisma.companyMembership.findUnique({ where: { companyId_userId: { companyId: actor.companyId, userId: parsed.id } }, select: { isActive: true, user: { select: { isSuperAdmin: true } } } }) : null
   if (parsed.id && !existingMembership?.isActive) throw new Error('Deze gebruiker hoort niet bij de actieve organisatie.')
   if (existingMembership?.user.isSuperAdmin && actor.role !== 'SUPER_ADMIN') throw new Error('Een super admin account kan alleen door een super admin worden beheerd.')
   if (!parsed.id) await assertCompanyCapacity(actor.companyId, 'users')
   const passwordHash = await bcrypt.hash(parsed.password, 10)
   const result = parsed.id ? await prisma.user.update({ where: { id: parsed.id }, data: { email: parsed.email, name: parsed.name, passwordHash, role: parsed.role } }) : await prisma.user.create({ data: { email: parsed.email, name: parsed.name, passwordHash, role: parsed.role } })
-  await prisma.companyMembership.upsert({ where: { companyId_userId: { companyId: actor.companyId, userId: result.id } }, update: { isActive: true, role: parsed.role as CompanyMemberRole }, create: { companyId: actor.companyId, userId: result.id, role: parsed.role as CompanyMemberRole } })
+  await prisma.companyMembership.upsert({ where: { companyId_userId: { companyId: actor.companyId, userId: result.id } }, update: { isActive: true, role: requestedMembershipRole }, create: { companyId: actor.companyId, userId: result.id, role: requestedMembershipRole } })
   await audit(actor.id, 'USER_SAVED', 'User', result.id, null, { email: result.email, role: result.role }); revalidatePath('/beheer/gebruikers'); revalidatePath('/instellingen/gebruikers')
 }
 
