@@ -47,7 +47,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
       <InteractionFeedback key={pathname} />
       <RoutePrefetcher />
       <EanAutoDiscovery />
-      <div className="flex min-h-dvh bg-[#eef1f6]">
+      <div className="flex min-h-dvh bg-[#f4f6f8]">
         <div className="hidden lg:block lg:w-[256px] lg:flex-none">
           <div className="fixed inset-y-0 z-30 w-[256px]">
             <Sidebar user={user} />
@@ -55,11 +55,11 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
         </div>
 
         <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b-2 border-[#dce1ea] bg-white/96 shadow-[0_5px_18px_rgba(31,42,68,.06)] backdrop-blur">
-            <div className="flex min-h-[64px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 2xl:px-10">
+          <header className="sticky top-0 z-20 border-b border-[#dfe5eb] bg-white/98 backdrop-blur">
+            <div className="flex min-h-[62px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 2xl:px-10">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[.12em] text-[#7b879c]"><span>Prysight</span><span className="text-[#b0b8c7]">/</span><span>{route.section}</span></div>
-                <p className="mt-0.5 truncate text-[17px] font-black tracking-[-.025em] text-[#172033]">{route.title}</p>
+                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.11em] text-[#8090a0]"><span>Prysight</span><span className="text-[#c1c9d1]">/</span><span>{route.section}</span></div>
+                <p className="mt-0.5 truncate text-[16px] font-bold tracking-[-.018em] text-[#172033]">{route.title}</p>
               </div>
               <div className="hidden items-center gap-2 sm:flex">
                 <Link href="/producten" className="secondary-action min-h-0 px-3 py-2 text-[10px]">Product zoeken</Link>
@@ -67,8 +67,8 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
                 <Link href="/waarschuwingen" className="primary-action min-h-0 px-3 py-2 text-[10px]">Aandacht nodig</Link>
               </div>
             </div>
-            <div className="flex gap-1 overflow-x-auto border-t border-[#edf0f4] px-3 py-2 lg:hidden">
-              {[['/dashboard','Dashboard'],['/producten','Producten'],['/concurrenten','Concurrenten'],['/monitoring','Monitoring'],['/feeds','Data']].map(([href,label]) => <Link key={href} href={href} className={`shrink-0 rounded-[9px] border px-3 py-2 text-[10px] font-black ${pathname === href || pathname.startsWith(`${href}/`) ? 'border-[#5b2be8] bg-[#5b2be8] text-white' : 'border-[#d6dce6] bg-white text-[#536078]'}`}>{label}</Link>)}
+            <div className="flex gap-1 overflow-x-auto border-t border-[#eef1f4] px-3 py-2 lg:hidden">
+              {[['/dashboard','Dashboard'],['/producten','Producten'],['/concurrenten','Concurrenten'],['/monitoring','Monitoring'],['/feeds','Data']].map(([href,label]) => <Link key={href} href={href} className={`shrink-0 rounded-[7px] border px-3 py-2 text-[10px] font-semibold ${pathname === href || pathname.startsWith(`${href}/`) ? 'border-[#1769aa] bg-[#1769aa] text-white' : 'border-[#d7dee5] bg-white text-[#5e6b7d]'}`}>{label}</Link>)}
             </div>
           </header>
 
