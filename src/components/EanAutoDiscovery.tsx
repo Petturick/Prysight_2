@@ -37,8 +37,11 @@ export function EanAutoDiscovery() {
 
     let cancelled = false
     window.localStorage.setItem(storageKey, String(Date.now()))
-    setState('searching')
-    setMessage('AI zoekt automatisch concurrent URLs op basis van EAN…')
+    queueMicrotask(() => {
+      if (cancelled) return
+      setState('searching')
+      setMessage('AI zoekt automatisch concurrent URLs op basis van EAN…')
+    })
 
     fetch(`/api/producten/${encodeURIComponent(productId)}/discover`, { method: 'POST' })
       .then(async (response) => {
