@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireWritableUser } from '@/lib/authz'
+import { requirePermission } from '@/lib/authz'
 import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
 import { prisma } from '@/lib/prisma'
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireWritableUser()
+    const user = await requirePermission('competitors.write')
     const { id } = await params
     const product = await prisma.product.findFirst({
       where: { id, companyId: user.companyId, isActive: true },
