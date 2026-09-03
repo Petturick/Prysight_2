@@ -19,6 +19,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     productGroupId: readParam(params.productgroep),
     countryId: readParam(params.land),
     competitorId: readParam(params.concurrent),
+    identifierStatus: readParam(params.identificatie),
   }
   const page = Math.max(Number(readParam(params.pagina) ?? '1') || 1, 1)
   const pageSize = 12
@@ -37,6 +38,11 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         { productMarkets: { some: { countryId: filters.countryId, isActive: true } } },
         { matches: { some: { competitorOffer: { competitor: { countryId: filters.countryId } } } } },
       ] } : {},
+      filters.identifierStatus === 'ontbreekt'
+        ? { AND: [{ ean: null }, { gtin: null }] }
+        : filters.identifierStatus === 'aanwezig'
+          ? { OR: [{ ean: { not: null } }, { gtin: { not: null } }] }
+          : {},
     ],
   }
 
@@ -85,8 +91,10 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const coverage = rows.length ? Math.round((comparableCount / rows.length) * 100) : 0
   const expensiveCount = rows.filter((item) => item.marketPosition === 'Engels duurder').length
   const attentionCount = rows.filter((item) => item.reviewMatches > 0 || item.lowestPrice === null).length
+  const identifierCount = rows.filter((item) => Boolean(item.product.ean || item.product.gtin)).length
+  const identifierCoverage = rows.length ? Math.round((identifierCount / rows.length) * 100) : 0
 
-  const paginationParams = Object.fromEntries(Object.entries(filters).filter(([, value]) => Boolean(value)).map(([key, value]) => [key === 'productGroupId' ? 'productgroep' : key === 'countryId' ? 'land' : key === 'competitorId' ? 'concurrent' : key, value as string]))
+  const paginationParams = Object.fromEntries(Object.entries(filters).filter(([, value]) => Boolean(value)).map(([key, value]) => [key === 'productGroupId' ? 'productgroep' : key === 'countryId' ? 'land' : key === 'competitorId' ? 'concurrent' : key === 'identifierStatus' ? 'identificatie' : key, value as string]))
 
   return (
     <div className="space-y-5">
@@ -100,38 +108,42 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
             <p className="mt-2 max-w-3xl text-[12px] font-medium leading-6 text-[#4b5870]">Vind direct producten zonder marktprijs, producten boven de markt en records die handmatige controle vragen.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href="/producten?identificatie=ontbreekt" className="secondary-action">EAN ontbreekt</Link>
             <Link href="/import" className="secondary-action">Bulk importeren</Link>
             <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
           </div>
         </div>
-        <div className="grid border-t-2 border-[var(--border-strong)] sm:grid-cols-4">
+        <div className="grid border-t-2 border-[var(--border-strong)] sm:grid-cols-5">
           <div className="bg-[#111827] px-5 py-4 text-white sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#cbd5e1]">Producten</p><p className="mt-1 text-[27px] font-black">{formatNumber(totalCount)}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">EAN dekking</p><p className={`mt-1 text-[27px] font-black ${identifierCoverage < 100 ? 'text-[#9a5b00]' : 'text-[#0d7a49]'}`}>{identifierCoverage}%</p></div>
           <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Prijsdekking</p><p className="mt-1 text-[27px] font-black text-[#111827]">{coverage}%</p></div>
           <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Boven markt</p><p className={`mt-1 text-[27px] font-black ${expensiveCount ? 'text-[#b4233d]' : 'text-[#0d7a49]'}`}>{formatNumber(expensiveCount)}</p></div>
           <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 sm:border-l-2 sm:border-t-0"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Aandacht</p><p className={`mt-1 text-[27px] font-black ${attentionCount ? 'text-[#9a5b00]' : 'text-[#0d7a49]'}`}>{formatNumber(attentionCount)}</p></div>
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-4">
+        <Link href="/producten?identificatie=ontbreekt" className={`rounded-[14px] border-2 p-4 ${identifierCoverage < 100 ? 'border-[#9a5b00] bg-[#f8e4bd]' : 'border-[#0d7a49] bg-[#d9f0e4]'}`}><p className="text-[10px] font-black uppercase tracking-[0.08em]">EAN kwaliteit</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">{identifierCoverage}% heeft EAN of GTIN</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Open direct de producten waar identificatie ontbreekt.</p></Link>
         <Link href="/productmatches" className={`rounded-[14px] border-2 p-4 ${attentionCount ? 'border-[#9a5b00] bg-[#f8e4bd]' : 'border-[#0d7a49] bg-[#d9f0e4]'}`}><p className="text-[10px] font-black uppercase tracking-[0.08em]">Matchcontrole</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">{formatNumber(attentionCount)} producten vragen aandacht</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Controleer ontbrekende marktprijzen en open matches.</p></Link>
         <Link href="/feeds" className="rounded-[14px] border-2 border-[#2457d6] bg-[#dfe8ff] p-4"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#1b43a6]">Databronnen</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">Feeds en productdata beheren</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Ga naar de bron wanneer productdata of eigen prijzen ontbreken.</p></Link>
         <Link href="/concurrenten" className="rounded-[14px] border-2 border-[#5b2be8] bg-[#e4dcff] p-4"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#4320b8]">Concurrentdekking</p><h2 className="mt-1 text-[15px] font-black text-[#111827]">Concurrent URLs en frequentie</h2><p className="mt-1 text-[11px] font-semibold text-[#4b5870]">Beheer meetbare URLs en controleplanning.</p></Link>
       </section>
 
       <form className="strong-panel p-4">
-        <div className="mb-3 flex items-center justify-between"><div><h2 className="text-[14px] font-black text-[#111827]">Filter productonderzoek</h2><p className="mt-1 text-[10px] font-semibold text-[#6f7b91]">Filter eerst op markt, daarna op productgroep of concurrent voor een zuivere vergelijking.</p></div>{(filters.q || filters.productGroupId || filters.countryId || filters.competitorId) ? <Link href="/producten" className="secondary-action min-h-0 px-3 py-2 text-[10px]">Filters wissen</Link> : null}</div>
-        <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
+        <div className="mb-3 flex items-center justify-between"><div><h2 className="text-[14px] font-black text-[#111827]">Filter productonderzoek</h2><p className="mt-1 text-[10px] font-semibold text-[#6f7b91]">Filter op markt, productgroep, concurrent en EAN kwaliteit voor een zuivere vergelijking.</p></div>{(filters.q || filters.productGroupId || filters.countryId || filters.competitorId || filters.identifierStatus) ? <Link href="/producten" className="secondary-action min-h-0 px-3 py-2 text-[10px]">Filters wissen</Link> : null}</div>
+        <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_auto]">
           <input name="q" defaultValue={filters.q} placeholder="Zoek op artikel, EAN, GTIN of productnaam" className="toolbar-control w-full" />
           <select name="productgroep" defaultValue={filters.productGroupId} className="toolbar-control w-full"><option value="">Alle productgroepen</option>{filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
           <select name="land" defaultValue={filters.countryId} className="toolbar-control w-full"><option value="">Alle landen</option>{filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
           <select name="concurrent" defaultValue={filters.competitorId} className="toolbar-control w-full"><option value="">Alle concurrenten</option>{filterOptions.competitors.map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}</select>
+          <select name="identificatie" defaultValue={filters.identifierStatus} className="toolbar-control w-full"><option value="">Alle EAN statussen</option><option value="aanwezig">EAN of GTIN aanwezig</option><option value="ontbreekt">EAN en GTIN ontbreken</option></select>
           <button className="primary-action min-w-[112px]">Toepassen</button>
         </div>
         <p className="mt-3 text-[10px] font-semibold text-[#6f7b91]">{selectedCountry ? `Actief voor ${selectedCountry.name}, eigen marktprijzen en concurrenten zijn op dit land gefilterd.` : 'Alle markten gecombineerd, kies een land voor lokale prijsvergelijking.'}</p>
       </form>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">EAN of GTIN uit de feed staat direct naast het artikelnummer, prijsverschil en marktpositie blijven centraal staan.</p></div></div>
+        <div className="flex flex-wrap items-end justify-between gap-3 px-1"><div><h2 className="text-[15px] font-black text-[#111827]">Prijsvergelijking</h2><p className="mt-1 text-[11px] font-semibold text-[#647087]">EAN of GTIN uit de feed staat direct naast het artikelnummer, ontbrekende identificatie wordt expliciet gemarkeerd.</p></div></div>
         <DataTable
           emptyText="Nog geen producten in deze selectie. Voeg een product toe of koppel een feed."
           columns={[
@@ -139,7 +151,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           ]}
           rows={rows.map((item) => ({
             artikelnummer: <Link href={`/producten/${item.product.id}`} className="font-black text-[var(--blue)]">{item.product.articleNumber}</Link>,
-            ean: item.product.ean || item.product.gtin ? <span className="whitespace-nowrap font-mono text-[11px] font-black text-[#27364f]">{item.product.ean ?? item.product.gtin}</span> : <span className="text-[10px] font-bold text-[#9a5b00]">Niet aangeleverd</span>,
+            ean: item.product.ean || item.product.gtin ? <span className="whitespace-nowrap font-mono text-[11px] font-black text-[#27364f]">{item.product.ean ?? item.product.gtin}</span> : <Link href={`/producten/${item.product.id}`} className="inline-flex rounded-[7px] bg-[#f8e4bd] px-2.5 py-1 text-[9px] font-black text-[#7a4700]">EAN ontbreekt</Link>,
             productnaam: <Link href={`/producten/${item.product.id}`} className="font-bold text-[#111827]">{item.product.name}</Link>,
             eigenPrijs: <span className="font-black text-[#111827]">{formatCurrency(item.ownPrice, item.ownCurrency)}</span>,
             laagste: formatCurrency(item.lowestPrice),
