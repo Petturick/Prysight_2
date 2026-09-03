@@ -2,6 +2,7 @@ import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { evaluateMonitoringAlerts } from '@/lib/alert-engine'
 import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { assertCompanyCapacity } from '@/lib/company-license'
+import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
@@ -268,6 +269,28 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       'EUR',
     ).amount
 
+    const product = offer.productMatch?.product
+    const quality = assessPriceQuality({
+      extractedPrice: extracted.price,
+      normalizedPrice: normalized.toNumber(),
+      method: extracted.method,
+      extractedEan: extracted.ean,
+      extractedSku: extracted.sku,
+      extractedTitle: extracted.productTitle,
+      productEan: product?.ean,
+      articleNumber: product?.articleNumber,
+      productName: product?.name,
+      ownPrice: product?.ownPrice === null || product?.ownPrice === undefined ? null : Number(product.ownPrice),
+    })
+
+    if (!quality.accepted) {
+      await prisma.competitorOffer.update({
+        where: { id: offer.id },
+        data: { rawPrice: null, normalizedPrice: null, lastCheckedAt: checkedAt },
+      })
+      throw new Error(`Prijsvalidatie afgekeurd: ${quality.reasons.join(' ')}`)
+    }
+
     await prisma.$transaction([
       prisma.priceCheck.create({
         data: {
@@ -333,6 +356,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       normalizedPrice: normalized.toNumber(),
       currency,
       method: extracted.method,
+      confidence: quality.confidence,
       stockStatus: extracted.stockStatus ?? offer.stockStatus,
     }
   } catch (error) {
