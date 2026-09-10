@@ -8,7 +8,6 @@ function resolveAuthSecret() {
     process.env.AUTH_SECRET?.trim() ||
     process.env.NEXTAUTH_SECRET?.trim() ||
     process.env.PRYSIGHT_AUTH_SECRET?.trim() ||
-    process.env.PRICING_DB_PASSWORD?.trim() ||
     (process.env.NODE_ENV !== 'production' ? developmentSecret : undefined)
   )
 }
