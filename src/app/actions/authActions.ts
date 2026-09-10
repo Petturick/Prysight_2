@@ -12,6 +12,10 @@ function safeLoginPath(value: FormDataEntryValue | null): '/' | '/login' {
   return value === '/login' ? '/login' : '/'
 }
 
+function safeRedirectTo(value: FormDataEntryValue | null): '/dashboard' | '/onboarding' {
+  return value === '/onboarding' ? '/onboarding' : '/dashboard'
+}
+
 function withQuery(path: '/' | '/login', query: string) {
   return path === '/' ? `/?${query}` : `/login?${query}`
 }
@@ -60,31 +64,20 @@ export async function loginAction(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const password = String(formData.get('password') ?? '')
   const loginPath = safeLoginPath(formData.get('loginPath'))
+  const redirectTo = safeRedirectTo(formData.get('redirectTo'))
 
-  if (!email || !password) {
-    redirect(withQuery(loginPath, 'error=missing'))
-  }
+  if (!email || !password) redirect(withQuery(loginPath, 'error=missing'))
 
   try {
-    await signIn('credentials', {
-      email,
-      password,
-      redirectTo: '/dashboard',
-    })
+    await signIn('credentials', { email, password, redirectTo })
   } catch (error) {
     if (error instanceof AuthError) {
-      if (error.type === 'CredentialsSignin') {
-        redirect(withQuery(loginPath, 'error=credentials'))
-      }
+      if (error.type === 'CredentialsSignin') redirect(withQuery(loginPath, 'error=credentials'))
       console.error('Prysight authentication error', error)
       redirect(withQuery(loginPath, 'error=server'))
     }
-
-    const redirectDigest = error && typeof error === 'object' && 'digest' in error
-      ? String((error as { digest?: unknown }).digest ?? '')
-      : ''
+    const redirectDigest = error && typeof error === 'object' && 'digest' in error ? String((error as { digest?: unknown }).digest ?? '') : ''
     if (redirectDigest.startsWith('NEXT_REDIRECT')) throw error
-
     console.error('Unexpected Prysight login error', error)
     redirect(withQuery(loginPath, 'error=server'))
   }
@@ -97,20 +90,12 @@ export async function registerAction(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const password = String(formData.get('password') ?? '')
 
-  if (!fullName || !companyName || !email || !email.includes('@')) {
-    redirect(withQuery(loginPath, 'mode=register&error=register-missing'))
-  }
-  if (companyName.length < 2) {
-    redirect(withQuery(loginPath, 'mode=register&error=register-company'))
-  }
-  if (password.length < 12) {
-    redirect(withQuery(loginPath, 'mode=register&error=register-password'))
-  }
+  if (!fullName || !companyName || !email || !email.includes('@')) redirect(withQuery(loginPath, 'mode=register&error=register-missing'))
+  if (companyName.length < 2) redirect(withQuery(loginPath, 'mode=register&error=register-company'))
+  if (password.length < 12) redirect(withQuery(loginPath, 'mode=register&error=register-password'))
 
   const existing = await prisma.user.findUnique({ where: { email } })
-  if (existing) {
-    redirect(withQuery(loginPath, 'mode=register&error=register-existing'))
-  }
+  if (existing) redirect(withQuery(loginPath, 'mode=register&error=register-existing'))
 
   const passwordHash = await bcrypt.hash(password, 12)
   const trialEndsAt = new Date(Date.now() + 9 * 24 * 60 * 60 * 1000)
@@ -118,56 +103,12 @@ export async function registerAction(formData: FormData) {
   await prisma.$transaction(async tx => {
     const plan = await tx.licensePlan.upsert({
       where: { code: 'trial' },
-      update: {
-        isActive: true,
-        isPublic: true,
-      },
-      create: {
-        code: 'trial',
-        name: 'Prysight Trial',
-        description: '9 dagen gratis Prysight proberen.',
-        isActive: true,
-        isPublic: true,
-        maxUsers: 1,
-        maxCountries: 3,
-        maxCompetitors: 5,
-        maxSkus: 1000,
-        maxChecksPerDay: 100,
-        features: { pricingAdvice: true, feeds: true, reports: true },
-      },
+      update: { isActive: true, isPublic: true },
+      create: { code: 'trial', name: 'Prysight Trial', description: '9 dagen gratis Prysight proberen.', isActive: true, isPublic: true, maxUsers: 1, maxCountries: 3, maxCompetitors: 5, maxSkus: 1000, maxChecksPerDay: 100, features: { pricingAdvice: true, feeds: true, reports: true } },
     })
-
-    const user = await tx.user.create({
-      data: {
-        email,
-        name: fullName,
-        passwordHash,
-        role: 'ADMIN',
-      },
-    })
-
-    const company = await tx.company.create({
-      data: {
-        name: companyName,
-        slug: slugify(companyName),
-        billingEmail: email,
-        license: {
-          create: {
-            planId: plan.id,
-            status: 'TRIALING',
-            trialEndsAt,
-          },
-        },
-      },
-    })
-
-    await tx.companyMembership.create({
-      data: {
-        companyId: company.id,
-        userId: user.id,
-        role: 'OWNER',
-      },
-    })
+    const user = await tx.user.create({ data: { email, name: fullName, passwordHash, role: 'ADMIN' } })
+    const company = await tx.company.create({ data: { name: companyName, slug: slugify(companyName), billingEmail: email, license: { create: { planId: plan.id, status: 'TRIALING', trialEndsAt } } } })
+    await tx.companyMembership.create({ data: { companyId: company.id, userId: user.id, role: 'OWNER' } })
   })
 
   redirect(withQuery(loginPath, 'registered=success'))
@@ -176,34 +117,15 @@ export async function registerAction(formData: FormData) {
 export async function requestPasswordResetAction(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const loginPath = safeLoginPath(formData.get('loginPath'))
-
-  if (!email || !email.includes('@')) {
-    redirect(withQuery(loginPath, 'mode=forgot&error=reset-missing'))
-  }
-
+  if (!email || !email.includes('@')) redirect(withQuery(loginPath, 'mode=forgot&error=reset-missing'))
   const origin = passwordResetOrigin()
-  if (!origin || !process.env.RESEND_API_KEY?.trim() || !process.env.PASSWORD_RESET_FROM_EMAIL?.trim()) {
-    redirect(withQuery(loginPath, 'mode=forgot&reset=unavailable'))
-  }
-
-  const user = await prisma.user.findFirst({
-    where: {
-      email,
-      memberships: {
-        some: {
-          isActive: true,
-          company: { status: 'ACTIVE' },
-        },
-      },
-    },
-  })
-
+  if (!origin || !process.env.RESEND_API_KEY?.trim() || !process.env.PASSWORD_RESET_FROM_EMAIL?.trim()) redirect(withQuery(loginPath, 'mode=forgot&reset=unavailable'))
+  const user = await prisma.user.findFirst({ where: { email, memberships: { some: { isActive: true, company: { status: 'ACTIVE' } } } } })
   if (user) {
     const token = createPasswordResetToken(user.email, user.passwordHash)
     const resetLink = `${origin}/reset-password?token=${encodeURIComponent(token)}`
     await sendPasswordResetEmail(user.email, resetLink)
   }
-
   redirect(withQuery(loginPath, 'mode=forgot&reset=requested'))
 }
 
@@ -212,22 +134,11 @@ export async function resetPasswordAction(formData: FormData) {
   const newPassword = String(formData.get('newPassword') ?? '')
   const confirmPassword = String(formData.get('confirmPassword') ?? '')
   const encodedToken = encodeURIComponent(token)
-
-  if (!token || !newPassword || !confirmPassword) {
-    redirect(`/reset-password?token=${encodedToken}&error=missing`)
-  }
-  if (newPassword.length < 12) {
-    redirect(`/reset-password?token=${encodedToken}&error=length`)
-  }
-  if (newPassword !== confirmPassword) {
-    redirect(`/reset-password?token=${encodedToken}&error=match`)
-  }
-
+  if (!token || !newPassword || !confirmPassword) redirect(`/reset-password?token=${encodedToken}&error=missing`)
+  if (newPassword.length < 12) redirect(`/reset-password?token=${encodedToken}&error=length`)
+  if (newPassword !== confirmPassword) redirect(`/reset-password?token=${encodedToken}&error=match`)
   const user = await verifyPasswordResetToken(token)
-  if (!user) {
-    redirect('/reset-password?error=invalid')
-  }
-
+  if (!user) redirect('/reset-password?error=invalid')
   const passwordHash = await bcrypt.hash(newPassword, 12)
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } })
   await signOut({ redirectTo: '/?reset=success' })

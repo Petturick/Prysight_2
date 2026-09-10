@@ -7,82 +7,20 @@ import { useFormStatus } from 'react-dom'
 import { loginAction, registerAction } from '@/app/actions/authActions'
 import { requestPasswordResetAction } from '@/app/actions/passwordResetActions'
 
-type LoginSearchParams = {
-  error?: string
-  mode?: string
-  reset?: string
-  registered?: string
-}
+type LoginSearchParams = { error?: string; mode?: string; reset?: string; registered?: string }
 
 const loginErrors: Record<string, string> = {
-  missing: 'Vul je e-mailadres en wachtwoord in.',
-  credentials: 'E-mailadres of wachtwoord is onjuist.',
-  server: 'Inloggen kon niet veilig worden afgerond. Probeer het opnieuw.',
-  Configuration: 'Inloggen kon niet veilig worden afgerond. Probeer het opnieuw.',
-  'register-missing': 'Vul alle verplichte velden in.',
-  'register-company': 'Vul een geldige bedrijfsnaam in.',
-  'register-password': 'Gebruik een wachtwoord van minimaal 12 tekens.',
-  'register-existing': 'Er bestaat al een Prysight account met dit e-mailadres.',
+  missing: 'Vul je e-mailadres en wachtwoord in.', credentials: 'E-mailadres of wachtwoord is onjuist.', server: 'Inloggen kon niet veilig worden afgerond. Probeer het opnieuw.', Configuration: 'Inloggen kon niet veilig worden afgerond. Probeer het opnieuw.', 'register-missing': 'Vul alle verplichte velden in.', 'register-company': 'Vul een geldige bedrijfsnaam in.', 'register-password': 'Gebruik een wachtwoord van minimaal 12 tekens.', 'register-existing': 'Er bestaat al een Prysight account met dit e-mailadres.',
 }
 
-function EyeIcon({ hidden = false }: { hidden?: boolean }) {
-  return hidden ? (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 002.8 2.8" /><path d="M9.9 4.2A10.7 10.7 0 0112 4c5.5 0 9.5 5 9.5 5a18.7 18.7 0 01-3.1 3.7" /><path d="M6.6 6.6C4.2 8 2.5 10.5 2.5 10.5S6.5 16 12 16c1 0 2-.2 2.9-.5" />
-    </svg>
-  ) : (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2.5 12S6.5 6.5 12 6.5 21.5 12 21.5 12 17.5 17.5 12 17.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.5" />
-    </svg>
-  )
-}
+function EyeIcon({ hidden = false }: { hidden?: boolean }) { return hidden ? <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 002.8 2.8" /><path d="M9.9 4.2A10.7 10.7 0 0112 4c5.5 0 9.5 5 9.5 5a18.7 18.7 0 01-3.1 3.7" /><path d="M6.6 6.6C4.2 8 2.5 10.5 2.5 10.5S6.5 16 12 16c1 0 2-.2 2.9-.5" /></svg> : <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 12S6.5 6.5 12 6.5 21.5 12 21.5 12 17.5 17.5 12 17.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.5" /></svg> }
+function MailIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg> }
+function UserPlusIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19a6 6 0 0 0-12 0" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M16 11h6" /></svg> }
+function SpinnerIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" className="opacity-30" /><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg> }
 
-function MailIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
-}
-
-function UserPlusIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19a6 6 0 0 0-12 0" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M16 11h6" /></svg>
-}
-
-function SpinnerIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" className="opacity-30" />
-      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function AuthSubmitButton({
-  idleLabel,
-  pendingLabel,
-  icon,
-}: {
-  idleLabel: string
-  pendingLabel: string
-  icon: React.ReactNode
-}) {
+function AuthSubmitButton({ idleLabel, pendingLabel, icon }: { idleLabel: string; pendingLabel: string; icon: React.ReactNode }) {
   const { pending } = useFormStatus()
-
-  return (
-    <div className="space-y-2">
-      <button
-        type="submit"
-        disabled={pending}
-        aria-busy={pending}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-wait disabled:opacity-80"
-      >
-        {pending ? <SpinnerIcon /> : icon}
-        {pending ? pendingLabel : idleLabel}
-      </button>
-      {pending ? (
-        <p role="status" aria-live="polite" className="text-center text-xs font-medium text-[#2458ff]">
-          Even geduld, Prysight verwerkt je aanvraag…
-        </p>
-      ) : null}
-    </div>
-  )
+  return <div className="space-y-2"><button type="submit" disabled={pending} aria-busy={pending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2458ff] to-[#1689b7] px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-wait disabled:opacity-80">{pending ? <SpinnerIcon /> : icon}{pending ? pendingLabel : idleLabel}</button>{pending ? <p role="status" aria-live="polite" className="text-center text-xs font-medium text-[#2458ff]">Prysight verwerkt je aanvraag…</p> : null}</div>
 }
 
 export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearchParams; loginPath: '/' | '/login' }) {
@@ -94,71 +32,8 @@ export function PrysightLoginScreen({ params, loginPath }: { params: LoginSearch
   const resetSucceeded = params.reset === 'success'
   const resetUnavailable = params.reset === 'unavailable'
   const registered = params.registered === 'success'
-
-  return (
-    <main className="relative flex min-h-screen items-center justify-center bg-[#f0f5f9] px-4 py-10 sm:px-6">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <Image src="/prysight-logo.svg" alt="Prysight" width={520} height={140} priority className="mx-auto h-auto w-[220px]" />
-          <p className="mt-1 text-sm text-slate-400">Pricing Intelligence</p>
-        </div>
-
-        <section className="rounded-2xl bg-white p-8 shadow-2xl shadow-slate-300/50">
-          {!forgotMode ? (
-            <div className="mb-6 flex rounded-lg bg-slate-100 p-1">
-              <Link href={loginPath} className={`flex-1 rounded-md py-2 text-center text-sm font-medium ${!registerMode ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>Inloggen</Link>
-              <Link href={`${loginPath}?mode=register`} className={`flex-1 rounded-md py-2 text-center text-sm font-medium ${registerMode ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>Gratis starten</Link>
-            </div>
-          ) : null}
-
-          {forgotMode ? (
-            <>
-              <h1 className="text-xl font-semibold text-slate-900">Wachtwoord resetten</h1>
-              <p className="mt-2 text-sm text-slate-500">Je ontvangt een beveiligde resetlink per e-mail.</p>
-              {resetRequested ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Als het e-mailadres bij een actief Prysight account hoort, is de herstelmail verzonden. Controleer ook je ongewenste e-mail.</div> : null}
-              {resetUnavailable ? <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">De herstelmailservice is nog niet geconfigureerd. De beheerder moet de mailinstellingen van Prysight afronden.</div> : null}
-              {params.error === 'reset-missing' ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Vul een geldig e-mailadres in.</div> : null}
-              {!resetRequested ? (
-                <form action={requestPasswordResetAction} className="mt-6 space-y-4">
-                  <input type="hidden" name="loginPath" value={loginPath} />
-                  <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label>
-                  <AuthSubmitButton idleLabel="Resetlink versturen" pendingLabel="Resetlink versturen…" icon={<MailIcon />} />
-                </form>
-              ) : null}
-              <Link href={loginPath} className="mt-4 block w-full text-center text-sm text-slate-500 hover:text-slate-800">Terug naar inloggen</Link>
-            </>
-          ) : registerMode ? (
-            <>
-              <h1 className="text-xl font-semibold text-slate-900">Start met Prysight</h1>
-              <p className="mt-2 text-sm text-slate-500">Maak je organisatie aan en probeer Prysight 9 dagen gratis.</p>
-              {loginError ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{loginError}</div> : null}
-              <form action={registerAction} className="mt-6 space-y-4">
-                <input type="hidden" name="loginPath" value={loginPath} />
-                <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Volledige naam</span><input name="fullName" required autoFocus className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Volledige naam" /></label>
-                <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Bedrijfsnaam</span><input name="companyName" required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Bedrijfsnaam" /></label>
-                <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label>
-                <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Wachtwoord</span><span className="relative block"><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={12} required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Minimaal 12 tekens" /><button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><EyeIcon hidden={showPassword} /></button></span></label>
-                <AuthSubmitButton idleLabel="Start 9 dagen gratis" pendingLabel="Account aanmaken…" icon={<UserPlusIcon />} />
-              </form>
-            </>
-          ) : (
-            <>
-              <h1 className="text-xl font-semibold text-slate-900">Inloggen</h1>
-              <p className="mt-2 text-sm text-slate-500">Gebruik je Prysight account om verder te gaan.</p>
-              {loginError ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{loginError}</div> : null}
-              {registered ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Je Prysight omgeving is aangemaakt. Log in om je 9 dagen gratis te starten.</div> : null}
-              {resetSucceeded ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Je wachtwoord is gewijzigd. Je kunt nu inloggen met je nieuwe wachtwoord.</div> : null}
-              <form action={loginAction} className="mt-6 space-y-4">
-                <input type="hidden" name="loginPath" value={loginPath} />
-                <label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label>
-                <label className="block"><span className="mb-1.5 flex items-center justify-between gap-4 text-sm font-medium text-slate-700"><span>Wachtwoord</span><Link href={`${loginPath}?mode=forgot`} className="text-xs font-medium text-[#2458ff] hover:text-[#1749dc]">Wachtwoord vergeten?</Link></span><span className="relative block"><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Voer je wachtwoord in" /><button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#2458ff]"><EyeIcon hidden={showPassword} /></button></span></label>
-                <AuthSubmitButton idleLabel="Inloggen" pendingLabel="Bezig met inloggen…" icon={<MailIcon />} />
-              </form>
-            </>
-          )}
-        </section>
-      </div>
-      <div className="absolute bottom-4 left-0 right-0 text-center text-xs text-slate-500">Pformance B.V. © 2026 · Prysight</div>
-    </main>
-  )
+  return <main className="relative flex min-h-screen items-center justify-center bg-[#f0f5f9] px-4 py-10 sm:px-6"><div className="w-full max-w-md"><div className="mb-8 text-center"><Image src="/prysight-logo.svg" alt="Prysight" width={520} height={140} priority className="mx-auto h-auto w-[220px]" /><p className="mt-1 text-sm text-slate-400">Pricing Intelligence</p></div><section className="rounded-2xl bg-white p-8 shadow-2xl shadow-slate-300/50">
+    {!forgotMode ? <div className="mb-6 flex rounded-lg bg-slate-100 p-1"><Link href={loginPath} className={`flex-1 rounded-md py-2 text-center text-sm font-medium ${!registerMode ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>Inloggen</Link><Link href={`${loginPath}?mode=register`} className={`flex-1 rounded-md py-2 text-center text-sm font-medium ${registerMode ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>Gratis starten</Link></div> : null}
+    {forgotMode ? <><h1 className="text-xl font-semibold text-slate-900">Wachtwoord resetten</h1><p className="mt-2 text-sm text-slate-500">Je ontvangt een beveiligde resetlink per e-mail.</p>{resetRequested ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Als het e-mailadres bij een actief Prysight account hoort, is de herstelmail verzonden. Controleer ook je ongewenste e-mail.</div> : null}{resetUnavailable ? <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">De herstelmailservice is nog niet geconfigureerd. De beheerder moet de mailinstellingen van Prysight afronden.</div> : null}{params.error === 'reset-missing' ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Vul een geldig e-mailadres in.</div> : null}{!resetRequested ? <form action={requestPasswordResetAction} className="mt-6 space-y-4"><input type="hidden" name="loginPath" value={loginPath} /><label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label><AuthSubmitButton idleLabel="Resetlink versturen" pendingLabel="Resetlink versturen…" icon={<MailIcon />} /></form> : null}<Link href={loginPath} className="mt-4 block w-full text-center text-sm text-slate-500 hover:text-slate-800">Terug naar inloggen</Link></> : registerMode ? <><h1 className="text-xl font-semibold text-slate-900">Start met Prysight</h1><p className="mt-2 text-sm text-slate-500">Maak je organisatie aan en probeer Prysight 9 dagen gratis.</p>{loginError ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{loginError}</div> : null}<form action={registerAction} className="mt-6 space-y-4"><input type="hidden" name="loginPath" value={loginPath} /><label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Volledige naam</span><input name="fullName" required autoFocus className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Volledige naam" /></label><label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Bedrijfsnaam</span><input name="companyName" required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Bedrijfsnaam" /></label><label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label><label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">Wachtwoord</span><span className="relative block"><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={12} required className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Minimaal 12 tekens" /><button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><EyeIcon hidden={showPassword} /></button></span></label><AuthSubmitButton idleLabel="Start 9 dagen gratis" pendingLabel="Account aanmaken…" icon={<UserPlusIcon />} /></form></> : <><h1 className="text-xl font-semibold text-slate-900">Inloggen</h1><p className="mt-2 text-sm text-slate-500">Gebruik je Prysight account om verder te gaan.</p>{loginError ? <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{loginError}</div> : null}{registered ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Je omgeving is aangemaakt. Log in, daarna leidt Prysight je automatisch door de eerste configuratie.</div> : null}{resetSucceeded ? <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Je wachtwoord is gewijzigd. Je kunt nu inloggen met je nieuwe wachtwoord.</div> : null}<form action={loginAction} className="mt-6 space-y-4"><input type="hidden" name="loginPath" value={loginPath} /><input type="hidden" name="redirectTo" value={registered ? '/onboarding' : '/dashboard'} /><label className="block"><span className="mb-1.5 block text-sm font-medium text-slate-700">E-mailadres</span><input name="email" type="email" autoComplete="email" required autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="naam@bedrijf.nl" /></label><label className="block"><span className="mb-1.5 flex items-center justify-between gap-4 text-sm font-medium text-slate-700"><span>Wachtwoord</span><Link href={`${loginPath}?mode=forgot`} className="text-xs font-medium text-[#2458ff] hover:text-[#1749dc]">Wachtwoord vergeten?</Link></span><span className="relative block"><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition focus:border-[#2458ff] focus:ring-2 focus:ring-[#2458ff]" placeholder="Voer je wachtwoord in" /><button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#2458ff]"><EyeIcon hidden={showPassword} /></button></span></label><AuthSubmitButton idleLabel="Inloggen" pendingLabel="Bezig met inloggen…" icon={<MailIcon />} /></form></>}
+  </section></div><div className="absolute bottom-4 left-0 right-0 text-center text-xs text-slate-500">Pformance B.V. © 2026 · Prysight</div></main>
 }

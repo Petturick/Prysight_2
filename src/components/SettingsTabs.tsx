@@ -8,12 +8,13 @@ import type { Permission } from '@/lib/authz'
 
 const tabs: Array<{ href: string; label: string; permission?: Permission; superAdminOnly?: boolean }> = [
   { href: '/instellingen/organisaties', label: 'Organisaties', superAdminOnly: true },
+  { href: '/instellingen/markten', label: 'Markten', permission: 'settings.manage' },
+  { href: '/feeds', label: 'Databronnen', permission: 'feeds.read' },
   { href: '/instellingen/team', label: 'Team', permission: 'users.manage' },
-  { href: '/instellingen/gebruikers', label: 'Gebruikers', permission: 'users.manage' },
   { href: '/instellingen/rollen', label: 'Rollen en rechten', permission: 'settings.manage' },
-  { href: '/instellingen/integraties', label: 'Integraties', permission: 'settings.manage' },
+  { href: '/integraties', label: 'Integraties', permission: 'settings.manage' },
   { href: '/instellingen/licentie', label: 'Licentie en facturatie', permission: 'billing.manage' },
-  { href: '/instellingen/systeem', label: 'Systeeminstellingen', permission: 'settings.manage' },
+  { href: '/instellingen/systeem', label: 'Systeem', permission: 'settings.manage' },
   { href: '/instellingen/profiel', label: 'Mijn profiel' },
 ]
 
