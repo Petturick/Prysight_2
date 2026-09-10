@@ -1,2 +1,2 @@
-Production deploy trigger 2026-09-10 15:56 Europe/Amsterdam
-Tenant hardening release, strict company scoping across product, competitor, match, import, reporting and feed flows, license aware monitoring, and Netlify background worker architecture for hourly price checks. Production source includes merged commit 2a4c8a9de0d0cf362ba6d2754f15558ed53467bc.
+Production deploy trigger 2026-09-10 16:14 Europe/Amsterdam
+Final Prysight hardening release, including strict tenant scoping, scalable background monitoring, dedicated auth secret usage in server and edge auth, and database status based on the actual server connection instead of a legacy password fallback. Production source includes commit c67865ade556363f3d3184c55f0e12a1df14ea74.
