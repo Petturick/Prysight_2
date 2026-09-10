@@ -6,6 +6,7 @@ import { CompanyMemberRole, CompanyStatus, Prisma } from '@/generated/prisma/cli
 import { createAuditLog } from '@/lib/audit'
 import { ACTIVE_COMPANY_COOKIE, requirePermission, requireSuperAdmin } from '@/lib/authz'
 import { assertCompanyCapacity } from '@/lib/company-license'
+import { requireLicensedCountry } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
 import { competitorSchema, countrySchema, productGroupSchema, userSchema, webshopSchema } from '@/lib/validators'
 import { revalidatePath } from 'next/cache'
@@ -37,7 +38,7 @@ export async function createCompanyAction(formData: FormData) {
     await tx.companyLicense.create({ data: { companyId: created.id, planId: defaultPlan.id, status: 'ACTIVE', source: 'MANUAL' } })
     return created
   })
-  await audit(actor.id, 'COMPANY_CREATED', 'Company', company.id, null, { name: company.name, slug: company.slug })
+  await createAuditLog({ companyId: company.id, userId: actor.id, action: 'COMPANY_CREATED', entityType: 'Company', entityId: company.id, newValue: { companyId: company.id, name: company.name, slug: company.slug } })
   revalidatePath('/instellingen/organisaties')
 }
 
@@ -58,62 +59,81 @@ export async function updateCompanyStatusAction(formData: FormData) {
   if (!Object.values(CompanyStatus).includes(status)) throw new Error('Ongeldige organisatiestatus.')
   if (companyId === actor.companyId && status !== CompanyStatus.ACTIVE) throw new Error('De actieve organisatie kan niet worden gedeactiveerd. Schakel eerst naar een andere organisatie.')
   const company = await prisma.company.update({ where: { id: companyId }, data: { status } })
-  await audit(actor.id, 'COMPANY_STATUS_UPDATED', 'Company', company.id, null, { status: company.status })
+  await createAuditLog({ companyId: company.id, userId: actor.id, action: 'COMPANY_STATUS_UPDATED', entityType: 'Company', entityId: company.id, newValue: { companyId: company.id, status: company.status } })
   revalidatePath('/instellingen/organisaties')
 }
 
 export async function saveCountryAction(formData: FormData) {
   const actor = await requirePermission('settings.manage')
   const parsed = countrySchema.parse({ id: formData.get('id') || undefined, code: formData.get('code'), name: formData.get('name'), vatRate: formData.get('vatRate'), currency: formData.get('currency'), isActive: formData.get('isActive') === 'on' })
-  const existingCountry = await prisma.country.findUnique({ where: parsed.id ? { id: parsed.id } : { code: parsed.code }, select: { id: true } })
+  const existingCountry = await prisma.country.findUnique({ where: parsed.id ? { id: parsed.id } : { code: parsed.code } })
   const existingAssociation = existingCountry ? await prisma.companyCountry.findUnique({ where: { companyId_countryId: { companyId: actor.companyId, countryId: existingCountry.id } } }) : null
   if (!existingAssociation?.isActive) await assertCompanyCapacity(actor.companyId, 'countries')
-  const result = await prisma.country.upsert({ where: { code: parsed.code }, update: { name: parsed.name, vatRate: new Prisma.Decimal(parsed.vatRate), currency: parsed.currency, isActive: parsed.isActive }, create: { code: parsed.code, name: parsed.name, vatRate: new Prisma.Decimal(parsed.vatRate), currency: parsed.currency, isActive: parsed.isActive } })
-  await prisma.companyCountry.upsert({ where: { companyId_countryId: { companyId: actor.companyId, countryId: result.id } }, update: { isActive: true }, create: { companyId: actor.companyId, countryId: result.id, isDefault: result.code === 'NL' } })
-  await audit(actor.id, 'COUNTRY_SAVED', 'Country', result.id, null, { code: result.code, name: result.name })
-  revalidatePath('/beheer/landen'); revalidatePath('/beheer')
+
+  let result
+  if (actor.role === 'SUPER_ADMIN') {
+    result = await prisma.country.upsert({ where: { code: parsed.code }, update: { name: parsed.name, vatRate: new Prisma.Decimal(parsed.vatRate), currency: parsed.currency, isActive: parsed.isActive }, create: { code: parsed.code, name: parsed.name, vatRate: new Prisma.Decimal(parsed.vatRate), currency: parsed.currency, isActive: parsed.isActive } })
+  } else {
+    if (!existingCountry?.isActive) throw new Error('Alleen een super admin kan nieuwe landen of globale landinstellingen aanmaken.')
+    result = existingCountry
+  }
+
+  const hasDefault = await prisma.companyCountry.findFirst({ where: { companyId: actor.companyId, isActive: true, isDefault: true }, select: { id: true } })
+  await prisma.companyCountry.upsert({
+    where: { companyId_countryId: { companyId: actor.companyId, countryId: result.id } },
+    update: { isActive: true, isDefault: existingAssociation?.isDefault || !hasDefault },
+    create: { companyId: actor.companyId, countryId: result.id, isDefault: !hasDefault },
+  })
+  await audit(actor.id, 'COUNTRY_SAVED', 'Country', result.id, null, { companyId: actor.companyId, code: result.code, name: result.name })
+  revalidatePath('/beheer/landen'); revalidatePath('/beheer'); revalidatePath('/instellingen/markten')
 }
 
 export async function deleteCountryAction(formData: FormData) {
   const actor = await requirePermission('settings.manage')
   const id = String(formData.get('id'))
   await prisma.companyCountry.update({ where: { companyId_countryId: { companyId: actor.companyId, countryId: id } }, data: { isActive: false, isDefault: false } })
-  await audit(actor.id, 'COMPANY_COUNTRY_REMOVED', 'Country', id); revalidatePath('/beheer/landen')
+  await audit(actor.id, 'COMPANY_COUNTRY_REMOVED', 'Country', id, null, { companyId: actor.companyId, isActive: false }); revalidatePath('/beheer/landen'); revalidatePath('/instellingen/markten')
 }
 
 export async function saveCompetitorAdminAction(formData: FormData) {
   const actor = await requirePermission('competitors.write')
   const parsed = competitorSchema.parse({ name: formData.get('name'), website: formData.get('website'), countryId: formData.get('countryId'), checkFrequencyHours: formData.get('checkFrequencyHours'), isActive: formData.get('isActive') === 'on' })
+  await requireLicensedCountry(actor.companyId, parsed.countryId)
   const id = formData.get('id') ? String(formData.get('id')) : undefined
   if (!id) await assertCompanyCapacity(actor.companyId, 'competitors')
   const result = id ? await prisma.competitor.update({ where: { id, companyId: actor.companyId }, data: parsed }) : await prisma.competitor.create({ data: { ...parsed, companyId: actor.companyId } })
-  await audit(actor.id, 'COMPETITOR_SAVED', 'Competitor', result.id, null, { name: result.name }); revalidatePath('/beheer/concurrenten'); revalidatePath('/concurrenten')
+  await audit(actor.id, 'COMPETITOR_SAVED', 'Competitor', result.id, null, { companyId: actor.companyId, name: result.name }); revalidatePath('/beheer/concurrenten'); revalidatePath('/concurrenten')
 }
 export async function deleteCompetitorAdminAction(formData: FormData) {
   const actor = await requirePermission('competitors.write'); const id = String(formData.get('id'))
-  await prisma.competitor.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'COMPETITOR_DELETED', 'Competitor', id); revalidatePath('/beheer/concurrenten')
+  await prisma.competitor.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'COMPETITOR_DELETED', 'Competitor', id, null, { companyId: actor.companyId }); revalidatePath('/beheer/concurrenten')
 }
 
 export async function saveWebshopAction(formData: FormData) {
   const actor = await requirePermission('settings.manage')
   const parsed = webshopSchema.parse({ id: formData.get('id') || undefined, name: formData.get('name'), url: formData.get('url'), countryId: formData.get('countryId'), competitorId: formData.get('competitorId') || null, isActive: formData.get('isActive') === 'on' })
+  await requireLicensedCountry(actor.companyId, parsed.countryId)
+  if (parsed.competitorId) {
+    const competitor = await prisma.competitor.findFirst({ where: { id: parsed.competitorId, companyId: actor.companyId, countryId: parsed.countryId }, select: { id: true } })
+    if (!competitor) throw new Error('De gekozen concurrent hoort niet bij deze organisatie en markt.')
+  }
   const result = parsed.id ? await prisma.webshop.update({ where: { id: parsed.id, companyId: actor.companyId }, data: parsed }) : await prisma.webshop.create({ data: { ...parsed, companyId: actor.companyId } })
-  await audit(actor.id, 'WEBSHOP_SAVED', 'Webshop', result.id, null, { name: result.name }); revalidatePath('/beheer/webshops')
+  await audit(actor.id, 'WEBSHOP_SAVED', 'Webshop', result.id, null, { companyId: actor.companyId, name: result.name }); revalidatePath('/beheer/webshops')
 }
 export async function deleteWebshopAction(formData: FormData) {
   const actor = await requirePermission('settings.manage'); const id = String(formData.get('id'))
-  await prisma.webshop.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'WEBSHOP_DELETED', 'Webshop', id); revalidatePath('/beheer/webshops')
+  await prisma.webshop.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'WEBSHOP_DELETED', 'Webshop', id, null, { companyId: actor.companyId }); revalidatePath('/beheer/webshops')
 }
 
 export async function saveProductGroupAction(formData: FormData) {
   const actor = await requirePermission('products.write')
   const parsed = productGroupSchema.parse({ id: formData.get('id') || undefined, name: formData.get('name'), description: formData.get('description') || '', isActive: formData.get('isActive') === 'on' })
   const result = parsed.id ? await prisma.productGroup.update({ where: { id: parsed.id, companyId: actor.companyId }, data: parsed }) : await prisma.productGroup.create({ data: { ...parsed, companyId: actor.companyId } })
-  await audit(actor.id, 'PRODUCT_GROUP_SAVED', 'ProductGroup', result.id, null, { name: result.name }); revalidatePath('/beheer/productgroepen'); revalidatePath('/beheer')
+  await audit(actor.id, 'PRODUCT_GROUP_SAVED', 'ProductGroup', result.id, null, { companyId: actor.companyId, name: result.name }); revalidatePath('/beheer/productgroepen'); revalidatePath('/beheer')
 }
 export async function deleteProductGroupAction(formData: FormData) {
   const actor = await requirePermission('products.write'); const id = String(formData.get('id'))
-  await prisma.productGroup.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'PRODUCT_GROUP_DELETED', 'ProductGroup', id); revalidatePath('/beheer/productgroepen')
+  await prisma.productGroup.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'PRODUCT_GROUP_DELETED', 'ProductGroup', id, null, { companyId: actor.companyId }); revalidatePath('/beheer/productgroepen')
 }
 
 export async function saveUserAction(formData: FormData) {
@@ -126,11 +146,21 @@ export async function saveUserAction(formData: FormData) {
   const existingMembership = parsed.id ? await prisma.companyMembership.findUnique({ where: { companyId_userId: { companyId: actor.companyId, userId: parsed.id } }, select: { isActive: true, user: { select: { isSuperAdmin: true } } } }) : null
   if (parsed.id && !existingMembership?.isActive) throw new Error('Deze gebruiker hoort niet bij de actieve organisatie.')
   if (existingMembership?.user.isSuperAdmin && actor.role !== 'SUPER_ADMIN') throw new Error('Een super admin account kan alleen door een super admin worden beheerd.')
-  if (!parsed.id) await assertCompanyCapacity(actor.companyId, 'users')
-  const passwordHash = await bcrypt.hash(parsed.password, 10)
-  const result = parsed.id ? await prisma.user.update({ where: { id: parsed.id }, data: { email: parsed.email, name: parsed.name, passwordHash, role: parsed.role } }) : await prisma.user.create({ data: { email: parsed.email, name: parsed.name, passwordHash, role: parsed.role } })
+
+  const passwordHash = await bcrypt.hash(parsed.password, 12)
+  let result
+  if (parsed.id) {
+    result = await prisma.user.update({ where: { id: parsed.id }, data: { email: parsed.email, name: parsed.name, passwordHash } })
+  } else {
+    await assertCompanyCapacity(actor.companyId, 'users')
+    const existingUser = await prisma.user.findUnique({ where: { email: parsed.email } })
+    result = existingUser ?? await prisma.user.create({ data: { email: parsed.email, name: parsed.name, passwordHash, role: parsed.role } })
+    const alreadyMember = await prisma.companyMembership.findUnique({ where: { companyId_userId: { companyId: actor.companyId, userId: result.id } } })
+    if (alreadyMember?.isActive) throw new Error('Deze gebruiker is al actief binnen de organisatie.')
+  }
+
   await prisma.companyMembership.upsert({ where: { companyId_userId: { companyId: actor.companyId, userId: result.id } }, update: { isActive: true, role: requestedMembershipRole }, create: { companyId: actor.companyId, userId: result.id, role: requestedMembershipRole } })
-  await audit(actor.id, 'USER_SAVED', 'User', result.id, null, { email: result.email, role: result.role }); revalidatePath('/beheer/gebruikers'); revalidatePath('/instellingen/gebruikers')
+  await audit(actor.id, 'USER_SAVED', 'User', result.id, null, { companyId: actor.companyId, email: result.email, membershipRole: requestedMembershipRole }); revalidatePath('/beheer/gebruikers'); revalidatePath('/instellingen/gebruikers')
 }
 
 export async function deleteUserAction(formData: FormData) {
@@ -140,5 +170,5 @@ export async function deleteUserAction(formData: FormData) {
   if (!membership?.isActive) throw new Error('Deze gebruiker hoort niet bij de actieve organisatie.')
   if (membership.user.isSuperAdmin && actor.role !== 'SUPER_ADMIN') throw new Error('Een super admin account kan alleen door een super admin worden beheerd.')
   await prisma.companyMembership.update({ where: { companyId_userId: { companyId: actor.companyId, userId: id } }, data: { isActive: false } })
-  await audit(actor.id, 'COMPANY_USER_REMOVED', 'User', id); revalidatePath('/beheer/gebruikers'); revalidatePath('/instellingen/gebruikers')
+  await audit(actor.id, 'COMPANY_USER_REMOVED', 'User', id, null, { companyId: actor.companyId, isActive: false }); revalidatePath('/beheer/gebruikers'); revalidatePath('/instellingen/gebruikers')
 }
