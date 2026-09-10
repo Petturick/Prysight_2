@@ -29,6 +29,7 @@ export async function deleteSelectedProductsAction(formData: FormData) {
   })
 
   await createAuditLog({
+    companyId: actor.companyId,
     userId: actor.id,
     action: 'PRODUCTS_BULK_DELETED',
     entityType: 'Product',
