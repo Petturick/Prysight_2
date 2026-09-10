@@ -1,2 +1,2 @@
-Production deploy trigger 2026-09-10 14:16 Europe/Amsterdam
-Market readiness release, simplified navigation, first run onboarding, company scoped market activation, central action hub, billing UI wiring, dedicated auth secret separation and preserved pricing monitoring. Production source includes merged commit 9faba2d38989d7149829b0fa41756b39392e9d1f.
+Production deploy trigger 2026-09-10 15:56 Europe/Amsterdam
+Tenant hardening release, strict company scoping across product, competitor, match, import, reporting and feed flows, license aware monitoring, and Netlify background worker architecture for hourly price checks. Production source includes merged commit 2a4c8a9de0d0cf362ba6d2754f15558ed53467bc.
