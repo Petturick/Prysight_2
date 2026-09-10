@@ -5,15 +5,6 @@ import { requireAdmin } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
-const links = [
-  { href: '/beheer/landen', label: 'Landen beheer', description: 'BTW, valuta en activatie per land.' },
-  { href: '/beheer/concurrenten', label: 'Concurrenten beheer', description: 'Marktspelers en controlefrequenties beheren.' },
-  { href: '/beheer/webshops', label: 'Webshops beheer', description: 'Verkoopkanalen en koppelingen met concurrenten.' },
-  { href: '/beheer/productgroepen', label: 'Productgroepen beheer', description: 'Categorieën en scope voor signalering.' },
-  { href: '/beheer/gebruikers', label: 'Gebruikers beheer', description: 'Rollen en toegangsbeheer.' },
-  { href: '/beheer/auditlog', label: 'Auditlog', description: 'Volledige wijzigingshistorie en compliance.' },
-]
-
 export default async function BeheerPage() {
   const actor = await requireAdmin()
   const result = await safeDatabaseQuery(() => Promise.all([
@@ -27,12 +18,21 @@ export default async function BeheerPage() {
   const [countries, competitors, webshops, productGroups, users, logs] = result.data
 
   const stats = [
-    { label: 'Actieve landen', value: countries },
+    { label: 'Actieve markten', value: countries },
     { label: 'Concurrenten', value: competitors },
     { label: 'Webshops', value: webshops },
     { label: 'Productgroepen', value: productGroups },
     { label: 'Gebruikers', value: users },
     { label: 'Auditregels', value: logs },
+  ]
+  const links = [
+    { href: '/instellingen/markten', label: 'Markten', description: 'Kies in welke landen deze organisatie actief monitort.' },
+    { href: '/beheer/concurrenten', label: 'Concurrenten', description: 'Marktspelers en controlefrequenties beheren.' },
+    { href: '/beheer/webshops', label: 'Webshops', description: 'Verkoopkanalen en koppelingen met concurrenten.' },
+    { href: '/beheer/productgroepen', label: 'Productgroepen', description: 'Categorieën en scope voor signalering.' },
+    { href: '/instellingen/gebruikers', label: 'Gebruikers en toegang', description: 'Gebruikers, rollen en toegang binnen de organisatie.' },
+    { href: '/beheer/auditlog', label: 'Auditlog', description: 'Wijzigingshistorie van de actieve organisatie.' },
+    ...(actor.role === 'SUPER_ADMIN' ? [{ href: '/beheer/landen', label: 'Platformlanden', description: 'Globale BTW en valutareferenties voor het hele platform.' }] : []),
   ]
 
   return (
@@ -40,7 +40,7 @@ export default async function BeheerPage() {
       {!result.available && <DatabaseNotice />}
       <div>
         <h1 className="text-3xl font-semibold">Beheer</h1>
-        <p className="mt-2 text-sm text-slate-600">Beheer kerngegevens, rollen en configuraties voor de actieve organisatie.</p>
+        <p className="mt-2 text-sm text-slate-600">Beheer alleen wat bij de actieve organisatie hoort. Platforminstellingen worden uitsluitend aan super admins getoond.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((stat) => (
