@@ -7,8 +7,8 @@ import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function AuditlogPage() {
-  await requireAdmin()
-  const result = await safeDatabaseQuery(() => prisma.auditLog.findMany({ include: { user: true }, orderBy: { createdAt: 'desc' }, take: 100 }), [])
+  const actor = await requireAdmin()
+  const result = await safeDatabaseQuery(() => prisma.auditLog.findMany({ where: { companyId: actor.companyId }, include: { user: true }, orderBy: { createdAt: 'desc' }, take: 100 }), [])
   const logs = result.data
   return (
     <div className="space-y-6">
