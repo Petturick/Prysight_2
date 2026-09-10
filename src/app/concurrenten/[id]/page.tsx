@@ -1,21 +1,24 @@
 export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import { DataTable } from '@/components/DataTable'
+import { requirePermission } from '@/lib/authz'
 import { deriveCompetitorMetrics } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 
 export default async function ConcurrentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const actor = await requirePermission('competitors.read')
   const { id } = await params
-  const competitor = await prisma.competitor.findUnique({
-    where: { id },
+  const competitor = await prisma.competitor.findFirst({
+    where: { id, companyId: actor.companyId },
     include: {
       country: true,
       offers: {
+        where: { companyId: actor.companyId },
         include: {
           productMatch: { include: { product: true } },
-          priceHistory: { orderBy: { recordedAt: 'desc' }, take: 5 },
-          priceChecks: { orderBy: { checkedAt: 'desc' }, take: 5 },
+          priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 5 },
+          priceChecks: { where: { companyId: actor.companyId }, orderBy: { checkedAt: 'desc' }, take: 5 },
         },
       },
     },
@@ -36,25 +39,7 @@ export default async function ConcurrentDetailPage({ params }: { params: Promise
           <p>Laatste controle: <span className="font-semibold text-slate-950">{formatDate(metrics.lastChecked)}</span></p>
         </div>
       </div>
-
-      <DataTable
-        columns={[
-          { key: 'product', header: 'Product' },
-          { key: 'prijs', header: 'Prijs' },
-          { key: 'genormaliseerd', header: 'Genormaliseerd' },
-          { key: 'match', header: 'Matchstatus' },
-          { key: 'voorraad', header: 'Voorraad' },
-          { key: 'laatstGecontroleerd', header: 'Laatste controle' },
-        ]}
-        rows={competitor.offers.map((offer) => ({
-          product: offer.productMatch?.product.name ?? 'Nog niet gekoppeld',
-          prijs: formatCurrency(offer.rawPrice, offer.currency),
-          genormaliseerd: formatCurrency(offer.normalizedPrice),
-          match: offer.productMatch?.matchStatus ?? 'Geen match',
-          voorraad: offer.stockStatus ?? '—',
-          laatstGecontroleerd: formatDate(offer.lastCheckedAt),
-        }))}
-      />
+      <DataTable columns={[{ key: 'product', header: 'Product' },{ key: 'prijs', header: 'Prijs' },{ key: 'genormaliseerd', header: 'Genormaliseerd' },{ key: 'match', header: 'Matchstatus' },{ key: 'voorraad', header: 'Voorraad' },{ key: 'laatstGecontroleerd', header: 'Laatste controle' }]} rows={competitor.offers.map((offer) => ({ product: offer.productMatch?.product.name ?? 'Nog niet gekoppeld', prijs: formatCurrency(offer.rawPrice, offer.currency), genormaliseerd: formatCurrency(offer.normalizedPrice), match: offer.productMatch?.matchStatus ?? 'Geen match', voorraad: offer.stockStatus ?? '—', laatstGecontroleerd: formatDate(offer.lastCheckedAt) }))} />
     </div>
   )
 }
