@@ -1,26 +1,28 @@
 'use server'
 
 import { MatchStatus } from '@/generated/prisma/client'
-import { createAuditLog, getSystemUser } from '@/lib/audit'
+import { createAuditLog } from '@/lib/audit'
+import { requirePermission } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 import { matchActionSchema } from '@/lib/validators'
 import { revalidatePath } from 'next/cache'
 
 async function updateMatchStatus(payload: unknown) {
+  const actor = await requirePermission('competitors.write')
   const parsed = matchActionSchema.parse(payload)
-  const systemUser = await getSystemUser()
-  const previous = await prisma.productMatch.findUniqueOrThrow({ where: { id: parsed.matchId } })
+  const previous = await prisma.productMatch.findFirstOrThrow({ where: { id: parsed.matchId, companyId: actor.companyId } })
   const updated = await prisma.productMatch.update({
-    where: { id: parsed.matchId },
+    where: { id: parsed.matchId, companyId: actor.companyId },
     data: {
       matchStatus: parsed.nextStatus,
-      approvedBy: parsed.nextStatus === MatchStatus.CERTAIN ? systemUser.id : null,
+      approvedBy: parsed.nextStatus === MatchStatus.CERTAIN ? actor.id : null,
       approvedAt: parsed.nextStatus === MatchStatus.CERTAIN ? new Date() : null,
     },
   })
 
   await createAuditLog({
-    userId: systemUser.id,
+    companyId: actor.companyId,
+    userId: actor.id,
     action: 'MATCH_STATUS_UPDATED',
     entityType: 'ProductMatch',
     entityId: updated.id,

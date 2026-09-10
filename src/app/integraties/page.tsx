@@ -1,16 +1,17 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { requireAuthenticatedUser } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 import { formatDate } from '@/lib/format'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
 
 function Status({ ready, label }: { ready: boolean; label?: string }) {
   return <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${ready ? 'bg-[var(--green-soft)] text-[var(--green)]' : 'bg-[var(--amber-soft)] text-[var(--amber)]'}`}>{label ?? (ready ? 'Actief' : 'Configuratie nodig')}</span>
 }
 
 export default async function IntegrationsPage() {
+  const actor = await requireAuthenticatedUser()
   const monitorReady = Boolean(process.env.PRICE_MONITOR_API_KEY)
   const feedReady = Boolean(process.env.DATA_FEED_API_KEY)
   const webhookReady = Boolean(process.env.ALERT_WEBHOOK_URL)
@@ -18,7 +19,10 @@ export default async function IntegrationsPage() {
   const databaseProjectId = process.env.PRICING_DB_PROJECT_ID ?? process.env.SUPABASE_PROJECT_ID
   const databaseReady = Boolean(databasePassword && databaseProjectId)
   const syntrxResult = await safeDatabaseQuery(
-    () => prisma.feedSource.findUnique({ where: { companyId_sourceKey: { companyId: DEFAULT_COMPANY_ID, sourceKey: 'syntrx:cieqifmizthutfvfgfny:4cd85d1b-f834-4e68-b26d-1eae649b4c1f' } } }),
+    () => prisma.feedSource.findFirst({
+      where: { companyId: actor.companyId, sourceType: 'SYNTRX', isActive: true },
+      orderBy: { lastRunAt: 'desc' },
+    }),
     null,
   )
   const syntrx = syntrxResult.data
@@ -27,9 +31,9 @@ export default async function IntegrationsPage() {
     {
       title: 'Syntrx PIM',
       kicker: 'Directe productstroom',
-      description: 'Engels Group producten kunnen rechtstreeks vanuit Syntrx naar Prysight worden gesynchroniseerd. Prysight valideert de Syntrx sessie en organisatiebevoegdheid server side.',
+      description: 'Producten kunnen rechtstreeks vanuit Syntrx naar Prysight worden gesynchroniseerd. De status hieronder hoort uitsluitend bij de actieve organisatie.',
       ready: Boolean(syntrx),
-      detail: syntrx ? `Laatste synchronisatie ${formatDate(syntrx.lastRunAt)}, ${syntrx.lastItemCount} regels, status ${syntrx.lastRunStatus}.` : 'De Prysight ontvangstlaag is gereed. De verzendactie wordt vanuit Syntrx geactiveerd.',
+      detail: syntrx ? `Laatste synchronisatie ${formatDate(syntrx.lastRunAt)}, ${syntrx.lastItemCount} regels, status ${syntrx.lastRunStatus}.` : 'Nog geen actieve Syntrx bron gekoppeld aan deze organisatie.',
       href: '/feeds',
       linkLabel: 'Bekijk databronnen',
     },
@@ -47,14 +51,14 @@ export default async function IntegrationsPage() {
       kicker: 'Externe systemen',
       description: 'ERP, Magento, PIM of een andere bron kan eigen producten, prijzen, voorraad en marktinformatie via een beveiligde JSON feed synchroniseren.',
       ready: feedReady,
-      detail: 'POST naar /api/integraties/product-feed met Bearer DATA_FEED_API_KEY. De bron verschijnt daarna automatisch onder Feedbeheer.',
+      detail: 'POST naar /api/integraties/product-feed met Bearer DATA_FEED_API_KEY en de companyId van de doelorganisatie. Bestaande standaardintegraties blijven compatibel.',
       href: '/feeds',
       linkLabel: 'Open Feedbeheer',
     },
     {
       title: 'Prysight database',
       kicker: 'Datalaag',
-      description: 'De applicatie gebruikt de toegewezen Supabase database via de server side databaseverbinding. Feeds, Syntrx en handmatige invoer schrijven naar dezelfde kernstructuur.',
+      description: 'De applicatie gebruikt de toegewezen Supabase database via de server side databaseverbinding. Feeds, Syntrx en handmatige invoer schrijven naar dezelfde tenant gescheiden kernstructuur.',
       ready: databaseReady && syntrxResult.available,
       detail: databaseReady ? 'Database runtime configuratie gevonden.' : 'Database runtime configuratie vraagt nog aandacht.',
       href: '/dashboard',
@@ -78,7 +82,7 @@ export default async function IntegrationsPage() {
           <div>
             <p className="eyebrow">Integraties</p>
             <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Datastromen zonder afhankelijkheid</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Feedbeheer blijft zelfstandig werken. Syntrx is een aparte directe bron. Beide leveren dezelfde Prysight productstructuur zodat prijsvergelijking en monitoring op één datamodel draaien.</p>
+            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Elke integratie en bron wordt gekoppeld aan de actieve organisatie. Zo blijven productdata, monitoring en exports gescheiden wanneer meerdere klanten Prysight gebruiken.</p>
           </div>
           <div className="flex flex-wrap gap-2"><Link href="/feeds" className="secondary-action">Feedbeheer</Link><Link href="/producten" className="primary-action">Productonderzoek</Link></div>
         </div>

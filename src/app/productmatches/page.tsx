@@ -2,13 +2,16 @@ export const dynamic = 'force-dynamic'
 import { approveMatchAction, rejectMatchAction, setReviewMatchAction } from '@/app/actions/matchActions'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
+import { requirePermission } from '@/lib/authz'
 import { formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function ProductmatchesPage() {
+  const actor = await requirePermission('competitors.read')
+  const canReview = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
   const result = await safeDatabaseQuery(() => prisma.productMatch.findMany({
-    where: { confidenceScore: { gte: 80, lte: 94 } },
+    where: { companyId: actor.companyId, matchStatus: 'REVIEW' },
     include: {
       product: true,
       competitorOffer: { include: { competitor: true } },
@@ -22,7 +25,7 @@ export default async function ProductmatchesPage() {
       {!result.available && <DatabaseNotice />}
       <div>
         <h1 className="text-3xl font-semibold">Productmatches</h1>
-        <p className="mt-2 text-sm text-slate-600">Matches met een score van 80-94 vereisen manuele controle voordat ze als geldig worden ingezet.</p>
+        <p className="mt-2 text-sm text-slate-600">Alle automatische matches die nog controle vragen voor de actieve organisatie staan hier bij elkaar.</p>
       </div>
       <DataTable
         columns={[
@@ -41,13 +44,13 @@ export default async function ProductmatchesPage() {
           status: match.matchStatus,
           bewijs: <pre className="max-w-md whitespace-pre-wrap text-xs text-slate-600">{JSON.stringify(match.matchEvidence, null, 2)}</pre>,
           aangemaakt: formatDate(match.createdAt),
-          acties: (
+          acties: canReview ? (
             <div className="flex flex-wrap gap-2">
               <form action={approveMatchAction.bind(null, match.id)}><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white">Goedkeuren</button></form>
               <form action={setReviewMatchAction.bind(null, match.id)}><button className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white">Bewaren als review</button></form>
               <form action={rejectMatchAction.bind(null, match.id)}><button className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-medium text-white">Afwijzen</button></form>
             </div>
-          ),
+          ) : <span className="text-xs text-slate-500">Alleen lezen</span>,
         }))}
       />
     </div>

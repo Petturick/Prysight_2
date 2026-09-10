@@ -7,20 +7,21 @@ import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function WebshopsBeheerPage() {
-  await requireAdmin()
+  const actor = await requireAdmin()
   const result = await safeDatabaseQuery(() => Promise.all([
-    prisma.webshop.findMany({ include: { country: true, competitor: true }, orderBy: { name: 'asc' } }),
-    prisma.country.findMany({ orderBy: { name: 'asc' } }),
-    prisma.competitor.findMany({ orderBy: { name: 'asc' } }),
+    prisma.webshop.findMany({ where: { companyId: actor.companyId }, include: { country: true, competitor: true }, orderBy: { name: 'asc' } }),
+    prisma.companyCountry.findMany({ where: { companyId: actor.companyId, isActive: true, country: { isActive: true } }, include: { country: true }, orderBy: { country: { name: 'asc' } } }),
+    prisma.competitor.findMany({ where: { companyId: actor.companyId }, orderBy: { name: 'asc' } }),
   ]), [[], [], []])
-  const [webshops, countries, competitors] = result.data
+  const [webshops, companyCountries, competitors] = result.data
+  const countries = companyCountries.map((membership) => membership.country)
 
   return (
     <div className="space-y-6">
       {!result.available && <DatabaseNotice />}
       <h1 className="text-3xl font-semibold">Webshops beheer</h1>
       <form action={saveWebshopAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
-        <fieldset disabled={!result.available} className="contents disabled:opacity-50">
+        <fieldset disabled={!result.available || countries.length === 0} className="contents disabled:opacity-50">
         <input name="name" placeholder="Naam" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" required />
         <input name="url" placeholder="URL" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" required />
         <select name="countryId" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
@@ -34,6 +35,7 @@ export default async function WebshopsBeheerPage() {
         <button className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white md:col-span-5">Webshop opslaan</button>
         </fieldset>
       </form>
+      {countries.length === 0 ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Activeer eerst minimaal één markt voordat je een webshop toevoegt.</p> : null}
       <DataTable
         columns={[
           { key: 'naam', header: 'Naam' },

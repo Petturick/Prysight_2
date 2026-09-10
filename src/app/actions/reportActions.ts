@@ -1,7 +1,8 @@
 'use server'
 
 import { Prisma, ReportStatus } from '@/generated/prisma/client'
-import { createAuditLog, getSystemUser } from '@/lib/audit'
+import { createAuditLog } from '@/lib/audit'
+import { requirePermission } from '@/lib/authz'
 import { getDashboardSnapshot } from '@/lib/dashboard'
 import { decimalToNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
@@ -22,8 +23,8 @@ function endOfWeek(date: Date) {
   return copy
 }
 
-export async function buildWeeklyReportPayload() {
-  const snapshot = await getDashboardSnapshot()
+export async function buildWeeklyReportPayload(companyId: string) {
+  const snapshot = await getDashboardSnapshot({}, companyId)
   return {
     samenvatting: snapshot.kpis,
     topStijgers: snapshot.biggestIncreases,
@@ -44,14 +45,15 @@ export async function buildWeeklyReportPayload() {
 }
 
 export async function generateWeeklyReportAction() {
-  const systemUser = await getSystemUser()
+  const actor = await requirePermission('reports.read')
   const today = new Date()
   const weekStart = startOfWeek(today)
   const weekEnd = endOfWeek(today)
-  const content = await buildWeeklyReportPayload()
+  const content = await buildWeeklyReportPayload(actor.companyId)
 
   const report = await prisma.report.create({
     data: {
+      companyId: actor.companyId,
       title: `Weekrapport ${weekStart.toLocaleDateString('nl-NL')}`,
       weekStart,
       weekEnd,
@@ -62,7 +64,8 @@ export async function generateWeeklyReportAction() {
   })
 
   await createAuditLog({
-    userId: systemUser.id,
+    companyId: actor.companyId,
+    userId: actor.id,
     action: 'REPORT_GENERATED',
     entityType: 'Report',
     entityId: report.id,

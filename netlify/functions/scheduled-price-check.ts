@@ -1,44 +1,32 @@
-const DEFAULT_BATCH_SIZE = 40
+declare const Netlify: { env: { get(name: string): string | undefined } }
 
-function productionBaseUrl() {
-  const configured = process.env.PRYSIGHT_APP_URL?.trim()
-  const netlifyUrl = process.env.URL?.trim()
-  const deployUrl = process.env.DEPLOY_PRIME_URL?.trim()
-  return (configured || netlifyUrl || deployUrl || '').replace(/\/$/, '')
-}
-
-export default async () => {
-  const baseUrl = productionBaseUrl()
-  const apiKey = process.env.PRICE_MONITOR_API_KEY?.trim()
-
-  if (!baseUrl) {
-    console.error('Scheduled price check skipped: no production URL configured.')
-    return new Response('Missing production URL', { status: 500 })
-  }
-
+export default async (request: Request) => {
+  const apiKey = Netlify.env.get('PRICE_MONITOR_API_KEY')?.trim()
   if (!apiKey) {
     console.error('Scheduled price check skipped: PRICE_MONITOR_API_KEY is missing.')
-    return new Response('Missing PRICE_MONITOR_API_KEY', { status: 500 })
+    return
   }
 
-  const response = await fetch(`${baseUrl}/api/prijscontroles`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'PrysightScheduledMonitor/1.0',
-    },
-    body: JSON.stringify({ limit: DEFAULT_BATCH_SIZE }),
-  })
+  const origin = new URL(request.url).origin
+  try {
+    const response = await fetch(`${origin}/internal/price-check-background`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'PrysightScheduledMonitor/2.0',
+      },
+      body: JSON.stringify({ source: 'hourly-schedule' }),
+    })
 
-  const body = await response.text()
-  if (!response.ok) {
-    console.error(`Scheduled price check failed with HTTP ${response.status}: ${body}`)
-    return new Response(body || 'Price check failed', { status: response.status })
+    if (!response.ok) {
+      console.error(`Scheduled price check could not start background worker, HTTP ${response.status}.`)
+      return
+    }
+    console.log('Scheduled price check handed off to background worker.')
+  } catch (error) {
+    console.error('Scheduled price check could not start background worker.', error)
   }
-
-  console.log(`Scheduled price check completed: ${body}`)
-  return new Response(body || 'OK', { status: 200 })
 }
 
 export const config = {
