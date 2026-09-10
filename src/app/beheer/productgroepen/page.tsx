@@ -7,8 +7,8 @@ import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function ProductgroepenBeheerPage() {
-  await requireAdmin()
-  const result = await safeDatabaseQuery(() => prisma.productGroup.findMany({ orderBy: { name: 'asc' } }), [])
+  const actor = await requireAdmin()
+  const result = await safeDatabaseQuery(() => prisma.productGroup.findMany({ where: { companyId: actor.companyId }, orderBy: { name: 'asc' } }), [])
   const groups = result.data
   return (
     <div className="space-y-6">
