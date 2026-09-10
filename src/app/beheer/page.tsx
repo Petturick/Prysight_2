@@ -15,19 +15,19 @@ const links = [
 ]
 
 export default async function BeheerPage() {
-  await requireAdmin()
+  const actor = await requireAdmin()
   const result = await safeDatabaseQuery(() => Promise.all([
-    prisma.country.count(),
-    prisma.competitor.count(),
-    prisma.webshop.count(),
-    prisma.productGroup.count(),
-    prisma.user.count(),
-    prisma.auditLog.count(),
+    prisma.companyCountry.count({ where: { companyId: actor.companyId, isActive: true } }),
+    prisma.competitor.count({ where: { companyId: actor.companyId } }),
+    prisma.webshop.count({ where: { companyId: actor.companyId } }),
+    prisma.productGroup.count({ where: { companyId: actor.companyId } }),
+    prisma.companyMembership.count({ where: { companyId: actor.companyId, isActive: true } }),
+    prisma.auditLog.count({ where: { companyId: actor.companyId } }),
   ]), [0, 0, 0, 0, 0, 0])
   const [countries, competitors, webshops, productGroups, users, logs] = result.data
 
   const stats = [
-    { label: 'Landen', value: countries },
+    { label: 'Actieve landen', value: countries },
     { label: 'Concurrenten', value: competitors },
     { label: 'Webshops', value: webshops },
     { label: 'Productgroepen', value: productGroups },
@@ -40,7 +40,7 @@ export default async function BeheerPage() {
       {!result.available && <DatabaseNotice />}
       <div>
         <h1 className="text-3xl font-semibold">Beheer</h1>
-        <p className="mt-2 text-sm text-slate-600">Beheer kerngegevens, rollen en configuraties voor prijsmonitoring.</p>
+        <p className="mt-2 text-sm text-slate-600">Beheer kerngegevens, rollen en configuraties voor de actieve organisatie.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((stat) => (
