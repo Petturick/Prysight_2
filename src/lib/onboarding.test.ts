@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildOnboardingState } from './onboarding'
+import { buildOnboardingState } from './onboarding-progress'
 
 test('onboarding starts with company complete and market as next step', () => {
   const state = buildOnboardingState({ company: 1, countries: 0, products: 0, competitors: 0, matches: 0, successfulChecks: 0 })

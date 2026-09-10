@@ -24,7 +24,6 @@ function resolveAuthSecret() {
     process.env.AUTH_SECRET?.trim() ||
     process.env.NEXTAUTH_SECRET?.trim() ||
     process.env.PRYSIGHT_AUTH_SECRET?.trim() ||
-    process.env.PRICING_DB_PASSWORD?.trim() ||
     (process.env.NODE_ENV !== 'production' ? developmentSecret : undefined)
   )
 }
@@ -32,26 +31,15 @@ function resolveAuthSecret() {
 export const { auth, handlers, signIn, signOut } = NextAuth({
   trustHost: true,
   secret: resolveAuthSecret(),
-  session: {
-    strategy: 'jwt',
-    maxAge: 8 * 60 * 60,
-  },
-  pages: {
-    signIn: '/',
-    error: '/',
-  },
+  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
+  pages: { signIn: '/', error: '/' },
   providers: [
     Credentials({
-      credentials: {
-        email: { label: 'E-mailadres', type: 'email' },
-        password: { label: 'Wachtwoord', type: 'password' },
-      },
+      credentials: { email: { label: 'E-mailadres', type: 'email' }, password: { label: 'Wachtwoord', type: 'password' } },
       async authorize(credentials) {
         const email = typeof credentials.email === 'string' ? credentials.email.trim().toLowerCase() : ''
         const password = typeof credentials.password === 'string' ? credentials.password : ''
-
         if (!email || !password) return null
-
         const users = await prisma.$queryRaw<DatabaseAuthUser[]>`
           SELECT
             u.id,
@@ -80,28 +68,14 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           ORDER BY cm.created_at ASC
           LIMIT 1
         `
-
         const user = users[0]
         if (!user || !user.companyId || !user.membershipRole) return null
-
         const localPasswordMatches = await bcrypt.compare(password, user.passwordHash)
         let passwordMatches = localPasswordMatches
-        if (!passwordMatches && user.hasSupabaseAuth) {
-          passwordMatches = (await verifySupabasePassword(email, password)) === 'valid'
-        }
-
+        if (!passwordMatches && user.hasSupabaseAuth) passwordMatches = (await verifySupabasePassword(email, password)) === 'valid'
         if (!passwordMatches) return null
-
         const role: AppRole = user.isSuperAdmin ? 'SUPER_ADMIN' : user.role
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role,
-          companyId: user.companyId,
-          membershipRole: user.membershipRole,
-        }
+        return { id: user.id, email: user.email, name: user.name, role, companyId: user.companyId, membershipRole: user.membershipRole }
       },
     }),
   ],
