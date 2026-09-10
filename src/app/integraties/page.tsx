@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { requireAuthenticatedUser } from '@/lib/authz'
+import { getSafeDatabaseStatus } from '@/lib/database-url'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 import { formatDate } from '@/lib/format'
@@ -15,9 +16,7 @@ export default async function IntegrationsPage() {
   const monitorReady = Boolean(process.env.PRICE_MONITOR_API_KEY)
   const feedReady = Boolean(process.env.DATA_FEED_API_KEY)
   const webhookReady = Boolean(process.env.ALERT_WEBHOOK_URL)
-  const databasePassword = process.env.PRICING_DB_PASSWORD ?? process.env.SUPABASE_DB_PASSWORD
-  const databaseProjectId = process.env.PRICING_DB_PROJECT_ID ?? process.env.SUPABASE_PROJECT_ID
-  const databaseReady = Boolean(databasePassword && databaseProjectId)
+  const databaseStatus = getSafeDatabaseStatus()
   const syntrxResult = await safeDatabaseQuery(
     () => prisma.feedSource.findFirst({
       where: { companyId: actor.companyId, sourceType: 'SYNTRX', isActive: true },
@@ -26,6 +25,7 @@ export default async function IntegrationsPage() {
     null,
   )
   const syntrx = syntrxResult.data
+  const databaseReady = databaseStatus.configured && syntrxResult.available
 
   const cards = [
     {
@@ -59,8 +59,8 @@ export default async function IntegrationsPage() {
       title: 'Prysight database',
       kicker: 'Datalaag',
       description: 'De applicatie gebruikt de toegewezen Supabase database via de server side databaseverbinding. Feeds, Syntrx en handmatige invoer schrijven naar dezelfde tenant gescheiden kernstructuur.',
-      ready: databaseReady && syntrxResult.available,
-      detail: databaseReady ? 'Database runtime configuratie gevonden.' : 'Database runtime configuratie vraagt nog aandacht.',
+      ready: databaseReady,
+      detail: databaseReady ? `Databaseverbinding actief via ${databaseStatus.mode === 'supavisor' ? 'Supavisor' : 'serververbinding'}.` : 'Database runtime configuratie vraagt nog aandacht.',
       href: '/dashboard',
       linkLabel: 'Open dashboard',
     },
