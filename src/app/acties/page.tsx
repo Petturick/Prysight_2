@@ -8,8 +8,10 @@ import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function ActionsPage() {
   const user = await requireAuthenticatedUser()
-  const staleBefore = new Date(Date.now() - 36 * 60 * 60 * 1000)
-  const failedSince = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const staleBefore = new Date()
+  staleBefore.setHours(staleBefore.getHours() - 36)
+  const failedSince = new Date()
+  failedSince.setHours(failedSince.getHours() - 24)
   const result = await safeDatabaseQuery(async () => {
     const [alerts, reviewMatches, failedChecks, staleOffers] = await Promise.all([
       prisma.alert.count({ where: { companyId: user.companyId, isRead: false } }),
