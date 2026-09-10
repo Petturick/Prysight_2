@@ -20,7 +20,7 @@ export async function activateCompanyCountryAction(formData: FormData) {
     update: { isActive: true, isDefault: current?.isDefault || !hasDefault },
     create: { companyId: actor.companyId, countryId, isActive: true, isDefault: !hasDefault },
   })
-  await createAuditLog({ userId: actor.id, action: 'COMPANY_COUNTRY_ACTIVATED', entityType: 'Country', entityId: country.id, newValue: { code: country.code, name: country.name } })
+  await createAuditLog({ companyId: actor.companyId, userId: actor.id, action: 'COMPANY_COUNTRY_ACTIVATED', entityType: 'Country', entityId: country.id, newValue: { code: country.code, name: country.name } })
   revalidatePath('/onboarding')
   revalidatePath('/dashboard')
   revalidatePath('/instellingen/markten')
