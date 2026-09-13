@@ -52,3 +52,11 @@ export function buildProductSettingsResolver(settings: ProductSetting[]) {
     return { mode, cooldownHours: product?.cooldownHours ?? group?.cooldownHours ?? 24, lastDiscoveryAt: product?.lastDiscoveryAt ?? null, lastAutoPriceAt: product?.lastAutoPriceAt ?? null }
   }
 }
+
+export async function markProductDiscovery(companyId: string, productId: string, at = new Date()) {
+  await prisma.$executeRaw(Prisma.sql`update product_settings set last_discovery_at = ${at}, updated_at = now() where company_id = ${companyId} and product_id = ${productId} and product_group_id is null`)
+}
+
+export async function markProductPriceRun(companyId: string, productId: string, at = new Date()) {
+  await prisma.$executeRaw(Prisma.sql`update product_settings set last_auto_price_at = ${at}, updated_at = now() where company_id = ${companyId} and product_id = ${productId} and product_group_id is null`)
+}
