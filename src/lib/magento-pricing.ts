@@ -3,6 +3,8 @@ import { safeRemoteFetch } from '@/lib/safe-remote-url'
 type MagentoConfig = {
   baseUrl: string
   accessToken: string
+  companyId: string
+  currency: string
   storeCode: string
   storeId: number
   pricesIncludeTax: boolean
@@ -33,24 +35,35 @@ function taxMode(value: string | undefined) {
   throw new Error('Stel MAGENTO_PRICES_INCLUDE_TAX expliciet in op true of false voordat writeback wordt gebruikt.')
 }
 
-export function getMagentoPricingConfig(): MagentoConfig | null {
+function currency(value: string | undefined) {
+  const code = value?.trim().toUpperCase()
+  if (!code || !/^[A-Z]{3}$/.test(code)) throw new Error('Stel MAGENTO_CURRENCY expliciet in op een geldige ISO valutacode.')
+  return code
+}
+
+export function getMagentoPricingConfig(companyId?: string): MagentoConfig | null {
   const rawBaseUrl = process.env.MAGENTO_BASE_URL?.trim()
   const accessToken = process.env.MAGENTO_ACCESS_TOKEN?.trim()
   if (!rawBaseUrl || !accessToken) return null
+  const configuredCompanyId = process.env.MAGENTO_COMPANY_ID?.trim()
+  if (!configuredCompanyId) throw new Error('Stel MAGENTO_COMPANY_ID in voordat Magento writeback wordt gebruikt.')
+  if (companyId && configuredCompanyId !== companyId) throw new Error('Magento writeback is niet geconfigureerd voor deze organisatie.')
   const parsedStoreId = Number(process.env.MAGENTO_STORE_ID ?? '0')
   if (!Number.isInteger(parsedStoreId) || parsedStoreId < 0) throw new Error('MAGENTO_STORE_ID moet een geheel getal van 0 of hoger zijn.')
   return {
     baseUrl: normalizeBaseUrl(rawBaseUrl),
     accessToken,
+    companyId: configuredCompanyId,
+    currency: currency(process.env.MAGENTO_CURRENCY),
     storeCode: normalizedStoreCode(process.env.MAGENTO_STORE_CODE),
     storeId: parsedStoreId,
     pricesIncludeTax: taxMode(process.env.MAGENTO_PRICES_INCLUDE_TAX),
   }
 }
 
-export function isMagentoPricingConfigured() {
+export function isMagentoPricingConfigured(companyId?: string) {
   try {
-    return getMagentoPricingConfig() !== null
+    return getMagentoPricingConfig(companyId) !== null
   } catch {
     return false
   }
@@ -96,8 +109,8 @@ export function convertPriceTaxMode(price: number, fromIncludesTax: boolean, toI
   return Math.round(converted * 100) / 100
 }
 
-export async function readMagentoBasePrice(sku: string) {
-  const config = getMagentoPricingConfig()
+export async function readMagentoBasePrice(sku: string, companyId: string) {
+  const config = getMagentoPricingConfig(companyId)
   if (!config) throw new Error('Magento writeback is nog niet geconfigureerd.')
   const cleanSku = sku.trim()
   if (!cleanSku) throw new Error('SKU ontbreekt voor Magento writeback.')
@@ -108,11 +121,11 @@ export async function readMagentoBasePrice(sku: string) {
     ?? prices.find((item) => item.sku === cleanSku)
   const value = Number(match?.price)
   if (!Number.isFinite(value) || value < 0) throw new Error(`Geen geldige Magento base price gevonden voor SKU ${cleanSku}.`)
-  return { price: value, storeId: Number(match?.store_id ?? config.storeId), sku: cleanSku, pricesIncludeTax: config.pricesIncludeTax }
+  return { price: value, storeId: Number(match?.store_id ?? config.storeId), sku: cleanSku, pricesIncludeTax: config.pricesIncludeTax, currency: config.currency }
 }
 
-export async function writeMagentoBasePrice(sku: string, price: number) {
-  const config = getMagentoPricingConfig()
+export async function writeMagentoBasePrice(sku: string, price: number, companyId: string) {
+  const config = getMagentoPricingConfig(companyId)
   if (!config) throw new Error('Magento writeback is nog niet geconfigureerd.')
   const cleanSku = sku.trim()
   if (!cleanSku) throw new Error('SKU ontbreekt voor Magento writeback.')
@@ -120,5 +133,5 @@ export async function writeMagentoBasePrice(sku: string, price: number) {
   await request(config, 'products/base-prices', {
     prices: [{ price: Math.round(price * 100) / 100, store_id: config.storeId, sku: cleanSku }],
   })
-  return readMagentoBasePrice(cleanSku)
+  return readMagentoBasePrice(cleanSku, companyId)
 }
