@@ -25,7 +25,11 @@ export function matchProducts(product: ProductInput, offer: OfferInput) {
   const evidence: Record<string, unknown> = {}
   const productEan = compactIdentifier(product.ean ?? product.gtin)
   const offerEan = compactIdentifier(offer.ean ?? offer.gtin)
-  if (productEan && offerEan && productEan === offerEan) return { score: 100, evidence: { ean: { product: productEan, offer: offerEan, match: true } }, status: 'CERTAIN' as const }
+
+  if (productEan && offerEan) {
+    if (productEan === offerEan) return { score: 100, evidence: { ean: { product: productEan, offer: offerEan, match: true } }, status: 'CERTAIN' as const }
+    return { score: 0, evidence: { ean: { product: productEan, offer: offerEan, conflict: true } }, status: 'UNRELIABLE' as const }
+  }
 
   const productSku = compactIdentifier(product.articleNumber)
   const offerSku = compactIdentifier(offer.sku)
@@ -38,23 +42,41 @@ export function matchProducts(product: ProductInput, offer: OfferInput) {
   const productDimensions = dimensionsFromText(product.name)
   const offerDimensions = dimensionsFromText(offer.productTitle)
   const dimensionMatch = productDimensions.find((dimension) => offerDimensions.includes(dimension))
-  if (dimensionMatch) { score += 20; evidence.dimensions = { value: dimensionMatch, match: true } }
-  else if (productDimensions.length > 0 && offerDimensions.length > 0) { score -= 20; evidence.dimensions = { product: productDimensions, offer: offerDimensions, conflict: true } }
+  if (dimensionMatch) {
+    score += 20
+    evidence.dimensions = { value: dimensionMatch, match: true }
+  } else if (productDimensions.length > 0 && offerDimensions.length > 0) {
+    score -= 35
+    evidence.dimensions = { product: productDimensions, offer: offerDimensions, conflict: true, penalty: 35 }
+  }
 
   const productModels = modelTokens(product.name)
   const offerModels = modelTokens(offer.productTitle)
   const modelMatch = [...productModels].find((model) => offerModels.has(model))
-  if (modelMatch) { score += 15; evidence.model = { value: modelMatch, match: true } }
+  if (modelMatch) {
+    score += 15
+    evidence.model = { value: modelMatch, match: true }
+  }
 
   const productUnit = normalizeText(product.packagingUnit)
   const offerUnit = normalizeText(offer.packagingUnit)
   if (productUnit && offerUnit) {
-    if (productUnit === offerUnit) { score += 5; evidence.packagingUnit = { value: product.packagingUnit, match: true } }
-    else { score -= 8; evidence.packagingUnit = { product: product.packagingUnit, offer: offer.packagingUnit, conflict: true } }
+    if (productUnit === offerUnit) {
+      score += 5
+      evidence.packagingUnit = { value: product.packagingUnit, match: true }
+    } else {
+      score -= 12
+      evidence.packagingUnit = { product: product.packagingUnit, offer: offer.packagingUnit, conflict: true, penalty: 12 }
+    }
   }
   if (product.packagingQty && offer.packagingQty) {
-    if (product.packagingQty === offer.packagingQty) { score += 5; evidence.packagingQty = { value: product.packagingQty, match: true } }
-    else { score -= 10; evidence.packagingQty = { product: product.packagingQty, offer: offer.packagingQty, conflict: true } }
+    if (product.packagingQty === offer.packagingQty) {
+      score += 5
+      evidence.packagingQty = { value: product.packagingQty, match: true }
+    } else {
+      score -= 20
+      evidence.packagingQty = { product: product.packagingQty, offer: offer.packagingQty, conflict: true, penalty: 20 }
+    }
   }
 
   const productNumbers = numberTokens(product.name)
@@ -62,12 +84,13 @@ export function matchProducts(product: ProductInput, offer: OfferInput) {
   const productOnlyNumbers = [...productNumbers].filter((number) => !offerNumbers.has(number))
   const offerOnlyNumbers = [...offerNumbers].filter((number) => !productNumbers.has(number))
   if (!dimensionMatch && productOnlyNumbers.length > 0 && offerOnlyNumbers.length > 0) {
-    const penalty = Math.min(15, Math.min(productOnlyNumbers.length, offerOnlyNumbers.length) * 5)
+    const penalty = Math.min(20, Math.min(productOnlyNumbers.length, offerOnlyNumbers.length) * 5)
     score -= penalty
     evidence.numericConflict = { productOnlyNumbers, offerOnlyNumbers, penalty }
   }
 
   score = Math.max(0, Math.min(score, 100))
-  const status = score >= 95 ? 'CERTAIN' : score >= 80 ? 'REVIEW' : 'UNRELIABLE'
+  const hasHardConflict = Boolean((evidence.dimensions as { conflict?: boolean } | undefined)?.conflict) || Boolean((evidence.packagingQty as { conflict?: boolean } | undefined)?.conflict)
+  const status = !hasHardConflict && score >= 95 ? 'CERTAIN' : score >= 80 ? 'REVIEW' : 'UNRELIABLE'
   return { score, evidence, status }
 }
