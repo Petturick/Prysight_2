@@ -27,7 +27,11 @@ function validDate(value: string | undefined) {
 }
 
 function competitorKey(name: string, countryId: string) {
-  return `${countryId}\u0000${name.toLocaleLowerCase()}`
+  return `${countryId}\u0000${name}`
+}
+
+function productMarketKey(productId: string, countryId: string) {
+  return `${productId}\u0000${countryId}`
 }
 
 export async function processImportRowsAction(payload: unknown) {
@@ -89,6 +93,18 @@ export async function processImportRowsAction(payload: unknown) {
     const newSkuCount = requestedArticleNumbers.length - productCache.size
     if (newSkuCount > 0) await assertCompanyCapacity(companyId, 'skus', newSkuCount)
   }
+
+  const existingMarketPrices = existingProducts.length && countries.length
+    ? await prisma.productMarket.findMany({
+        where: {
+          companyId,
+          productId: { in: existingProducts.map((product) => product.id) },
+          countryId: { in: countries.map((country) => country.id) },
+        },
+        select: { productId: true, countryId: true, ownPrice: true },
+      })
+    : []
+  const marketPriceCache = new Map(existingMarketPrices.map((market) => [productMarketKey(market.productId, market.countryId), market.ownPrice]))
 
   const countryByCode = new Map(countries.map((country) => [country.code.toUpperCase(), country]))
   const activeMarketIds = new Set(companyCountries.filter((item) => item.isActive).map((item) => item.countryId))
@@ -204,6 +220,11 @@ export async function processImportRowsAction(payload: unknown) {
         }
         productRows += 1
 
+        const historyCountryId = country && marketIsActive ? country.id : null
+        const previousHistoryPrice = historyCountryId
+          ? marketPriceCache.get(productMarketKey(product.id, historyCountryId)) ?? null
+          : previousOwnPrice
+
         if (country && marketIsActive) {
           await prisma.productMarket.upsert({
             where: { companyId_productId_countryId: { companyId, productId: product.id, countryId: country.id } },
@@ -225,15 +246,16 @@ export async function processImportRowsAction(payload: unknown) {
               isActive: true,
             },
           })
+          if (ownPrice) marketPriceCache.set(productMarketKey(product.id, country.id), ownPrice)
           marketRows += 1
         }
 
-        if (ownPrice && (!previousOwnPrice || !previousOwnPrice.eq(ownPrice))) {
+        if (ownPrice && (!previousHistoryPrice || !previousHistoryPrice.eq(ownPrice))) {
           await prisma.ownPriceHistory.create({
             data: {
               companyId,
               productId: product.id,
-              countryId: country && marketIsActive ? country.id : null,
+              countryId: historyCountryId,
               recordedAt,
               price: ownPrice,
               currency,
