@@ -280,12 +280,52 @@ export async function rejectPriceChangeRequest(input: { companyId: string; userI
 async function syncLocalPrice(request: RequestRow, product: { vatIncluded: boolean }, vatRate: number | null, magentoPrice: number, magentoIncludesTax: boolean) {
   const localPrice = convertPriceTaxMode(magentoPrice, magentoIncludesTax, product.vatIncluded, vatRate)
   if (request.country_id) {
-    await prisma.productMarket.updateMany({ where: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id }, data: { ownPrice: new Prisma.Decimal(localPrice) } })
+    await prisma.productMarket.upsert({
+      where: { companyId_productId_countryId: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id } },
+      update: { ownPrice: new Prisma.Decimal(localPrice), currency: request.currency, isActive: true },
+      create: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id, ownPrice: new Prisma.Decimal(localPrice), currency: request.currency, isActive: true },
+    })
   } else {
     await prisma.product.updateMany({ where: { companyId: request.company_id, id: request.product_id }, data: { ownPrice: new Prisma.Decimal(localPrice) } })
   }
   await prisma.ownPriceHistory.create({ data: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id, recordedAt: new Date(), price: new Prisma.Decimal(localPrice), currency: request.currency } })
   return localPrice
+}
+
+async function markRequestApplied(input: {
+  request: RequestRow
+  userId: string
+  targetPrice: number
+  previousExternal: number
+  verifiedExternal: number
+  storeId: number
+  context: Awaited<ReturnType<typeof pricingContext>>
+}) {
+  const vatRate = input.context.country ? Number(input.context.country.vatRate) : null
+  const verifiedLocalPrice = await syncLocalPrice(input.request, input.context.product, vatRate, input.verifiedExternal, getMagentoPricingConfig(input.request.company_id)!.pricesIncludeTax)
+  const updated = await prisma.$executeRaw(Prisma.sql`
+    update price_change_requests
+    set status = 'APPLIED', applied_at = now(), previous_external_price = ${input.previousExternal}, verified_external_price = ${input.verifiedExternal},
+        external_reference = ${`magento:${input.storeId}:${input.request.external_sku_snapshot}`}, error_message = null, updated_at = now()
+    where id = ${input.request.id} and company_id = ${input.request.company_id} and status = 'APPLYING'
+  `)
+  if (updated !== 1) throw new Error('De prijswijziging kon na Magento-verificatie niet als toegepast worden vastgelegd.')
+  await createAuditLog({ companyId: input.request.company_id, userId: input.userId, action: 'PRICE_CHANGE_APPLIED', entityType: 'PriceChangeRequest', entityId: input.request.id, newValue: { sku: input.request.external_sku_snapshot, previousExternalPrice: input.previousExternal, targetPrice: input.targetPrice, verifiedLocalPrice, verifiedExternalPrice: input.verifiedExternal } })
+  return verifiedLocalPrice
+}
+
+async function compensateExternalWrite(request: RequestRow, previousExternal: number, expectedWrittenPrice: number, product: { vatIncluded: boolean }, vatRate: number | null) {
+  try {
+    const current = await readMagentoBasePrice(request.external_sku_snapshot, request.company_id)
+    if (pricesEqual(current.price, previousExternal)) return 'already_restored' as const
+    if (!pricesEqual(current.price, expectedWrittenPrice)) return 'external_changed' as const
+    const restored = await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal, request.company_id)
+    if (!pricesEqual(restored.price, previousExternal)) return 'restore_unverified' as const
+    try { await syncLocalPrice(request, product, vatRate, restored.price, restored.pricesIncludeTax) } catch { /* externe rollback is leidend, lokale status blijft FAILED voor herstel */ }
+    return 'restored' as const
+  } catch {
+    return 'unknown' as const
+  }
 }
 
 export async function applyApprovedPriceChange(input: { companyId: string; userId: string; requestId: string }) {
@@ -294,13 +334,12 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
   const request = await findRequest(input.companyId, input.requestId)
   if (!request) throw new Error('Prijswijziging niet gevonden.')
   if (request.status !== 'APPROVED' && request.status !== 'FAILED') throw new Error('Alleen een goedgekeurde of opnieuw te proberen wijziging kan worden gepubliceerd.')
+  const originalStatus = request.status
   const target = num(request.approved_price) ?? num(request.recommended_price)
   if (target === null) throw new Error('Goedgekeurde prijs ontbreekt.')
   const context = await pricingContext(input.companyId, request.product_id, request.country_id)
   assertPriceWithinGuardrails(target, context)
-  if (request.currency.toUpperCase() !== config.currency) {
-    throw new Error('Valuta van de prijsaanvraag komt niet overeen met de geconfigureerde Magento valuta.')
-  }
+  if (request.currency.toUpperCase() !== config.currency) throw new Error('Valuta van de prijsaanvraag komt niet overeen met de geconfigureerde Magento valuta.')
 
   const claimed = await prisma.$executeRaw(Prisma.sql`
     update price_change_requests set status = 'APPLYING', error_message = null, updated_at = now()
@@ -308,39 +347,51 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
   `)
   if (claimed !== 1) throw new Error('Prijswijziging wordt al verwerkt of is intussen gewijzigd.')
 
-  let previousExternal: number | null = null
+  let previousExternal = num(request.previous_external_price)
+  let targetForMagento: number | null = null
+  let writeAttempted = false
   try {
     const before = await readMagentoBasePrice(request.external_sku_snapshot, input.companyId)
-    previousExternal = before.price
     const vatRate = context.country ? Number(context.country.vatRate) : null
-    const currentAsPrysight = convertPriceTaxMode(before.price, before.pricesIncludeTax, context.product.vatIncluded, vatRate)
     const expectedCurrent = num(request.current_price) ?? context.currentPrice
+    targetForMagento = convertPriceTaxMode(target, context.product.vatIncluded, before.pricesIncludeTax, vatRate)
+    const currentAsPrysight = convertPriceTaxMode(before.price, before.pricesIncludeTax, context.product.vatIncluded, vatRate)
+
+    if (originalStatus === 'FAILED' && pricesEqual(before.price, targetForMagento)) {
+      const recoverablePrevious = previousExternal ?? convertPriceTaxMode(expectedCurrent, context.product.vatIncluded, before.pricesIncludeTax, vatRate)
+      await markRequestApplied({ request, userId: input.userId, targetPrice: target, previousExternal: recoverablePrevious, verifiedExternal: before.price, storeId: before.storeId, context })
+      return
+    }
+
     if (!pricesEqual(currentAsPrysight, expectedCurrent)) {
       throw new Error(`Magento prijs is intussen gewijzigd naar ${currentAsPrysight.toFixed(2)}. Maak een nieuw prijsadvies voordat u publiceert.`)
     }
-
-    const targetForMagento = convertPriceTaxMode(target, context.product.vatIncluded, before.pricesIncludeTax, vatRate)
+    previousExternal = before.price
+    writeAttempted = true
     const after = await writeMagentoBasePrice(request.external_sku_snapshot, targetForMagento, input.companyId)
-    if (!pricesEqual(after.price, targetForMagento)) {
-      try { await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal, input.companyId) } catch { /* handmatige controle wordt hieronder gemeld */ }
-      throw new Error('Magento bevestigde de nieuwe prijs niet. De oude prijs is waar mogelijk automatisch teruggezet.')
+    if (!pricesEqual(after.price, targetForMagento)) throw new Error('Magento bevestigde de nieuwe prijs niet.')
+
+    try {
+      await markRequestApplied({ request, userId: input.userId, targetPrice: target, previousExternal, verifiedExternal: after.price, storeId: after.storeId, context })
+      return
+    } catch (localError) {
+      const compensation = await compensateExternalWrite(request, previousExternal, targetForMagento, context.product, vatRate)
+      const localMessage = localError instanceof Error ? localError.message : 'Lokale synchronisatie mislukt.'
+      throw new Error(`${localMessage} Externe compensatie: ${compensation}.`)
     }
-    const verifiedLocalPrice = await syncLocalPrice(request, context.product, vatRate, after.price, after.pricesIncludeTax)
-    await prisma.$executeRaw(Prisma.sql`
-      update price_change_requests
-      set status = 'APPLIED', applied_at = now(), previous_external_price = ${previousExternal}, verified_external_price = ${after.price},
-          external_reference = ${`magento:${after.storeId}:${request.external_sku_snapshot}`}, error_message = null, updated_at = now()
-      where id = ${input.requestId} and company_id = ${input.companyId} and status = 'APPLYING'
-    `)
-    await createAuditLog({ companyId: input.companyId, userId: input.userId, action: 'PRICE_CHANGE_APPLIED', entityType: 'PriceChangeRequest', entityId: input.requestId, newValue: { sku: request.external_sku_snapshot, previousExternalPrice: previousExternal, targetPrice: target, verifiedLocalPrice, verifiedExternalPrice: after.price } })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Onbekende fout bij Magento writeback.'
+    let message = error instanceof Error ? error.message : 'Onbekende fout bij Magento writeback.'
+    if (writeAttempted && previousExternal !== null && targetForMagento !== null && !message.includes('Externe compensatie:')) {
+      const vatRate = context.country ? Number(context.country.vatRate) : null
+      const compensation = await compensateExternalWrite(request, previousExternal, targetForMagento, context.product, vatRate)
+      message = `${message} Externe compensatie: ${compensation}.`
+    }
     await prisma.$executeRaw(Prisma.sql`
       update price_change_requests set status = 'FAILED', previous_external_price = coalesce(previous_external_price, ${previousExternal}), error_message = ${message}, updated_at = now()
       where id = ${input.requestId} and company_id = ${input.companyId} and status = 'APPLYING'
     `)
     await createAuditLog({ companyId: input.companyId, userId: input.userId, action: 'PRICE_CHANGE_FAILED', entityType: 'PriceChangeRequest', entityId: input.requestId, newValue: { error: message, previousExternalPrice: previousExternal } })
-    throw error
+    throw new Error(message)
   }
 }
 
@@ -356,17 +407,16 @@ export async function rollbackAppliedPriceChange(input: { companyId: string; use
   if (previousExternal === null || verifiedExternal === null) throw new Error('Rollback gegevens ontbreken voor deze wijziging.')
   const context = await pricingContext(input.companyId, request.product_id, request.country_id)
   const current = await readMagentoBasePrice(request.external_sku_snapshot, input.companyId)
-  if (!pricesEqual(current.price, verifiedExternal)) {
-    throw new Error('Magento prijs is na publicatie opnieuw gewijzigd. Automatische rollback is geblokkeerd om een externe wijziging niet te overschrijven.')
-  }
+  if (!pricesEqual(current.price, verifiedExternal)) throw new Error('Magento prijs is na publicatie opnieuw gewijzigd. Automatische rollback is geblokkeerd om een externe wijziging niet te overschrijven.')
   const restored = await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal, input.companyId)
   if (!pricesEqual(restored.price, previousExternal)) throw new Error('Rollback kon niet door Magento worden bevestigd.')
   const vatRate = context.country ? Number(context.country.vatRate) : null
   const restoredLocalPrice = await syncLocalPrice(request, context.product, vatRate, restored.price, restored.pricesIncludeTax)
-  await prisma.$executeRaw(Prisma.sql`
+  const updated = await prisma.$executeRaw(Prisma.sql`
     update price_change_requests set status = 'ROLLED_BACK', rolled_back_at = now(), verified_external_price = ${restored.price}, error_message = null, updated_at = now()
     where id = ${input.requestId} and company_id = ${input.companyId} and status = 'APPLIED'
   `)
+  if (updated !== 1) throw new Error('Rollback is extern uitgevoerd maar kon lokaal niet als afgerond worden vastgelegd. Handmatige controle vereist.')
   await createAuditLog({ companyId: input.companyId, userId: input.userId, action: 'PRICE_CHANGE_ROLLED_BACK', entityType: 'PriceChangeRequest', entityId: input.requestId, newValue: { restoredExternalPrice: restored.price, restoredLocalPrice } })
 }
 
