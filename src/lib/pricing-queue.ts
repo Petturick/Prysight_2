@@ -23,6 +23,7 @@ export async function runPricingQueue(companyId: string, limit = 100) {
     if (!groupId) continue
     const setting = resolve(recommendation.productId, groupId)
     if (setting.mode !== 'APPROVE' && setting.mode !== 'AUTOMATIC') continue
+    if (setting.mode === 'AUTOMATIC' && recommendation.costPrice === null && recommendation.minimumAllowedPrice === null) { skipped += 1; continue }
     const cooldownMs = setting.cooldownHours * 60 * 60 * 1000
     if (setting.lastAutoPriceAt && Date.now() - setting.lastAutoPriceAt.getTime() < cooldownMs) { skipped += 1; continue }
 
