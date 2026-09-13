@@ -1,0 +1,58 @@
+'use server'
+
+import { FeedSourceType } from '@/generated/prisma/client'
+import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
+import { requirePermission } from '@/lib/authz'
+import { requireLicensedCountry } from '@/lib/company-countries'
+import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
+import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
+import { discoverProductCandidates } from '@/lib/smart-discovery'
+import { prisma } from '@/lib/prisma'
+
+function text(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim() }
+function positiveInteger(value: string, fallback = 1) { const parsed=Number(value); return Number.isFinite(parsed)&&parsed>0?Math.round(parsed):fallback }
+
+export async function createSmartProductAction(formData: FormData) {
+  const actor = await requirePermission('products.write')
+  const articleNumber=text(formData,'articleNumber'), name=text(formData,'name')
+  if(!articleNumber||!name)throw new Error('Artikelnummer en productnaam zijn verplicht.')
+  const countryId=text(formData,'countryId')
+  const country=countryId?await requireLicensedCountry(actor.companyId,countryId):null
+  const currency=text(formData,'currency')||country?.currency||'EUR'
+  const ean=text(formData,'ean'), gtin=text(formData,'gtin')
+  const pricingFields=['costPrice','minimumMarginPct','targetMarginPct','minimumPrice','maximumPrice','pricingMode','pricingCooldownHours']
+  const hasPricingInput=pricingFields.some((key)=>text(formData,key))
+  if(hasPricingInput&&actor.role!=='SUPER_ADMIN'&&!actor.permissions.includes('pricing.manage'))throw new Error('Onvoldoende rechten om pricinginstellingen te wijzigen.')
+
+  await ingestCanonicalProducts({
+    companyId:actor.companyId,
+    sourceKey:'manual:prysight',
+    sourceName:'Handmatig toegevoegd in PrySight',
+    sourceType:FeedSourceType.API,
+    countryCode:country?.code??'GLOBAL',
+    products:[{
+      articleNumber, ean:ean||undefined, gtin:gtin||undefined, name,
+      productGroup:text(formData,'productGroup')||'Onbekend', ownPrice:text(formData,'ownPrice')||undefined,
+      currency, stockStatus:text(formData,'stockStatus')||'Onbekend', packagingUnit:text(formData,'packagingUnit')||'stuks',
+      packagingQty:positiveInteger(text(formData,'packagingQty')), countryCode:country?.code,
+      ownUrl:text(formData,'ownUrl')||undefined, isActive:true,
+    }],
+    config:{mode:'manual-smart-onboarding',createdBy:actor.email},
+  })
+  const product=await prisma.product.findUnique({where:{companyId_articleNumber:{companyId:actor.companyId,articleNumber}}})
+  if(!product)throw new Error('Product is verwerkt maar kon niet worden geladen.')
+
+  await saveProductOnboardingFields(actor.companyId,product.id,{
+    mpn:text(formData,'mpn'),brand:text(formData,'brand'),model:text(formData,'model'),
+    costPrice:text(formData,'costPrice'),minimumMarginPct:text(formData,'minimumMarginPct'),targetMarginPct:text(formData,'targetMarginPct'),
+    minimumPrice:text(formData,'minimumPrice'),maximumPrice:text(formData,'maximumPrice'),pricingMode:text(formData,'pricingMode'),pricingCooldownHours:text(formData,'pricingCooldownHours'),
+  })
+
+  let suggestions=0
+  if(country&&(ean||gtin||text(formData,'mpn'))&&actor.permissions.includes('competitors.write')){
+    try{const result=await discoverProductCandidates({companyId:actor.companyId,productId:product.id,countryId:country.id});suggestions=result.created}catch(error){console.error('Smart product discovery failed',error)}
+  }
+  revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')
+  redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestions}`)
+}
