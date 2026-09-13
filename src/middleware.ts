@@ -10,6 +10,8 @@ const SAFE_CALLBACKS = new Set([
   '/prijsstrategie',
   '/prijsregels',
   '/prijswijzigingen',
+  '/prijsautomatisering',
+  '/prijsuitleg',
   '/rapportages',
   '/feeds',
   '/import',
