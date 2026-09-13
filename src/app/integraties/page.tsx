@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getSafeDatabaseStatus } from '@/lib/database-url'
+import { formatDate } from '@/lib/format'
+import { isMagentoPricingConfigured } from '@/lib/magento-pricing'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
-import { formatDate } from '@/lib/format'
 
 function Status({ ready, label }: { ready: boolean; label?: string }) {
   return <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${ready ? 'bg-[var(--green-soft)] text-[var(--green)]' : 'bg-[var(--amber-soft)] text-[var(--amber)]'}`}>{label ?? (ready ? 'Actief' : 'Configuratie nodig')}</span>
@@ -16,6 +17,7 @@ export default async function IntegrationsPage() {
   const monitorReady = Boolean(process.env.PRICE_MONITOR_API_KEY)
   const feedReady = Boolean(process.env.DATA_FEED_API_KEY)
   const webhookReady = Boolean(process.env.ALERT_WEBHOOK_URL)
+  const magentoWritebackReady = isMagentoPricingConfigured(actor.companyId)
   const databaseStatus = getSafeDatabaseStatus()
   const syntrxResult = await safeDatabaseQuery(
     () => prisma.feedSource.findFirst({
@@ -45,6 +47,15 @@ export default async function IntegrationsPage() {
       detail: 'Dezelfde controlelaag wordt gebruikt door de knop Prijzen nu controleren op productniveau.',
       href: '/producten',
       linkLabel: 'Open productonderzoek',
+    },
+    {
+      title: 'Magento prijswriteback',
+      kicker: 'Gecontroleerde uitvoering',
+      description: 'Goedgekeurde prijswijzigingen kunnen via de officiële base price API naar Magento worden gepubliceerd, teruggelezen en indien nodig veilig worden teruggedraaid.',
+      ready: magentoWritebackReady,
+      detail: magentoWritebackReady ? 'HTTPS endpoint, tenant, valuta, access token en btw-modus zijn voor deze organisatie geconfigureerd. Publicatie controleert altijd eerst de actuele Magento-prijs.' : 'Nog niet actief voor deze organisatie. Configureer MAGENTO_BASE_URL, MAGENTO_ACCESS_TOKEN, MAGENTO_COMPANY_ID, MAGENTO_CURRENCY en MAGENTO_PRICES_INCLUDE_TAX.',
+      href: '/prijswijzigingen',
+      linkLabel: 'Open goedkeuringscentrum',
     },
     {
       title: 'Productfeed API',
@@ -81,18 +92,18 @@ export default async function IntegrationsPage() {
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
           <div>
             <p className="eyebrow">Integraties</p>
-            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Datastromen zonder afhankelijkheid</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Elke integratie en bron wordt gekoppeld aan de actieve organisatie. Zo blijven productdata, monitoring en exports gescheiden wanneer meerdere klanten Prysight gebruiken.</p>
+            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Datastromen en gecontroleerde uitvoering</h1>
+            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Data-invoer, monitoring en writeback blijven gescheiden. Externe prijswijzigingen lopen altijd via de approval flow en worden na publicatie opnieuw bij Magento gecontroleerd.</p>
           </div>
-          <div className="flex flex-wrap gap-2"><Link href="/feeds" className="secondary-action">Feedbeheer</Link><Link href="/producten" className="primary-action">Productonderzoek</Link></div>
+          <div className="flex flex-wrap gap-2"><Link href="/feeds" className="secondary-action">Feedbeheer</Link><Link href="/prijswijzigingen" className="primary-action">Prijsuitvoering</Link></div>
         </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">{cards.map((card) => <div key={card.title} className="surface-card flex min-h-[225px] flex-col p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">{card.kicker}</p><h2 className="mt-1.5 text-[14px] font-semibold text-[#252a37]">{card.title}</h2></div><Status ready={card.ready} /></div><p className="mt-3 text-[11px] leading-6 text-[#697386]">{card.description}</p><div className="mt-auto pt-4"><p className="rounded-[11px] bg-[#f6f8fb] px-3 py-3 text-[9px] leading-5 text-[#7d8799]">{card.detail}</p><Link href={card.href} className="mt-3 inline-flex text-[10px] font-semibold text-[var(--blue)]">{card.linkLabel} →</Link></div></div>)}</section>
 
       <section className="surface-card p-5">
-        <h2 className="text-[14px] font-semibold text-[#252a37]">Veilige writeback laag</h2>
-        <p className="mt-2 max-w-4xl text-[11px] leading-6 text-[#697386]">Automatische prijswijziging naar Magento of ERP blijft bewust afgeschermd totdat kostprijs, minimale marge, maximumprijs, bevoegdheden en goedkeuringsregels als harde guardrails beschikbaar zijn. Prysight kan nu onderzoeken en adviseren zonder ongecontroleerd verkoopprijzen terug te schrijven.</p>
+        <h2 className="text-[14px] font-semibold text-[#252a37]">Writeback veiligheidsketen</h2>
+        <p className="mt-2 max-w-5xl text-[11px] leading-6 text-[#697386]">Prijsadvies → aanvraag → commerciële hercontrole → goedkeuring → live Magento-prijs opnieuw lezen → alleen bij een onveranderde uitgangsprijs publiceren → prijs opnieuw uitlezen → lokale prijshistorie synchroniseren. Rollback wordt automatisch geblokkeerd zodra de Magento-prijs na PrySight-publicatie buiten PrySight opnieuw is aangepast.</p>
       </section>
     </div>
   )

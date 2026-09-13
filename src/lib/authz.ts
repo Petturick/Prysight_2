@@ -17,6 +17,7 @@ export const PERMISSIONS = [
   'reports.read',
   'alerts.manage',
   'pricing.manage',
+  'pricing.publish',
   'users.manage',
   'settings.manage',
   'billing.manage',
@@ -34,6 +35,7 @@ const IMPLIED_PERMISSIONS: Partial<Record<Permission, Permission[]>> = {
   'competitors.write': ['competitors.read'],
   'feeds.write': ['feeds.read'],
   'pricing.manage': ['products.read', 'competitors.read'],
+  'pricing.publish': ['pricing.manage', 'products.read', 'competitors.read'],
   'imports.run': ['products.read'],
 }
 
