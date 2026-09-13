@@ -2,6 +2,7 @@ import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { evaluateMonitoringAlerts } from '@/lib/alert-engine'
 import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { assertCompanyCapacity } from '@/lib/company-license'
+import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
@@ -19,8 +20,14 @@ type ExtractedOffer = {
   method: ExtractionMethod | null
 }
 type JsonRecord = Record<string, unknown>
+type FetchMode = 'HTTP' | 'BROWSER'
 
 const robotsCache = new Map<string, { checkedAt: number; disallow: string[] }>()
+const MAX_FETCH_ATTEMPTS = 3
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 function parseLocalizedPrice(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
@@ -73,6 +80,39 @@ function availabilityLabel(value: unknown) {
   return text(value)
 }
 
+function directQuantity(value: unknown) {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 10_000) return value
+  if (typeof value === 'string' && /^\d{1,5}$/.test(value.trim())) {
+    const numeric = Number(value.trim())
+    return numeric > 0 && numeric <= 10_000 ? numeric : null
+  }
+  if (value && typeof value === 'object') {
+    const record = value as JsonRecord
+    return directQuantity(record.value ?? record.amount ?? record.quantity)
+  }
+  return null
+}
+
+function packagingQuantity(...values: unknown[]) {
+  for (const value of values) {
+    const direct = directQuantity(value)
+    if (direct) return direct
+    if (typeof value !== 'string') continue
+    const compact = value.replace(/\s+/g, ' ').trim()
+    const patterns = [
+      /(?:pack|package|doos|box|case|set|verpakking|bundle|tray)\s*(?:van|of|x|:)?\s*(\d{1,4})\b/i,
+      /\b(\d{1,4})\s*(?:stuks?|pcs?|pieces?|units?)\b/i,
+      /(?:per|à)\s*(\d{1,4})\s*(?:stuks?|pcs?|pieces?|units?)?/i,
+    ]
+    for (const pattern of patterns) {
+      const match = compact.match(pattern)
+      const numeric = Number(match?.[1])
+      if (Number.isInteger(numeric) && numeric > 0 && numeric <= 10_000) return numeric
+    }
+  }
+  return null
+}
+
 function extractJsonLd(html: string): ExtractedOffer | null {
   const scripts = [...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
   for (const script of scripts) {
@@ -94,7 +134,13 @@ function extractJsonLd(html: string): ExtractedOffer | null {
         productTitle: text(product?.name),
         sku: text(product?.sku ?? candidate.sku),
         ean: text(product?.gtin13 ?? product?.gtin14 ?? product?.gtin ?? product?.ean),
-        packagingQty: null,
+        packagingQty: packagingQuantity(
+          candidate.eligibleQuantity,
+          candidate.quantity,
+          product?.size,
+          product?.description,
+          product?.name,
+        ),
         method: 'JSON_LD',
       }
     } catch {
@@ -123,14 +169,15 @@ function extractMeta(html: string): ExtractedOffer | null {
     .map((key) => parseLocalizedPrice(values.get(key)))
     .find((value) => value !== null) ?? null
   if (!price) return null
+  const title = values.get('og:title') ?? null
   return {
     price,
     currency: ['product:price:currency', 'og:price:currency', 'pricecurrency'].map((key) => values.get(key)).find(Boolean) ?? null,
     stockStatus: availabilityLabel(values.get('product:availability') ?? values.get('availability')),
-    productTitle: values.get('og:title') ?? null,
+    productTitle: title,
     sku: values.get('sku') ?? null,
     ean: values.get('gtin13') ?? values.get('gtin') ?? null,
-    packagingQty: null,
+    packagingQty: packagingQuantity(values.get('quantity'), values.get('product:quantity'), values.get('packaging'), title),
     method: 'META',
   }
 }
@@ -153,7 +200,7 @@ function extractHtmlFallback(html: string): ExtractedOffer | null {
       : /op voorraad|in stock|available/i.test(compact)
         ? 'Op voorraad'
         : null
-    return { price, currency: pattern.currency, stockStatus, productTitle: title, sku: null, ean: null, packagingQty: null, method: 'HTML_REGEX' }
+    return { price, currency: pattern.currency, stockStatus, productTitle: title, sku: null, ean: null, packagingQty: packagingQuantity(title, compact.slice(0, 5000)), method: 'HTML_REGEX' }
   }
   return null
 }
@@ -182,7 +229,7 @@ async function robotsRules(targetUrl: string) {
     const timer = setTimeout(() => controller.abort(), 4000)
     const response = await safeRemoteFetch(`${origin}/robots.txt`, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'EngelsPricingMonitor/1.0' },
+      headers: { 'User-Agent': 'PrysightPriceMonitor/2.0' },
       cache: 'no-store',
     })
     clearTimeout(timer)
@@ -196,7 +243,7 @@ async function robotsRules(targetUrl: string) {
       const value = rawValue.join(':').trim()
       if (key === 'user-agent') {
         const agent = value.toLowerCase()
-        applies = agent === '*' || agent.includes('engelspricingmonitor')
+        applies = agent === '*' || agent.includes('prysightpricemonitor')
       } else if (key === 'disallow' && applies && value) {
         disallow.push(value)
       }
@@ -214,8 +261,7 @@ async function isAllowedByRobots(targetUrl: string) {
   return !disallow.some((rule) => rule === '/' || url.pathname.startsWith(rule))
 }
 
-async function fetchOfferPage(targetUrl: string) {
-  if (!(await isAllowedByRobots(targetUrl))) throw new Error('Controle overgeslagen omdat robots.txt deze URL uitsluit.')
+async function fetchHtmlOnce(targetUrl: string) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15_000)
   try {
@@ -223,20 +269,82 @@ async function fetchOfferPage(targetUrl: string) {
       signal: controller.signal,
       cache: 'no-store',
       headers: {
-        'User-Agent': 'EngelsPricingMonitor/1.0 (+pricing intelligence)',
+        'User-Agent': 'PrysightPriceMonitor/2.0 (+pricing intelligence)',
         Accept: 'text/html,application/xhtml+xml',
         'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.7',
       },
     })
-    if (!response.ok) throw new Error(`Bron gaf HTTP ${response.status}.`)
     const contentType = response.headers.get('content-type') ?? ''
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
-      throw new Error(`Onverwacht contenttype: ${contentType || 'onbekend'}.`)
+    if (response.ok) {
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
+        throw new Error(`Onverwacht contenttype: ${contentType || 'onbekend'}.`)
+      }
+      return { html: await response.text(), statusCode: response.status }
     }
-    return { html: await response.text(), statusCode: response.status }
+    const error = new Error(`Bron gaf HTTP ${response.status}.`)
+    return { error, retryable: response.status === 429 || response.status >= 500, statusCode: response.status }
   } finally {
     clearTimeout(timer)
   }
+}
+
+async function fetchOfferPage(targetUrl: string) {
+  if (!(await isAllowedByRobots(targetUrl))) throw new Error('Controle overgeslagen omdat robots.txt deze URL uitsluit.')
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      const result = await fetchHtmlOnce(targetUrl)
+      if ('html' in result) return result
+      lastError = result.error
+      if (!result.retryable) throw result.error
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Bron kon niet worden opgehaald.')
+    }
+    if (attempt < MAX_FETCH_ATTEMPTS) await wait(attempt * 500)
+  }
+  throw lastError ?? new Error('Bron kon na meerdere pogingen niet worden opgehaald.')
+}
+
+function browserRendererConfigured() {
+  return Boolean(process.env.BROWSER_RENDERER_URL?.trim())
+}
+
+async function fetchRenderedOfferPage(targetUrl: string) {
+  const rendererUrl = process.env.BROWSER_RENDERER_URL?.trim()
+  if (!rendererUrl) throw new Error('Browser rendering is niet geconfigureerd.')
+  const token = process.env.BROWSER_RENDERER_TOKEN?.trim()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const response = await safeRemoteFetch(rendererUrl, {
+      method: 'POST',
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json,text/html',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ url: targetUrl }),
+    })
+    if (!response.ok) throw new Error(`Browser renderer gaf HTTP ${response.status}.`)
+    const contentType = response.headers.get('content-type') ?? ''
+    if (contentType.includes('application/json')) {
+      const body = await response.json() as { html?: unknown; statusCode?: unknown }
+      if (typeof body.html !== 'string' || !body.html.trim()) throw new Error('Browser renderer gaf geen HTML terug.')
+      return { html: body.html, statusCode: typeof body.statusCode === 'number' ? body.statusCode : 200 }
+    }
+    const html = await response.text()
+    if (!html.trim()) throw new Error('Browser renderer gaf geen HTML terug.')
+    return { html, statusCode: 200 }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function methodLabel(method: ExtractionMethod | null, fetchMode: FetchMode, fxSource: string | null, fxAsOf: string | null) {
+  const base = `${fetchMode}_${method ?? 'UNKNOWN'}`
+  return fxSource && fxAsOf ? `${base}|FX:${fxSource}:${fxAsOf}` : base
 }
 
 export async function runPriceCheck(competitorOfferId: string, companyId = DEFAULT_COMPANY_ID, capacityVerified = false) {
@@ -253,16 +361,35 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
   const previousStockStatus = offer.stockStatus
 
   try {
-    const { html, statusCode } = await fetchOfferPage(offer.url)
-    const extracted = extractOfferSnapshot(html)
+    let fetchMode: FetchMode = 'HTTP'
+    let page = await fetchOfferPage(offer.url)
+    let extracted = extractOfferSnapshot(page.html)
+
+    if (!extracted.price && browserRendererConfigured()) {
+      page = await fetchRenderedOfferPage(offer.url)
+      extracted = extractOfferSnapshot(page.html)
+      fetchMode = 'BROWSER'
+    }
+
     if (!extracted.price) throw new Error('Geen betrouwbare prijs gevonden op de productpagina.')
-    const currency = extracted.currency ?? offer.currency ?? offer.competitor.country.currency
+    const currency = (extracted.currency ?? offer.currency ?? offer.competitor.country.currency).toUpperCase()
     const packagingQty = extracted.packagingQty ?? offer.packagingQty ?? 1
+
+    let priceForNormalization = extracted.price
+    let fxSource: string | null = null
+    let fxAsOf: string | null = null
+    if (currency !== 'EUR') {
+      const fxSnapshot = await getFxSnapshot()
+      priceForNormalization = convertWithFxSnapshot(extracted.price, currency, 'EUR', fxSnapshot)
+      fxSource = fxSnapshot.source
+      fxAsOf = fxSnapshot.asOf
+    }
+
     const normalized = normalizePrice(
-      new Prisma.Decimal(extracted.price),
+      new Prisma.Decimal(priceForNormalization),
       offer.vatIncluded,
       offer.competitor.country.vatRate,
-      currency,
+      'EUR',
       offer.packagingUnit,
       packagingQty,
       true,
@@ -291,6 +418,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       throw new Error(`Prijsvalidatie afgekeurd: ${quality.reasons.join(' ')}`)
     }
 
+    const checkMethod = methodLabel(extracted.method, fetchMode, fxSource, fxAsOf)
     await prisma.$transaction([
       prisma.priceCheck.create({
         data: {
@@ -302,8 +430,8 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
           productTitle: extracted.productTitle ?? offer.productMatch?.product.name ?? null,
           packagingUnit: offer.packagingUnit,
-          checkMethod: extracted.method ?? 'SCRAPER',
-          statusCode,
+          checkMethod,
+          statusCode: page.statusCode,
           sourceUrl: offer.url,
           isSuccess: true,
         },
@@ -317,7 +445,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           normalizedPrice: normalized,
           currency,
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
-          source: extracted.method ?? 'SCRAPER',
+          source: checkMethod,
         },
       }),
       prisma.competitorOffer.update({
@@ -326,6 +454,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           rawPrice: new Prisma.Decimal(extracted.price),
           normalizedPrice: normalized,
           currency,
+          packagingQty,
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
           lastCheckedAt: checkedAt,
         },
@@ -355,8 +484,11 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       price: extracted.price,
       normalizedPrice: normalized.toNumber(),
       currency,
-      method: extracted.method,
+      method: checkMethod,
       confidence: quality.confidence,
+      packagingQty,
+      fxSource,
+      fxAsOf,
       stockStatus: extracted.stockStatus ?? offer.stockStatus,
     }
   } catch (error) {
@@ -372,7 +504,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           stockStatus: offer.stockStatus,
           productTitle: offer.productMatch?.product.name ?? null,
           packagingUnit: offer.packagingUnit,
-          checkMethod: 'SCRAPER',
+          checkMethod: 'HTTP_FAILED',
           statusCode: null,
           errorMessage: message,
           sourceUrl: offer.url,

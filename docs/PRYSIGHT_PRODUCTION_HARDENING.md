@@ -4,15 +4,17 @@ Dit project maakt PrySight stap voor stap geschikt als volwaardige B2B pricing i
 
 ## Fase 1, betrouwbare marktdata
 
-1. Dynamische wisselkoersen met gecontroleerde fallback
-2. Betere verpakkingseenheid detectie en prijs per eenheid
-3. Verzendkosten en totaalprijs
-4. Monitoring health, retries en bronstatus
-5. Browser rendering fallback voor toegestane JavaScript bronnen
+1. Dynamische wisselkoersen met gecontroleerde fallback, basis toegevoegd en gekoppeld aan automatische prijsmetingen
+2. Betere verpakkingseenheid detectie en prijs per eenheid, automatische herkenning toegevoegd voor gangbare verpakkingsaantallen
+3. Verzendkosten en totaalprijs, nog te implementeren
+4. Monitoring health, retries en bronstatus, geïmplementeerd
+5. Browser rendering fallback voor toegestane JavaScript bronnen, optionele renderer koppeling toegevoegd
+
+Voor browser rendering kunnen server side de variabelen `BROWSER_RENDERER_URL` en optioneel `BROWSER_RENDERER_TOKEN` worden ingesteld. Zonder deze configuratie blijft PrySight veilig op de normale HTTP extractie werken. De renderer wordt alleen gebruikt wanneer een toegestane pagina wel bereikbaar is maar de productprijs pas na JavaScript rendering beschikbaar komt.
 
 ## Fase 2, matching en discovery
 
-1. Match confidence zichtbaar en afdwingbaar
+1. Match confidence zichtbaar en afdwingbaar, harde EAN, maat en verpakkingsconflicten zijn aangescherpt
 2. Review queue voor onzekere matches
 3. EAN en GTIN discovery
 4. Geautoriseerde competitor discovery
