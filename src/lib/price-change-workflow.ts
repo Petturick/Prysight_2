@@ -289,7 +289,7 @@ async function syncLocalPrice(request: RequestRow, product: { vatIncluded: boole
 }
 
 export async function applyApprovedPriceChange(input: { companyId: string; userId: string; requestId: string }) {
-  const config = getMagentoPricingConfig()
+  const config = getMagentoPricingConfig(input.companyId)
   if (!config) throw new Error('Magento writeback is nog niet volledig geconfigureerd.')
   const request = await findRequest(input.companyId, input.requestId)
   if (!request) throw new Error('Prijswijziging niet gevonden.')
@@ -298,7 +298,7 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
   if (target === null) throw new Error('Goedgekeurde prijs ontbreekt.')
   const context = await pricingContext(input.companyId, request.product_id, request.country_id)
   assertPriceWithinGuardrails(target, context)
-  if (request.currency.toUpperCase() !== (process.env.MAGENTO_CURRENCY ?? request.currency).trim().toUpperCase()) {
+  if (request.currency.toUpperCase() !== config.currency) {
     throw new Error('Valuta van de prijsaanvraag komt niet overeen met de geconfigureerde Magento valuta.')
   }
 
@@ -310,7 +310,7 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
 
   let previousExternal: number | null = null
   try {
-    const before = await readMagentoBasePrice(request.external_sku_snapshot)
+    const before = await readMagentoBasePrice(request.external_sku_snapshot, input.companyId)
     previousExternal = before.price
     const vatRate = context.country ? Number(context.country.vatRate) : null
     const currentAsPrysight = convertPriceTaxMode(before.price, before.pricesIncludeTax, context.product.vatIncluded, vatRate)
@@ -320,9 +320,9 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
     }
 
     const targetForMagento = convertPriceTaxMode(target, context.product.vatIncluded, before.pricesIncludeTax, vatRate)
-    const after = await writeMagentoBasePrice(request.external_sku_snapshot, targetForMagento)
+    const after = await writeMagentoBasePrice(request.external_sku_snapshot, targetForMagento, input.companyId)
     if (!pricesEqual(after.price, targetForMagento)) {
-      try { await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal) } catch { /* handmatige controle wordt hieronder gemeld */ }
+      try { await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal, input.companyId) } catch { /* handmatige controle wordt hieronder gemeld */ }
       throw new Error('Magento bevestigde de nieuwe prijs niet. De oude prijs is waar mogelijk automatisch teruggezet.')
     }
     const verifiedLocalPrice = await syncLocalPrice(request, context.product, vatRate, after.price, after.pricesIncludeTax)
@@ -345,18 +345,21 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
 }
 
 export async function rollbackAppliedPriceChange(input: { companyId: string; userId: string; requestId: string }) {
+  const config = getMagentoPricingConfig(input.companyId)
+  if (!config) throw new Error('Magento writeback is nog niet volledig geconfigureerd.')
   const request = await findRequest(input.companyId, input.requestId)
   if (!request) throw new Error('Prijswijziging niet gevonden.')
   if (request.status !== 'APPLIED') throw new Error('Alleen een gepubliceerde wijziging kan worden teruggedraaid.')
+  if (request.currency.toUpperCase() !== config.currency) throw new Error('Valuta van de prijsaanvraag komt niet overeen met de geconfigureerde Magento valuta.')
   const previousExternal = num(request.previous_external_price)
   const verifiedExternal = num(request.verified_external_price)
   if (previousExternal === null || verifiedExternal === null) throw new Error('Rollback gegevens ontbreken voor deze wijziging.')
   const context = await pricingContext(input.companyId, request.product_id, request.country_id)
-  const current = await readMagentoBasePrice(request.external_sku_snapshot)
+  const current = await readMagentoBasePrice(request.external_sku_snapshot, input.companyId)
   if (!pricesEqual(current.price, verifiedExternal)) {
     throw new Error('Magento prijs is na publicatie opnieuw gewijzigd. Automatische rollback is geblokkeerd om een externe wijziging niet te overschrijven.')
   }
-  const restored = await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal)
+  const restored = await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal, input.companyId)
   if (!pricesEqual(restored.price, previousExternal)) throw new Error('Rollback kon niet door Magento worden bevestigd.')
   const vatRate = context.country ? Number(context.country.vatRate) : null
   const restoredLocalPrice = await syncLocalPrice(request, context.product, vatRate, restored.price, restored.pricesIncludeTax)
