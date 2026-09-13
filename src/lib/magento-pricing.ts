@@ -5,6 +5,7 @@ type MagentoConfig = {
   accessToken: string
   storeCode: string
   storeId: number
+  pricesIncludeTax: boolean
 }
 
 type MagentoBasePrice = {
@@ -25,6 +26,13 @@ function normalizedStoreCode(value: string | undefined) {
   return code
 }
 
+function taxMode(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase()
+  if (normalized === 'true') return true
+  if (normalized === 'false') return false
+  throw new Error('Stel MAGENTO_PRICES_INCLUDE_TAX expliciet in op true of false voordat writeback wordt gebruikt.')
+}
+
 export function getMagentoPricingConfig(): MagentoConfig | null {
   const rawBaseUrl = process.env.MAGENTO_BASE_URL?.trim()
   const accessToken = process.env.MAGENTO_ACCESS_TOKEN?.trim()
@@ -36,6 +44,7 @@ export function getMagentoPricingConfig(): MagentoConfig | null {
     accessToken,
     storeCode: normalizedStoreCode(process.env.MAGENTO_STORE_CODE),
     storeId: parsedStoreId,
+    pricesIncludeTax: taxMode(process.env.MAGENTO_PRICES_INCLUDE_TAX),
   }
 }
 
@@ -79,6 +88,14 @@ export function pricesEqual(left: number, right: number, tolerance = 0.01) {
   return Math.abs(left - right) <= tolerance
 }
 
+export function convertPriceTaxMode(price: number, fromIncludesTax: boolean, toIncludesTax: boolean, vatRate: number | null) {
+  if (fromIncludesTax === toIncludesTax) return Math.round(price * 100) / 100
+  if (vatRate === null || !Number.isFinite(vatRate) || vatRate < 0) throw new Error('Btw-percentage ontbreekt voor veilige Magento prijsconversie.')
+  const factor = 1 + vatRate / 100
+  const converted = fromIncludesTax ? price / factor : price * factor
+  return Math.round(converted * 100) / 100
+}
+
 export async function readMagentoBasePrice(sku: string) {
   const config = getMagentoPricingConfig()
   if (!config) throw new Error('Magento writeback is nog niet geconfigureerd.')
@@ -91,7 +108,7 @@ export async function readMagentoBasePrice(sku: string) {
     ?? prices.find((item) => item.sku === cleanSku)
   const value = Number(match?.price)
   if (!Number.isFinite(value) || value < 0) throw new Error(`Geen geldige Magento base price gevonden voor SKU ${cleanSku}.`)
-  return { price: value, storeId: Number(match?.store_id ?? config.storeId), sku: cleanSku }
+  return { price: value, storeId: Number(match?.store_id ?? config.storeId), sku: cleanSku, pricesIncludeTax: config.pricesIncludeTax }
 }
 
 export async function writeMagentoBasePrice(sku: string, price: number) {
