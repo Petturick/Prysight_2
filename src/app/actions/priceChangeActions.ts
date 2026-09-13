@@ -43,14 +43,14 @@ export async function createPriceChangeRequestAction(formData: FormData) {
 }
 
 export async function approvePriceChangeRequestAction(formData: FormData) {
-  const actor = await requirePermission('pricing.manage')
+  const actor = await requirePermission('pricing.publish')
   const requestId = requiredText(formData, 'requestId')
   await approvePriceChangeRequest({ companyId: actor.companyId, userId: actor.id, requestId, approvedPrice: optionalNumber(formData.get('approvedPrice')) })
   refreshPricingViews()
 }
 
 export async function rejectPriceChangeRequestAction(formData: FormData) {
-  const actor = await requirePermission('pricing.manage')
+  const actor = await requirePermission('pricing.publish')
   const requestId = requiredText(formData, 'requestId')
   const reason = String(formData.get('reason') ?? '').trim() || null
   await rejectPriceChangeRequest({ companyId: actor.companyId, userId: actor.id, requestId, reason })
@@ -58,14 +58,14 @@ export async function rejectPriceChangeRequestAction(formData: FormData) {
 }
 
 export async function applyApprovedPriceChangeAction(formData: FormData) {
-  const actor = await requirePermission('pricing.manage')
+  const actor = await requirePermission('pricing.publish')
   const requestId = requiredText(formData, 'requestId')
   await applyApprovedPriceChange({ companyId: actor.companyId, userId: actor.id, requestId })
   refreshPricingViews()
 }
 
 export async function rollbackAppliedPriceChangeAction(formData: FormData) {
-  const actor = await requirePermission('pricing.manage')
+  const actor = await requirePermission('pricing.publish')
   const requestId = requiredText(formData, 'requestId')
   await rollbackAppliedPriceChange({ companyId: actor.companyId, userId: actor.id, requestId })
   refreshPricingViews()
