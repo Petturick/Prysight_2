@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { createPriceChangeRequestAction } from '@/app/actions/priceChangeActions'
 import { DataTable } from '@/components/DataTable'
 import { requirePermission } from '@/lib/authz'
 import { profileStep } from '@/lib/performance-profile'
@@ -50,19 +51,19 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
         <div className="surface-card p-5 sm:p-6">
           <p className="eyebrow">Prijsstrategie</p>
           <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#161a26]">Van marktdata naar gecontroleerd prijsadvies</h1>
-          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[#697386]">Adviezen worden nu per land berekend. PrySight bewaakt kostprijs, minimum marge, minimum en maximum verkoopprijs, prijsafronding en het minimaal vereiste aantal betrouwbare concurrenten.</p>
-          <div className="mt-4 flex flex-wrap gap-2"><Link href="/prijsregels" className="primary-action">Beheer prijsregels</Link>{isSimulation ? <Link href="/prijsstrategie" className="secondary-action">Terug naar opgeslagen regels</Link> : null}</div>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[#697386]">Adviezen worden per land berekend. Kostprijs, minimale marge, minimum en maximum verkoopprijs, afronding en concurrentiedekking worden bewaakt voordat een prijswijziging kan worden aangevraagd.</p>
+          <div className="mt-4 flex flex-wrap gap-2"><Link href="/prijsregels" className="secondary-action">Beheer prijsregels</Link><Link href="/prijswijzigingen" className="primary-action">Open goedkeuringscentrum</Link>{isSimulation ? <Link href="/prijsstrategie" className="secondary-action">Terug naar opgeslagen regels</Link> : null}</div>
         </div>
         <div className="surface-card p-5">
           <p className="text-[12px] font-semibold text-[#252a37]">Veiligheidsstatus</p>
-          <div className="mt-3 rounded-2xl border-2 border-[#9cc7ad] bg-[#e7f4ec] p-3.5"><p className="text-[12px] font-black text-[#17603a]">Commerciële guardrails actief</p><p className="mt-1 text-[11px] leading-5 text-[#3f6f55]">{guardedCoverage}% van de huidige marktadviezen heeft kostprijs of een harde prijsgrens. Publiceren blijft nog uit totdat de goedkeuringsflow en writeback laag gereed zijn.</p></div>
+          <div className="mt-3 rounded-2xl border-2 border-[#9cc7ad] bg-[#e7f4ec] p-3.5"><p className="text-[12px] font-black text-[#17603a]">Guardrails en approval flow actief</p><p className="mt-1 text-[11px] leading-5 text-[#3f6f55]">{guardedCoverage}% van de huidige marktadviezen heeft kostprijs of een harde prijsgrens. Alleen opgeslagen adviezen kunnen naar de goedkeuringsworkflow worden gestuurd.</p></div>
           <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.06em] text-[#6f7b91]">Modus</p><p className="mt-1 text-[12px] font-black text-[#111827]">{isSimulation ? 'Tijdelijke simulatie' : 'Opgeslagen prijsregels'}</p>
         </div>
       </section>
 
       <section className="surface-card p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div><h2 className="text-[14px] font-semibold text-[#252a37]">Los scenario simuleren</h2><p className="mt-1 text-[11px] text-[#7d8698]">Een simulatie overschrijft tijdelijk de opgeslagen prijsregels, maar publiceert niets en slaat geen regel op.</p></div>
+          <div><h2 className="text-[14px] font-semibold text-[#252a37]">Los scenario simuleren</h2><p className="mt-1 text-[11px] text-[#7d8698]">Een simulatie overschrijft tijdelijk de opgeslagen prijsregels, maar kan nooit als externe prijswijziging worden gepubliceerd.</p></div>
           <form className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             <input type="hidden" name="simulate" value="1" />
             <select name="strategy" defaultValue={strategy} className="h-9 rounded-xl border-2 border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]">{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
@@ -100,6 +101,7 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
             { key: 'margeNa', header: 'Marge advies' },
             { key: 'regel', header: 'Regel' },
             { key: 'actie', header: 'Actie' },
+            { key: 'uitvoering', header: 'Uitvoering' },
           ]}
           rows={recommendations.map((item) => ({
             product: `${item.articleNumber} · ${item.productName}`,
@@ -112,6 +114,7 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
             margeNa: pct(item.marginAfterPct),
             regel: item.appliedRuleName ?? (isSimulation ? 'Simulatie' : 'Standaard'),
             actie: item.action === 'RAISE' ? 'Verhogen' : item.action === 'LOWER' ? 'Verlagen' : item.action === 'KEEP' ? 'Behouden' : item.reason,
+            uitvoering: !isSimulation && item.recommendedPrice !== null && (item.action === 'RAISE' || item.action === 'LOWER') ? <form action={createPriceChangeRequestAction}><input type="hidden" name="productId" value={item.productId} /><input type="hidden" name="countryId" value={item.countryId ?? ''} /><input type="hidden" name="recommendedPrice" value={item.recommendedPrice} /><input type="hidden" name="reason" value={item.reason} /><button className="rounded-[8px] border border-[#bfd0eb] bg-[#edf3fb] px-2.5 py-1.5 text-[10px] font-black text-[#355a91]">Aanvragen</button></form> : <span className="text-[10px] text-[#98a1b0]">—</span>,
           }))}
         />
       </section>
