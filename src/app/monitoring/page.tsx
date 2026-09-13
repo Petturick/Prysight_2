@@ -30,16 +30,22 @@ function Signal({ label, value, helper, tone = 'neutral' }: { label: string; val
   )
 }
 
+function sourceTone(successRate: number, consecutiveFailures: number) {
+  if (consecutiveFailures >= 3 || successRate < 60) return 'text-[#b4233d]'
+  if (consecutiveFailures > 0 || successRate < 90) return 'text-[#9a5b00]'
+  return 'text-[#0d7a49]'
+}
+
 export default async function MonitoringPage() {
   const user = await requireAuthenticatedUser()
   const companyId = user.companyId
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const last24Hours = new Date(today)
-  last24Hours.setDate(last24Hours.getDate() - 1)
+  const last24Hours = new Date()
+  last24Hours.setHours(last24Hours.getHours() - 24)
 
   const result = await safeDatabaseQuery(async () => {
-    const [products, marketLinks, productsWithoutCompetitor, competitorUrls, certainMatches, reviewMatches, checksToday, failedChecks24h, unreadAlerts, latestCheck] = await Promise.all([
+    const [products, marketLinks, productsWithoutCompetitor, competitorUrls, certainMatches, reviewMatches, checksToday, checks24h, failedChecks24h, unreadAlerts, latestCheck, latestSuccessfulCheck, offers] = await Promise.all([
       prisma.product.count({ where: { companyId, isActive: true } }),
       prisma.productMarket.count({ where: { companyId, isActive: true } }),
       prisma.product.count({ where: { companyId, isActive: true, matches: { none: {} } } }),
@@ -47,19 +53,66 @@ export default async function MonitoringPage() {
       prisma.productMatch.count({ where: { companyId, matchStatus: 'CERTAIN' } }),
       prisma.productMatch.count({ where: { companyId, matchStatus: 'REVIEW' } }),
       prisma.priceCheck.count({ where: { companyId, checkedAt: { gte: today } } }),
+      prisma.priceCheck.count({ where: { companyId, checkedAt: { gte: last24Hours } } }),
       prisma.priceCheck.count({ where: { companyId, checkedAt: { gte: last24Hours }, isSuccess: false } }),
       prisma.alert.count({ where: { companyId, isRead: false } }),
       prisma.priceCheck.findFirst({ where: { companyId }, orderBy: { checkedAt: 'desc' }, select: { checkedAt: true, isSuccess: true } }),
+      prisma.priceCheck.findFirst({ where: { companyId, isSuccess: true }, orderBy: { checkedAt: 'desc' }, select: { checkedAt: true } }),
+      prisma.competitorOffer.findMany({
+        where: { companyId, isActive: true },
+        select: {
+          id: true,
+          url: true,
+          lastCheckedAt: true,
+          competitor: { select: { name: true } },
+          productMatch: { select: { product: { select: { name: true, articleNumber: true } } } },
+          priceChecks: {
+            orderBy: { checkedAt: 'desc' },
+            take: 20,
+            select: { checkedAt: true, isSuccess: true, errorMessage: true, checkMethod: true },
+          },
+        },
+        orderBy: { lastCheckedAt: 'desc' },
+        take: 100,
+      }),
     ])
-    return { products, marketLinks, productsWithoutCompetitor, competitorUrls, certainMatches, reviewMatches, checksToday, failedChecks24h, unreadAlerts, latestCheck }
+
+    const sourceHealth = offers.map((offer) => {
+      const checks = offer.priceChecks
+      const successful = checks.filter((check) => check.isSuccess).length
+      const successRate = checks.length ? Math.round((successful / checks.length) * 100) : 0
+      const consecutiveFailures = checks.findIndex((check) => check.isSuccess)
+      const failureStreak = consecutiveFailures === -1 ? checks.length : consecutiveFailures
+      const lastSuccess = checks.find((check) => check.isSuccess)?.checkedAt ?? null
+      const latest = checks[0] ?? null
+      return {
+        id: offer.id,
+        competitor: offer.competitor.name,
+        product: offer.productMatch?.product.name ?? 'Ongekoppeld product',
+        articleNumber: offer.productMatch?.product.articleNumber ?? '',
+        url: offer.url,
+        lastCheckedAt: offer.lastCheckedAt,
+        lastSuccess,
+        successRate,
+        consecutiveFailures: failureStreak,
+        latestError: latest && !latest.isSuccess ? latest.errorMessage : null,
+        method: latest?.checkMethod ?? null,
+      }
+    }).sort((a, b) => b.consecutiveFailures - a.consecutiveFailures || a.successRate - b.successRate)
+
+    return { products, marketLinks, productsWithoutCompetitor, competitorUrls, certainMatches, reviewMatches, checksToday, checks24h, failedChecks24h, unreadAlerts, latestCheck, latestSuccessfulCheck, sourceHealth }
   }, {
-    products: 0, marketLinks: 0, productsWithoutCompetitor: 0, competitorUrls: 0, certainMatches: 0, reviewMatches: 0, checksToday: 0, failedChecks24h: 0, unreadAlerts: 0,
+    products: 0, marketLinks: 0, productsWithoutCompetitor: 0, competitorUrls: 0, certainMatches: 0, reviewMatches: 0, checksToday: 0, checks24h: 0, failedChecks24h: 0, unreadAlerts: 0,
     latestCheck: null as { checkedAt: Date; isSuccess: boolean } | null,
+    latestSuccessfulCheck: null as { checkedAt: Date } | null,
+    sourceHealth: [] as Array<{ id: string; competitor: string; product: string; articleNumber: string; url: string; lastCheckedAt: Date | null; lastSuccess: Date | null; successRate: number; consecutiveFailures: number; latestError: string | null; method: string | null }>,
   })
 
   const data = result.data
   const readyCoverage = data.products ? Math.round((Math.min(data.certainMatches, data.products) / data.products) * 100) : 0
   const actionTotal = data.productsWithoutCompetitor + data.reviewMatches + data.failedChecks24h + data.unreadAlerts
+  const successRate24h = data.checks24h ? Math.round(((data.checks24h - data.failedChecks24h) / data.checks24h) * 100) : 0
+  const unhealthySources = data.sourceHealth.filter((source) => source.consecutiveFailures >= 3 || source.successRate < 60).length
 
   return (
     <div className="space-y-5">
@@ -70,18 +123,19 @@ export default async function MonitoringPage() {
           <div>
             <p className="eyebrow">Prijsmonitoring</p>
             <h1 className="mt-2">Monitoringstatus</h1>
-            <p className="mt-2 max-w-3xl text-[12px] font-medium leading-6 text-[#4b5870]">Zie direct waar de monitoringketen breekt en welke stap nu aandacht vraagt.</p>
+            <p className="mt-2 max-w-3xl text-[12px] font-medium leading-6 text-[#4b5870]">Zie direct waar de monitoringketen breekt, hoe betrouwbaar iedere bron is en welke stap nu aandacht vraagt.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/import" className="secondary-action">Nieuwe import</Link>
             <Link href="/producten" className="primary-action">Producten bekijken</Link>
           </div>
         </div>
-        <div className="grid border-t-2 border-[var(--border-strong)] md:grid-cols-4">
+        <div className="grid border-t-2 border-[var(--border-strong)] md:grid-cols-5">
           <div className="bg-[#111827] px-5 py-4 text-white sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#cbd5e1]">Monitoringdekking</p><p className="mt-1 text-[28px] font-black">{readyCoverage}%</p></div>
-          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Actiepunten</p><p className="mt-1 text-[28px] font-black text-[#b4233d]">{formatNumber(actionTotal)}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Succes 24 uur</p><p className={`mt-1 text-[28px] font-black ${successRate24h >= 90 ? 'text-[#0d7a49]' : successRate24h >= 60 ? 'text-[#9a5b00]' : 'text-[#b4233d]'}`}>{successRate24h}%</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Ongezonde bronnen</p><p className={`mt-1 text-[28px] font-black ${unhealthySources ? 'text-[#b4233d]' : 'text-[#0d7a49]'}`}>{formatNumber(unhealthySources)}</p></div>
           <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Laatste controle</p><p className="mt-1 text-[14px] font-black text-[#111827]">{data.latestCheck ? formatDate(data.latestCheck.checkedAt) : 'Nog geen controle'}</p></div>
-          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Laatste status</p><p className={`mt-1 text-[14px] font-black ${data.latestCheck?.isSuccess ? 'text-[#0d7a49]' : data.latestCheck ? 'text-[#b4233d]' : 'text-[#64748b]'}`}>{data.latestCheck ? data.latestCheck.isSuccess ? 'Succesvol' : 'Mislukt' : 'Nog niet gestart'}</p></div>
+          <div className="border-t-2 border-[var(--border-strong)] px-5 py-4 md:border-l-2 md:border-t-0 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#6f7b91]">Laatste succes</p><p className="mt-1 text-[14px] font-black text-[#111827]">{data.latestSuccessfulCheck ? formatDate(data.latestSuccessfulCheck.checkedAt) : 'Nog geen succes'}</p></div>
         </div>
       </section>
 
@@ -90,6 +144,37 @@ export default async function MonitoringPage() {
         <Signal label="Matches controleren" value={data.reviewMatches} helper="Automatische matches die nog goedkeuring vragen" tone={data.reviewMatches ? 'warn' : 'good'} />
         <Signal label="Mislukt in 24 uur" value={data.failedChecks24h} helper="URLs waarvoor geen geldige prijsmeting kon worden gedaan" tone={data.failedChecks24h ? 'bad' : 'good'} />
         <Signal label="Ongelezen alerts" value={data.unreadAlerts} helper="Prijsafwijkingen en signalen die opvolging vragen" tone={data.unreadAlerts ? 'bad' : 'good'} />
+      </section>
+
+      <section className="surface-card overflow-hidden">
+        <div className="border-b-2 border-[var(--border-strong)] bg-[#111827] px-5 py-4 text-white">
+          <h2 className="text-[15px] font-black">Brongezondheid</h2>
+          <p className="mt-1 text-[11px] font-medium text-[#cbd5e1]">Succesratio is gebaseerd op maximaal de laatste twintig controles per URL. Bronnen met drie opeenvolgende fouten of minder dan zestig procent succes krijgen prioriteit.</p>
+        </div>
+        {data.sourceHealth.length === 0 ? (
+          <div className="px-5 py-6 text-[12px] font-semibold text-[#647087]">Nog geen actieve bronnen met prijscontroles.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-[11px]">
+              <thead className="border-b-2 border-[var(--border)] bg-[#f4f6f9] text-[#5d687d]">
+                <tr><th className="px-4 py-3 font-black">Concurrent</th><th className="px-4 py-3 font-black">Product</th><th className="px-4 py-3 font-black">Succes</th><th className="px-4 py-3 font-black">Foutreeks</th><th className="px-4 py-3 font-black">Laatste succes</th><th className="px-4 py-3 font-black">Methode</th><th className="px-4 py-3 font-black">Status</th></tr>
+              </thead>
+              <tbody>
+                {data.sourceHealth.slice(0, 50).map((source) => (
+                  <tr key={source.id} className="border-b border-[var(--border)] align-top last:border-0">
+                    <td className="px-4 py-3 font-black text-[#111827]">{source.competitor}</td>
+                    <td className="px-4 py-3"><p className="font-bold text-[#111827]">{source.product}</p>{source.articleNumber ? <p className="mt-1 text-[10px] text-[#6f7b91]">{source.articleNumber}</p> : null}</td>
+                    <td className={`px-4 py-3 font-black ${sourceTone(source.successRate, source.consecutiveFailures)}`}>{source.successRate}%</td>
+                    <td className={`px-4 py-3 font-black ${source.consecutiveFailures ? 'text-[#b4233d]' : 'text-[#0d7a49]'}`}>{source.consecutiveFailures}</td>
+                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.lastSuccess ? formatDate(source.lastSuccess) : 'Nog geen succes'}</td>
+                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.method ?? 'Onbekend'}</td>
+                    <td className="max-w-[280px] px-4 py-3"><p className={`font-black ${sourceTone(source.successRate, source.consecutiveFailures)}`}>{source.consecutiveFailures >= 3 || source.successRate < 60 ? 'Actie nodig' : source.consecutiveFailures > 0 || source.successRate < 90 ? 'Controleren' : 'Gezond'}</p>{source.latestError ? <p className="mt-1 line-clamp-2 text-[10px] font-medium leading-4 text-[#6f7b91]">{source.latestError}</p> : null}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="surface-card overflow-hidden">
