@@ -26,6 +26,10 @@ function validDate(value: string | undefined) {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed
 }
 
+function competitorKey(name: string, countryId: string) {
+  return `${countryId}\u0000${name.toLocaleLowerCase()}`
+}
+
 export async function processImportRowsAction(payload: unknown) {
   const parsed = importPayloadSchema.safeParse(payload)
   if (!parsed.success) {
@@ -59,15 +63,56 @@ export async function processImportRowsAction(payload: unknown) {
     },
   })
 
+  const resolvedArticleNumbers = parsed.data.rows.map((row, index) => {
+    const articleNumber = row.articleNumber?.trim()
+    return articleNumber || (importsProducts ? `IMP-${task.id.slice(-6)}-${index + 1}` : '')
+  })
+  const requestedArticleNumbers = [...new Set(resolvedArticleNumbers.filter(Boolean))]
+  const countryCodes = [...new Set(parsed.data.rows.map((row) => (row.country || 'NL').toUpperCase()))]
+  const groupNames = importsProducts
+    ? [...new Set(parsed.data.rows.map((row) => row.productGroup || 'Onbekend'))]
+    : []
+
+  const [existingProducts, countries, companyCountries, existingGroups] = await Promise.all([
+    requestedArticleNumbers.length
+      ? prisma.product.findMany({ where: { companyId, articleNumber: { in: requestedArticleNumbers } } })
+      : Promise.resolve([]),
+    prisma.country.findMany({ where: { code: { in: countryCodes } } }),
+    prisma.companyCountry.findMany({ where: { companyId }, select: { countryId: true, isActive: true } }),
+    groupNames.length
+      ? prisma.productGroup.findMany({ where: { companyId, name: { in: groupNames } } })
+      : Promise.resolve([]),
+  ])
+
+  const productCache = new Map(existingProducts.map((product) => [product.articleNumber, product]))
   if (importsProducts) {
-    const requestedArticleNumbers = [...new Set(parsed.data.rows.map((row, index) => row.articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`))]
-    const existingProducts = await prisma.product.findMany({
-      where: { companyId, articleNumber: { in: requestedArticleNumbers } },
-      select: { articleNumber: true },
-    })
-    const newSkuCount = requestedArticleNumbers.length - new Set(existingProducts.map((product) => product.articleNumber)).size
+    const newSkuCount = requestedArticleNumbers.length - productCache.size
     if (newSkuCount > 0) await assertCompanyCapacity(companyId, 'skus', newSkuCount)
   }
+
+  const countryByCode = new Map(countries.map((country) => [country.code.toUpperCase(), country]))
+  const activeMarketIds = new Set(companyCountries.filter((item) => item.isActive).map((item) => item.countryId))
+  const groupCache = new Map(existingGroups.map((group) => [group.name, group]))
+  for (const groupName of groupNames) {
+    if (groupCache.has(groupName)) continue
+    const group = await prisma.productGroup.upsert({
+      where: { companyId_name: { companyId, name: groupName } },
+      update: {},
+      create: { companyId, name: groupName, description: `Automatisch aangemaakt via import ${parsed.data.filename}` },
+    })
+    groupCache.set(groupName, group)
+  }
+
+  const competitorNames = importsCompetitors
+    ? [...new Set(parsed.data.rows.map((row) => (row.competitorName || row.webshop || '').trim()).filter(Boolean))]
+    : []
+  const existingCompetitors = competitorNames.length && countries.length
+    ? await prisma.competitor.findMany({
+        where: { companyId, name: { in: competitorNames }, countryId: { in: countries.map((country) => country.id) } },
+      })
+    : []
+  const competitorCache = new Map(existingCompetitors.map((competitor) => [competitorKey(competitor.name, competitor.countryId), competitor]))
+  const onboardingInitialized = new Set<string>()
 
   let processedRows = 0
   let productRows = 0
@@ -78,17 +123,12 @@ export async function processImportRowsAction(payload: unknown) {
   for (const [index, row] of parsed.data.rows.entries()) {
     try {
       const countryCode = (row.country || 'NL').toUpperCase()
-      const country = await prisma.country.findUnique({ where: { code: countryCode } })
-      const licensedCountry = country
-        ? await prisma.companyCountry.findUnique({
-            where: { companyId_countryId: { companyId, countryId: country.id } },
-          })
-        : null
-      const marketIsActive = Boolean(country && licensedCountry?.isActive)
+      const country = countryByCode.get(countryCode) ?? null
+      const marketIsActive = Boolean(country && activeMarketIds.has(country.id))
 
       if (!country) {
         warnings.push(`Rij ${index + 1}: land ${countryCode} is niet herkend. Het product wordt wel geïmporteerd, maar niet aan een markt gekoppeld.`)
-      } else if (!licensedCountry?.isActive) {
+      } else if (!marketIsActive) {
         warnings.push(`Rij ${index + 1}: land ${countryCode} is niet actief voor dit bedrijf. Het product wordt wel geïmporteerd, maar monitoring voor deze markt blijft uit.`)
       }
 
@@ -101,23 +141,18 @@ export async function processImportRowsAction(payload: unknown) {
       const currency = row.currency || country?.currency || 'EUR'
       const packagingQty = Number(row.packagingQty || 1) || 1
       const recordedAt = validDate(row.lastChecked)
-
-      let product = articleNumber
-        ? await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId, articleNumber } } })
-        : null
+      const resolvedArticleNumber = resolvedArticleNumbers[index]
+      let product = resolvedArticleNumber ? productCache.get(resolvedArticleNumber) ?? null : null
 
       if (importsProducts) {
         const pricingInputPresent = Boolean(row.costPrice || row.minimumMarginPct || row.targetMarginPct || row.minimumPrice || row.maximumPrice || row.pricingMode || row.pricingCooldownHours)
         if (pricingInputPresent && !canManagePricing) throw new Error('Onvoldoende rechten om pricinginstellingen te importeren.')
 
-        const resolvedArticleNumber = articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`
         const productGroupName = row.productGroup || 'Onbekend'
-        const productGroup = await prisma.productGroup.upsert({
-          where: { companyId_name: { companyId, name: productGroupName } },
-          update: {},
-          create: { companyId, name: productGroupName, description: `Automatisch aangemaakt via import ${parsed.data.filename}` },
-        })
+        const productGroup = groupCache.get(productGroupName)
+        if (!productGroup) throw new Error(`Productgroep ${productGroupName} kon niet worden geladen.`)
         const ownPrice = toDecimal(row.ownPrice)
+        const previousOwnPrice = product?.ownPrice ?? null
 
         product = await prisma.product.upsert({
           where: { companyId_articleNumber: { companyId, articleNumber: resolvedArticleNumber } },
@@ -149,19 +184,24 @@ export async function processImportRowsAction(payload: unknown) {
             isActive: true,
           },
         })
+        productCache.set(resolvedArticleNumber, product)
 
-        await saveProductOnboardingFields(companyId, product.id, {
-          mpn: row.mpn,
-          brand: row.brand,
-          model: row.model,
-          costPrice: row.costPrice,
-          minimumMarginPct: row.minimumMarginPct,
-          targetMarginPct: row.targetMarginPct,
-          minimumPrice: row.minimumPrice,
-          maximumPrice: row.maximumPrice,
-          pricingMode: row.pricingMode,
-          pricingCooldownHours: row.pricingCooldownHours,
-        })
+        const onboardingFieldsPresent = Boolean(row.mpn || row.brand || row.model || row.costPrice || row.minimumMarginPct || row.targetMarginPct || row.minimumPrice || row.maximumPrice || row.pricingMode || row.pricingCooldownHours)
+        if (!onboardingInitialized.has(product.id) || onboardingFieldsPresent) {
+          await saveProductOnboardingFields(companyId, product.id, {
+            mpn: row.mpn,
+            brand: row.brand,
+            model: row.model,
+            costPrice: row.costPrice,
+            minimumMarginPct: row.minimumMarginPct,
+            targetMarginPct: row.targetMarginPct,
+            minimumPrice: row.minimumPrice,
+            maximumPrice: row.maximumPrice,
+            pricingMode: row.pricingMode,
+            pricingCooldownHours: row.pricingCooldownHours,
+          })
+          onboardingInitialized.add(product.id)
+        }
         productRows += 1
 
         if (country && marketIsActive) {
@@ -188,7 +228,7 @@ export async function processImportRowsAction(payload: unknown) {
           marketRows += 1
         }
 
-        if (ownPrice) {
+        if (ownPrice && (!previousOwnPrice || !previousOwnPrice.eq(ownPrice))) {
           await prisma.ownPriceHistory.create({
             data: {
               companyId,
@@ -233,15 +273,20 @@ export async function processImportRowsAction(payload: unknown) {
 
       const safeOfferUrl = (await assertSafeRemoteHttpUrl(row.competitorUrl)).toString()
       const website = new URL(safeOfferUrl).origin
-      const competitorWhere = { companyId_name_countryId: { companyId, name: competitorName, countryId: country.id } }
-      const existingCompetitor = await prisma.competitor.findUnique({ where: competitorWhere })
-      if (!existingCompetitor) await assertCompanyCapacity(companyId, 'competitors')
-
-      const competitor = await prisma.competitor.upsert({
-        where: competitorWhere,
-        update: { website, isActive: true },
-        create: { companyId, name: competitorName, website, countryId: country.id, isActive: true },
-      })
+      const cacheKey = competitorKey(competitorName, country.id)
+      let competitor = competitorCache.get(cacheKey) ?? null
+      if (!competitor) {
+        await assertCompanyCapacity(companyId, 'competitors')
+        competitor = await prisma.competitor.upsert({
+          where: { companyId_name_countryId: { companyId, name: competitorName, countryId: country.id } },
+          update: { website, isActive: true },
+          create: { companyId, name: competitorName, website, countryId: country.id, isActive: true },
+        })
+        competitorCache.set(cacheKey, competitor)
+      } else if (competitor.website !== website || !competitor.isActive) {
+        competitor = await prisma.competitor.update({ where: { id: competitor.id }, data: { website, isActive: true } })
+        competitorCache.set(cacheKey, competitor)
+      }
 
       const rawPrice = toDecimal(row.competitorPrice)
       const normalized = rawPrice
