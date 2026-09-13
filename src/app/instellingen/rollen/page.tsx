@@ -7,7 +7,7 @@ const labels: Record<Permission, string> = {
   'competitors.read': 'Concurrenten bekijken', 'competitors.write': 'Concurrenten toevoegen en wijzigen',
   'feeds.read': 'Feeds bekijken', 'feeds.write': 'Feeds beheren en synchroniseren',
   'imports.run': 'Imports uitvoeren', 'reports.read': 'Rapportages bekijken',
-  'alerts.manage': 'Waarschuwingen beheren', 'pricing.manage': 'Prijsstrategie beheren',
+  'alerts.manage': 'Waarschuwingen beheren', 'pricing.manage': 'Prijsstrategie beheren', 'pricing.publish': 'Prijswijzigingen goedkeuren en publiceren',
   'users.manage': 'Gebruikers beheren', 'settings.manage': 'Organisatie instellingen beheren',
   'billing.manage': 'Licentie en facturatie beheren',
 }
