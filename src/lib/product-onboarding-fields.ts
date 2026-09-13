@@ -26,14 +26,18 @@ export async function saveProductOnboardingFields(companyId: string, productId: 
   const minimumPrice=price(fields.minimumPrice), maximumPrice=price(fields.maximumPrice)
   if (minimumPrice !== null && maximumPrice !== null && minimumPrice > maximumPrice) throw new Error('Minimumprijs kan niet hoger zijn dan maximumprijs.')
 
-  await prisma.$executeRaw(Prisma.sql`
-    update products set
-      mpn = coalesce(${mpn}, mpn), brand = coalesce(${brand}, brand), model = coalesce(${model}, model),
-      cost_price = coalesce(${costPrice}, cost_price), minimum_margin_pct = coalesce(${minimumMarginPct}, minimum_margin_pct),
-      target_margin_pct = coalesce(${targetMarginPct}, target_margin_pct), minimum_price = coalesce(${minimumPrice}, minimum_price),
-      maximum_price = coalesce(${maximumPrice}, maximum_price), updated_at = now()
-    where id = ${productId} and company_id = ${companyId}
-  `)
+  const hasProductFields = mpn !== null || brand !== null || model !== null || costPrice !== null || minimumMarginPct !== null || targetMarginPct !== null || minimumPrice !== null || maximumPrice !== null
+  if (hasProductFields) {
+    await prisma.$executeRaw(Prisma.sql`
+      update products set
+        mpn = coalesce(${mpn}, mpn), brand = coalesce(${brand}, brand), model = coalesce(${model}, model),
+        cost_price = coalesce(${costPrice}, cost_price), minimum_margin_pct = coalesce(${minimumMarginPct}, minimum_margin_pct),
+        target_margin_pct = coalesce(${targetMarginPct}, target_margin_pct), minimum_price = coalesce(${minimumPrice}, minimum_price),
+        maximum_price = coalesce(${maximumPrice}, maximum_price), updated_at = now()
+      where id = ${productId} and company_id = ${companyId}
+    `)
+  }
+
   await prisma.$executeRaw(Prisma.sql`
     insert into product_settings (id, company_id, product_id, mode, cooldown_hours, is_active)
     select ${`pst_${productId}`}, ${companyId}, ${productId}, 'INHERIT', 24, true
@@ -41,7 +45,8 @@ export async function saveProductOnboardingFields(companyId: string, productId: 
   `)
 
   const rawMode=text(fields.pricingMode)
-  if (rawMode || text(fields.pricingCooldownHours)) {
+  const rawCooldown=text(fields.pricingCooldownHours)
+  if (rawMode || rawCooldown) {
     const mode=normalizePricingMode(rawMode, 'INHERIT')
     const cooldown=normalizeCooldownHours(fields.pricingCooldownHours, 24)
     await prisma.$executeRaw(Prisma.sql`
