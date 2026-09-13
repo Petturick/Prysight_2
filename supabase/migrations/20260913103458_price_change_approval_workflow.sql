@@ -38,4 +38,5 @@ create index if not exists price_change_requests_rule_idx on public.price_change
 create unique index if not exists price_change_requests_one_open_idx on public.price_change_requests(company_id, product_id, coalesce(country_id, '')) where status in ('PENDING','APPROVED','APPLYING');
 
 alter table public.price_change_requests enable row level security;
+revoke all on table public.price_change_requests from anon, authenticated;
 comment on table public.price_change_requests is 'Auditbare goedkeuringsworkflow voor prijsadviezen voordat een externe writeback wordt uitgevoerd.';
