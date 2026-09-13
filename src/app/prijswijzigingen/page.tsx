@@ -34,6 +34,7 @@ export default async function PriceChangesPage() {
   const actor = await requirePermission('pricing.manage')
   const requests = await listPriceChangeRequests(actor.companyId, 200)
   const magentoReady = isMagentoPricingConfigured()
+  const canPublish = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.publish')
   const pending = requests.filter((item) => item.status === 'PENDING').length
   const approved = requests.filter((item) => item.status === 'APPROVED').length
   const failed = requests.filter((item) => item.status === 'FAILED').length
@@ -62,6 +63,7 @@ export default async function PriceChangesPage() {
         ].map(([label, value, helper]) => <div key={String(label)} className="surface-card-flat p-4"><p className="text-[10px] font-black uppercase tracking-[0.06em] text-[#6f7b91]">{label}</p><p className="mt-2 text-[24px] font-black text-[#171b28]">{String(value)}</p><p className="mt-1 text-[10px] leading-5 text-[#8790a2]">{helper}</p></div>)}
       </section>
 
+      {!canPublish ? <section className="rounded-[12px] border-2 border-[#afc5e7] bg-[#edf3fb] p-4"><p className="text-[12px] font-black text-[#355a91]">Vier-ogenflow actief</p><p className="mt-1 text-[11px] leading-5 text-[#526d95]">Je kunt prijsadviezen aanvragen en de status volgen. Goedkeuren, afwijzen, publiceren en rollback vereisen het aparte recht <strong>Prijswijzigingen publiceren</strong>.</p></section> : null}
       {!magentoReady ? <section className="rounded-[12px] border-2 border-[#e1c98d] bg-[#fbf4df] p-4"><p className="text-[12px] font-black text-[#6f5218]">Magento writeback staat veilig uit</p><p className="mt-1 text-[11px] leading-5 text-[#7b6534]">Aanvragen kunnen wel worden aangemaakt, beoordeeld en goedgekeurd. Publiceren blijft geblokkeerd totdat MAGENTO_BASE_URL, MAGENTO_ACCESS_TOKEN en MAGENTO_PRICES_INCLUDE_TAX correct zijn ingesteld.</p></section> : null}
 
       <section className="space-y-3">
@@ -90,14 +92,14 @@ export default async function PriceChangesPage() {
                 {item.errorMessage ? <p className="rounded-[9px] border border-[#e0a5ad] bg-[#fae8eb] px-3 py-2 text-[#8b2f3d]"><strong>Fout:</strong> {item.errorMessage}</p> : null}
               </div>
 
-              <div className="flex flex-wrap items-end gap-2 xl:justify-end">
+              {canPublish ? <div className="flex flex-wrap items-end gap-2 xl:justify-end">
                 {item.status === 'PENDING' ? <>
                   <form action={approvePriceChangeRequestAction} className="flex items-end gap-2"><input type="hidden" name="requestId" value={item.id} /><label className="text-[9px] font-bold text-[#6f7b91]">Goedgekeurde prijs<input name="approvedPrice" type="number" min="0.01" step="0.01" defaultValue={item.recommendedPrice.toFixed(2)} className="mt-1 block h-9 w-28 rounded-[8px] border border-[#d7dde6] px-2 text-[11px]" /></label><button className="primary-action">Goedkeuren</button></form>
                   <form action={rejectPriceChangeRequestAction}><input type="hidden" name="requestId" value={item.id} /><button className="secondary-action">Afwijzen</button></form>
                 </> : null}
                 {(item.status === 'APPROVED' || item.status === 'FAILED') ? <form action={applyApprovedPriceChangeAction}><input type="hidden" name="requestId" value={item.id} /><button disabled={!magentoReady} className="primary-action disabled:cursor-not-allowed disabled:opacity-40">{item.status === 'FAILED' ? 'Opnieuw publiceren' : 'Publiceren naar Magento'}</button></form> : null}
                 {item.status === 'APPLIED' ? <form action={rollbackAppliedPriceChangeAction}><input type="hidden" name="requestId" value={item.id} /><button className="secondary-action">Rollback</button></form> : null}
-              </div>
+              </div> : null}
             </div>
           </article>
         })}
