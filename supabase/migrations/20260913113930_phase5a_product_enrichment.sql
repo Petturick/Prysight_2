@@ -1,0 +1,1 @@
+alter table public.products add column if not exists brand text, add column if not exists model text;
