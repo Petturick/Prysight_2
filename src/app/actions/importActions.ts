@@ -4,6 +4,7 @@ import { ImportFormat, ImportStatus, MatchStatus, Prisma } from '@/generated/pri
 import { createAuditLog } from '@/lib/audit'
 import { requireWritableUser } from '@/lib/authz'
 import { assertCompanyCapacity } from '@/lib/company-license'
+import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
 import { matchProducts } from '@/lib/product-matching'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
@@ -41,6 +42,7 @@ export async function processImportRowsAction(payload: unknown) {
   const mode = parsed.data.mode
   const importsProducts = mode === 'products' || mode === 'combined'
   const importsCompetitors = mode === 'competitors' || mode === 'combined'
+  const canManagePricing = user.role === 'SUPER_ADMIN' || user.permissions.includes('pricing.manage')
   const warnings: string[] = []
   const errors: string[] = []
 
@@ -105,6 +107,9 @@ export async function processImportRowsAction(payload: unknown) {
         : null
 
       if (importsProducts) {
+        const pricingInputPresent = Boolean(row.costPrice || row.minimumMarginPct || row.targetMarginPct || row.minimumPrice || row.maximumPrice || row.pricingMode || row.pricingCooldownHours)
+        if (pricingInputPresent && !canManagePricing) throw new Error('Onvoldoende rechten om pricinginstellingen te importeren.')
+
         const resolvedArticleNumber = articleNumber || `IMP-${task.id.slice(-6)}-${index + 1}`
         const productGroupName = row.productGroup || 'Onbekend'
         const productGroup = await prisma.productGroup.upsert({
@@ -118,7 +123,7 @@ export async function processImportRowsAction(payload: unknown) {
           where: { companyId_articleNumber: { companyId, articleNumber: resolvedArticleNumber } },
           update: {
             ean: row.ean || undefined,
-            gtin: row.ean || undefined,
+            gtin: row.gtin || undefined,
             name: row.productName || undefined,
             productGroupId: productGroup.id,
             ownPrice: ownPrice ?? undefined,
@@ -132,7 +137,7 @@ export async function processImportRowsAction(payload: unknown) {
             companyId,
             articleNumber: resolvedArticleNumber,
             ean: row.ean || null,
-            gtin: row.ean || null,
+            gtin: row.gtin || null,
             name: row.productName || resolvedArticleNumber,
             productGroupId: productGroup.id,
             ownPrice,
@@ -143,6 +148,19 @@ export async function processImportRowsAction(payload: unknown) {
             currency,
             isActive: true,
           },
+        })
+
+        await saveProductOnboardingFields(companyId, product.id, {
+          mpn: row.mpn,
+          brand: row.brand,
+          model: row.model,
+          costPrice: row.costPrice,
+          minimumMarginPct: row.minimumMarginPct,
+          targetMarginPct: row.targetMarginPct,
+          minimumPrice: row.minimumPrice,
+          maximumPrice: row.maximumPrice,
+          pricingMode: row.pricingMode,
+          pricingCooldownHours: row.pricingCooldownHours,
         })
         productRows += 1
 
@@ -284,7 +302,7 @@ export async function processImportRowsAction(payload: unknown) {
         {
           sku: articleNumber || product.articleNumber,
           ean: row.ean,
-          gtin: row.ean,
+          gtin: row.gtin,
           productTitle: row.productName || product.name,
           packagingUnit: row.packagingUnit,
           packagingQty,
@@ -389,6 +407,8 @@ export async function processImportRowsAction(payload: unknown) {
   revalidatePath('/productmatches')
   revalidatePath('/waarschuwingen')
   revalidatePath('/monitoring')
+  revalidatePath('/prijsstrategie')
+  revalidatePath('/prijsautomatisering')
 
   return {
     message: errors.length
