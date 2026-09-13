@@ -18,48 +18,6 @@ function readLimit(value: unknown, fallback = 40, max = 200) {
   return Math.min(Math.max(Math.round(parsed), 1), max)
 }
 
-type CycleOptions = {
-  limit: number
-  discoveryEnabled: boolean
-  pricingEnabled: boolean
-  discoveryLimit: number
-  competitorOfferId?: string
-  productId?: string
-  force: boolean
-}
-
-async function runCompanyCycle(companyId: string, options: CycleOptions) {
-  const settingsPromise = options.discoveryEnabled || options.pricingEnabled
-    ? getCompanyProductSettings(companyId)
-    : Promise.resolve(undefined)
-
-  const [monitoring, settings] = await Promise.all([
-    runDuePriceChecks({
-      companyId,
-      limit: options.limit,
-      competitorOfferId: options.competitorOfferId,
-      productId: options.productId,
-      force: options.force,
-    }),
-    settingsPromise,
-  ])
-
-  const discovery = options.discoveryEnabled
-    ? await runDiscoveryBatch(companyId, options.discoveryLimit, settings)
-    : null
-  const matching = options.discoveryEnabled
-    ? await reconcileMeasuredMatches(companyId)
-    : null
-  const pricing = options.pricingEnabled
-    ? await runPricingQueue(companyId, 100, settings)
-    : null
-  const execution = options.pricingEnabled
-    ? await runPricingExecutor(companyId, 20, settings)
-    : null
-
-  return { monitoring, discovery, matching, pricing, execution }
-}
-
 export async function GET(request: Request) {
   try {
     const actor = await requireAuthenticatedUser()
@@ -88,10 +46,7 @@ export async function POST(request: Request) {
   const discoveryEnabled = body.smartDiscovery === true
   const pricingEnabled = body.smartPricing === true
   const discoveryLimit = readLimit(body.discoveryLimit, 4, 12)
-  const baseOptions = {
-    discoveryEnabled,
-    pricingEnabled,
-    discoveryLimit,
+  const options = {
     competitorOfferId: typeof body.competitorOfferId === 'string' ? body.competitorOfferId : undefined,
     productId: typeof body.productId === 'string' ? body.productId : undefined,
     force: body.force === true,
@@ -101,8 +56,19 @@ export async function POST(request: Request) {
     const company = await prisma.company.findFirst({ where: { id: requestedCompanyId, status: 'ACTIVE' }, include: { license: true } })
     if (!company?.license) return NextResponse.json({ error: 'Organisatie niet gevonden of zonder licentie.' }, { status: 404 })
     if (!hasLicenseAccess(company.license)) return NextResponse.json({ error: 'De licentie van deze organisatie staat prijscontrole niet toe.' }, { status: 403 })
-    const cycle = await runCompanyCycle(company.id, { ...baseOptions, limit })
-    return NextResponse.json({ companyId: company.id, ...cycle }, { status: 200 })
+
+    const settingsPromise = discoveryEnabled || pricingEnabled
+      ? getCompanyProductSettings(company.id)
+      : Promise.resolve(undefined)
+    const [monitoring, settings] = await Promise.all([
+      runDuePriceChecks({ companyId: company.id, limit, ...options }),
+      settingsPromise,
+    ])
+    const discovery = discoveryEnabled ? await runDiscoveryBatch(company.id, discoveryLimit, settings) : null
+    const matching = discoveryEnabled ? await reconcileMeasuredMatches(company.id) : null
+    const pricing = pricingEnabled ? await runPricingQueue(company.id, 100, settings) : null
+    const execution = pricingEnabled ? await runPricingExecutor(company.id, 20, settings) : null
+    return NextResponse.json({ companyId: company.id, monitoring, discovery, matching, pricing, execution }, { status: 200 })
   }
 
   const companies = await prisma.company.findMany({ where: { status: 'ACTIVE' }, include: { license: true }, orderBy: { createdAt: 'asc' } })
@@ -112,17 +78,18 @@ export async function POST(request: Request) {
 
   for (const company of eligible) {
     try {
-      const cycle = await runCompanyCycle(company.id, { ...baseOptions, limit: perCompanyLimit })
-      results.push({
-        companyId: company.id,
-        due: cycle.monitoring.due,
-        successful: cycle.monitoring.successful,
-        failed: cycle.monitoring.failed,
-        discoveryCreated: cycle.discovery?.created ?? 0,
-        matchesPromoted: cycle.matching?.promoted ?? 0,
-        queued: cycle.pricing?.queued ?? 0,
-        applied: cycle.execution?.applied ?? 0,
-      })
+      const settingsPromise = discoveryEnabled || pricingEnabled
+        ? getCompanyProductSettings(company.id)
+        : Promise.resolve(undefined)
+      const [monitoring, settings] = await Promise.all([
+        runDuePriceChecks({ companyId: company.id, limit: perCompanyLimit, ...options }),
+        settingsPromise,
+      ])
+      const discovery = discoveryEnabled ? await runDiscoveryBatch(company.id, discoveryLimit, settings) : null
+      const matching = discoveryEnabled ? await reconcileMeasuredMatches(company.id) : null
+      const pricing = pricingEnabled ? await runPricingQueue(company.id, 100, settings) : null
+      const execution = pricingEnabled ? await runPricingExecutor(company.id, 20, settings) : null
+      results.push({ companyId: company.id, due: monitoring.due, successful: monitoring.successful, failed: monitoring.failed, discoveryCreated: discovery?.created ?? 0, matchesPromoted: matching?.promoted ?? 0, queued: pricing?.queued ?? 0, applied: execution?.applied ?? 0 })
     } catch (error) {
       results.push({ companyId: company.id, due: 0, successful: 0, failed: 0, error: error instanceof Error ? error.message : 'Background verwerking mislukt.' })
     }
