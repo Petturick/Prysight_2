@@ -9,6 +9,7 @@ const SAFE_CALLBACKS = new Set([
   '/waarschuwingen',
   '/prijsstrategie',
   '/prijsregels',
+  '/prijswijzigingen',
   '/rapportages',
   '/feeds',
   '/import',
