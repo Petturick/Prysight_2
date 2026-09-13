@@ -15,7 +15,7 @@ const items: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { href: '/producten', label: 'Producten', icon: 'products' },
   { href: '/concurrenten', label: 'Markt', icon: 'competitors', aliases: ['/monitoring', '/productmatches'] },
-  { href: '/acties', label: 'Acties', icon: 'alerts', aliases: ['/waarschuwingen', '/prijsstrategie'] },
+  { href: '/acties', label: 'Acties', icon: 'alerts', aliases: ['/waarschuwingen', '/prijsstrategie', '/prijsregels'] },
   { href: '/rapportages', label: 'Rapportages', icon: 'reports' },
   { href: '/instellingen', label: 'Instellingen', icon: 'settings', aliases: ['/feeds', '/import', '/integraties', '/beheer'] },
 ]
