@@ -1,0 +1,4 @@
+alter table public.product_settings add column if not exists last_discovery_at timestamp without time zone, add column if not exists last_auto_price_at timestamp without time zone;
+create unique index if not exists product_settings_product_unique on public.product_settings(company_id, product_id) where product_id is not null;
+create unique index if not exists product_settings_group_unique on public.product_settings(company_id, product_group_id) where product_group_id is not null;
+create index if not exists product_settings_scan_idx on public.product_settings(company_id, mode, is_active, last_auto_price_at);

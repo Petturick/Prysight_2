@@ -3,14 +3,18 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { verifyBearerSecret } from '@/lib/api-auth'
 import { requireAuthenticatedUser } from '@/lib/authz'
+import { runDiscoveryBatch } from '@/lib/discovery-batch'
 import { hasLicenseAccess } from '@/lib/licensing'
+import { reconcileMeasuredMatches } from '@/lib/match-reconciliation'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
+import { runPricingExecutor } from '@/lib/pricing-executor'
+import { runPricingQueue } from '@/lib/pricing-queue'
 import { prisma } from '@/lib/prisma'
 
-function readLimit(value: unknown) {
+function readLimit(value: unknown, fallback = 40, max = 200) {
   const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) return 40
-  return Math.min(Math.max(Math.round(parsed), 1), 200)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(Math.round(parsed), 1), max)
 }
 
 export async function GET(request: Request) {
@@ -33,47 +37,45 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const access = verifyBearerSecret(request, 'PRICE_MONITOR_API_KEY')
   if (!access.ok) return NextResponse.json({ error: access.message }, { status: access.status })
-
   let body: Record<string, unknown> = {}
   try { body = await request.json() as Record<string, unknown> } catch { body = {} }
 
   const requestedCompanyId = typeof body.companyId === 'string' && body.companyId.trim() ? body.companyId.trim() : null
   const limit = readLimit(body.limit)
-  const options = {
-    competitorOfferId: typeof body.competitorOfferId === 'string' ? body.competitorOfferId : undefined,
-    productId: typeof body.productId === 'string' ? body.productId : undefined,
-    force: body.force === true,
-  }
+  const discoveryEnabled = body.smartDiscovery === true
+  const pricingEnabled = body.smartPricing === true
+  const discoveryLimit = readLimit(body.discoveryLimit, 4, 12)
+  const options = { competitorOfferId: typeof body.competitorOfferId === 'string' ? body.competitorOfferId : undefined, productId: typeof body.productId === 'string' ? body.productId : undefined, force: body.force === true }
 
   if (requestedCompanyId) {
     const company = await prisma.company.findFirst({ where: { id: requestedCompanyId, status: 'ACTIVE' }, include: { license: true } })
     if (!company?.license) return NextResponse.json({ error: 'Organisatie niet gevonden of zonder licentie.' }, { status: 404 })
     if (!hasLicenseAccess(company.license)) return NextResponse.json({ error: 'De licentie van deze organisatie staat prijscontrole niet toe.' }, { status: 403 })
-    const summary = await runDuePriceChecks({ companyId: company.id, limit, ...options })
-    return NextResponse.json({ companyId: company.id, ...summary }, { status: 200 })
+    const monitoring = await runDuePriceChecks({ companyId: company.id, limit, ...options })
+    const discovery = discoveryEnabled ? await runDiscoveryBatch(company.id, discoveryLimit) : null
+    const matching = discoveryEnabled ? await reconcileMeasuredMatches(company.id) : null
+    const pricing = pricingEnabled ? await runPricingQueue(company.id) : null
+    const execution = pricingEnabled ? await runPricingExecutor(company.id) : null
+    return NextResponse.json({ companyId: company.id, monitoring, discovery, matching, pricing, execution }, { status: 200 })
   }
 
   const companies = await prisma.company.findMany({ where: { status: 'ACTIVE' }, include: { license: true }, orderBy: { createdAt: 'asc' } })
   const eligible = companies.filter((company) => company.license && hasLicenseAccess(company.license))
-  if (eligible.length === 0) return NextResponse.json({ companies: 0, requested: limit, due: 0, successful: 0, failed: 0, results: [] })
+  const perCompanyLimit = eligible.length ? Math.max(1, Math.ceil(limit / eligible.length)) : limit
+  const results: Array<{ companyId: string; due: number; successful: number; failed: number; discoveryCreated?: number; matchesPromoted?: number; queued?: number; applied?: number; error?: string }> = []
 
-  const perCompanyLimit = Math.max(1, Math.ceil(limit / eligible.length))
-  const results: Array<{ companyId: string; due: number; successful: number; failed: number; error?: string }> = []
   for (const company of eligible) {
     try {
-      const summary = await runDuePriceChecks({ companyId: company.id, limit: perCompanyLimit, ...options })
-      results.push({ companyId: company.id, due: summary.due, successful: summary.successful, failed: summary.failed })
+      const monitoring = await runDuePriceChecks({ companyId: company.id, limit: perCompanyLimit, ...options })
+      const discovery = discoveryEnabled ? await runDiscoveryBatch(company.id, discoveryLimit) : null
+      const matching = discoveryEnabled ? await reconcileMeasuredMatches(company.id) : null
+      const pricing = pricingEnabled ? await runPricingQueue(company.id) : null
+      const execution = pricingEnabled ? await runPricingExecutor(company.id) : null
+      results.push({ companyId: company.id, due: monitoring.due, successful: monitoring.successful, failed: monitoring.failed, discoveryCreated: discovery?.created ?? 0, matchesPromoted: matching?.promoted ?? 0, queued: pricing?.queued ?? 0, applied: execution?.applied ?? 0 })
     } catch (error) {
-      results.push({ companyId: company.id, due: 0, successful: 0, failed: 0, error: error instanceof Error ? error.message : 'Prijscontrole mislukt.' })
+      results.push({ companyId: company.id, due: 0, successful: 0, failed: 0, error: error instanceof Error ? error.message : 'Background verwerking mislukt.' })
     }
   }
 
-  return NextResponse.json({
-    companies: eligible.length,
-    requested: limit,
-    due: results.reduce((sum, item) => sum + item.due, 0),
-    successful: results.reduce((sum, item) => sum + item.successful, 0),
-    failed: results.reduce((sum, item) => sum + item.failed, 0),
-    results,
-  })
+  return NextResponse.json({ companies: eligible.length, requested: limit, due: results.reduce((sum,item)=>sum+item.due,0), successful: results.reduce((sum,item)=>sum+item.successful,0), failed: results.reduce((sum,item)=>sum+item.failed,0), discoveryCreated: results.reduce((sum,item)=>sum+(item.discoveryCreated??0),0), matchesPromoted: results.reduce((sum,item)=>sum+(item.matchesPromoted??0),0), queued: results.reduce((sum,item)=>sum+(item.queued??0),0), applied: results.reduce((sum,item)=>sum+(item.applied??0),0), results })
 }
