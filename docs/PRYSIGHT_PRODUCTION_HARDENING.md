@@ -22,20 +22,25 @@ Voor browser rendering kunnen server side de variabelen `BROWSER_RENDERER_URL` e
 
 ## Fase 3, pricing intelligence
 
-1. Kostprijs
-2. Minimum marge
-3. Minimum en maximum verkoopprijs
-4. Persistente pricing rules per bedrijf, land, productgroep en product
-5. Guardrails en prijsafronding
-6. Advies met marge impact en gebruikte marktdata
+1. Kostprijs, geïmplementeerd
+2. Minimum marge, geïmplementeerd
+3. Minimum en maximum verkoopprijs, geïmplementeerd
+4. Persistente pricing rules per bedrijf, land, productgroep en product, geïmplementeerd
+5. Guardrails en prijsafronding, geïmplementeerd
+6. Advies met marge impact en gebruikte marktdata, geïmplementeerd
 
 ## Fase 4, gecontroleerde automatisering
 
-1. Goedkeuringsworkflow
-2. Magento writeback
-3. Verificatie na writeback
-4. Rollback
-5. Volledige audit trail
+1. Goedkeuringsworkflow, geïmplementeerd
+2. Magento base price writeback, geïmplementeerd en standaard uit zolang tenantgebonden productiecredentials ontbreken
+3. Verificatie na writeback, geïmplementeerd met preflight en terugleescontrole
+4. Rollback, geïmplementeerd met bescherming tegen externe prijswijzigingen na publicatie
+5. Volledige audit trail, geïmplementeerd voor aanvraag, goedkeuring, publicatie, fout en rollback
+6. Gescheiden publicatierecht, geïmplementeerd via `pricing.publish`
+7. Tenantbinding, Magento configuratie vereist expliciete `MAGENTO_COMPANY_ID` en `MAGENTO_CURRENCY`
+8. Foutcompensatie, een externe write wordt bij lokale synchronisatiefouten waar veilig mogelijk teruggedraaid en retries kunnen een reeds bevestigde doelprijs reconciliëren
+
+Benodigde runtimeconfiguratie voor echte Magento publicatie: `MAGENTO_BASE_URL`, `MAGENTO_ACCESS_TOKEN`, `MAGENTO_COMPANY_ID`, `MAGENTO_CURRENCY`, `MAGENTO_PRICES_INCLUDE_TAX` en optioneel `MAGENTO_STORE_CODE` en `MAGENTO_STORE_ID`.
 
 ## Fase 5, productierijp
 
