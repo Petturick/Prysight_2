@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 type DiscoveryResult = { found?: number; created?: number; provider?: string; country?: string; skipped?: boolean; reason?: string; error?: string }
 type State = 'idle' | 'searching' | 'found' | 'empty' | 'error'
 
 export function EanAutoDiscovery() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const [state, setState] = useState<State>('idle')
   const [message, setMessage] = useState('')
@@ -17,15 +18,21 @@ export function EanAutoDiscovery() {
     if (!match || match[1] === 'nieuw') return null
     return decodeURIComponent(match[1])
   }, [pathname])
+  const serverDiscoveryDone = searchParams.has('suggesties') || searchParams.has('gevonden')
 
   useEffect(() => {
     if (!productId) return
     const storageKey = `prysight:ean-discovery:${productId}`
+    const now = Date.now()
+    if (serverDiscoveryDone) {
+      window.localStorage.setItem(storageKey, String(now))
+      return
+    }
     const lastRun = Number(window.localStorage.getItem(storageKey) ?? '0')
     const twelveHours = 12 * 60 * 60 * 1000
-    if (lastRun && Date.now() - lastRun < twelveHours) return
+    if (lastRun && now - lastRun < twelveHours) return
     let cancelled = false
-    window.localStorage.setItem(storageKey, String(Date.now()))
+    window.localStorage.setItem(storageKey, String(now))
     queueMicrotask(() => {
       if (cancelled) return
       setState('searching')
@@ -59,7 +66,7 @@ export function EanAutoDiscovery() {
         window.setTimeout(() => { if (!cancelled) setState('idle') }, 5000)
       })
     return () => { cancelled = true }
-  }, [productId, router])
+  }, [productId, router, serverDiscoveryDone])
 
   if (!productId || state === 'idle') return null
 

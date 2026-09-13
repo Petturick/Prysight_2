@@ -1,14 +1,14 @@
 import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { discoverProductCandidates } from '@/lib/smart-discovery'
-import { buildProductSettingsResolver, getCompanyProductSettings, markProductDiscovery } from '@/lib/product-settings'
+import { buildProductSettingsResolver, getCompanyProductSettings, markProductDiscovery, type ProductSetting } from '@/lib/product-settings'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 
 type ProductExtra = { id: string; mpn: string | null }
 
-export async function runDiscoveryBatch(companyId: string, limit = 8) {
+export async function runDiscoveryBatch(companyId: string, limit = 8, prefetchedSettings?: ProductSetting[]) {
   const [settings, products, extras, defaultMarket] = await Promise.all([
-    getCompanyProductSettings(companyId),
+    prefetchedSettings ? Promise.resolve(prefetchedSettings) : getCompanyProductSettings(companyId),
     prisma.product.findMany({
       where: { companyId, isActive: true },
       select: {
@@ -19,16 +19,23 @@ export async function runDiscoveryBatch(companyId: string, limit = 8) {
       orderBy: { updatedAt: 'desc' },
       take: 500,
     }),
-    prisma.$queryRaw<ProductExtra[]>(Prisma.sql`select id, mpn from products where company_id = ${companyId} and is_active = true`),
+    prisma.$queryRaw<ProductExtra[]>(Prisma.sql`
+      select id, mpn
+      from products
+      where company_id = ${companyId} and is_active = true
+      order by updated_at desc
+      limit 500
+    `),
     prisma.companyCountry.findFirst({ where: { companyId, isActive: true }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }], select: { countryId: true } }),
   ])
   const resolve = buildProductSettingsResolver(settings)
   const mpnMap = new Map(extras.map((item) => [item.id, item.mpn]))
   const retryAfterMs = 7 * 24 * 60 * 60 * 1000
+  const now = Date.now()
   const due = products.filter((product) => {
     if (product.matches.length >= 2 || !(product.ean || product.gtin || mpnMap.get(product.id))) return false
     const last = resolve(product.id, product.productGroupId).lastDiscoveryAt
-    return !last || Date.now() - last.getTime() >= retryAfterMs
+    return !last || now - last.getTime() >= retryAfterMs
   }).slice(0, Math.min(Math.max(limit, 1), 20))
 
   let created = 0

@@ -1,16 +1,16 @@
 import { Prisma } from '@/generated/prisma/client'
 import { isMagentoPricingConfigured } from '@/lib/magento-pricing'
 import { applyApprovedPriceChange } from '@/lib/price-change-workflow'
-import { buildProductSettingsResolver, getCompanyProductSettings, markProductPriceRun } from '@/lib/product-settings'
+import { buildProductSettingsResolver, getCompanyProductSettings, markProductPriceRun, type ProductSetting } from '@/lib/product-settings'
 import { prisma } from '@/lib/prisma'
 
 const SYSTEM_USER_ID = 'system_pricing'
 type ApprovedRow = { id: string; product_id: string; product_group_id: string }
 
-export async function runPricingExecutor(companyId: string, limit = 20) {
+export async function runPricingExecutor(companyId: string, limit = 20, prefetchedSettings?: ProductSetting[]) {
   if (!isMagentoPricingConfigured(companyId)) return { ready: false, candidates: 0, applied: 0, skipped: 0 }
   const [settings, requests] = await Promise.all([
-    getCompanyProductSettings(companyId),
+    prefetchedSettings ? Promise.resolve(prefetchedSettings) : getCompanyProductSettings(companyId),
     prisma.$queryRaw<ApprovedRow[]>(Prisma.sql`
       select r.id, r.product_id, p.product_group_id
       from price_change_requests r
@@ -21,16 +21,20 @@ export async function runPricingExecutor(companyId: string, limit = 20) {
     `),
   ])
   const resolve = buildProductSettingsResolver(settings)
+  const processedProducts = new Set<string>()
+  const now = Date.now()
   let applied = 0
   let skipped = 0
   for (const request of requests) {
+    if (processedProducts.has(request.product_id)) { skipped += 1; continue }
     const setting = resolve(request.product_id, request.product_group_id)
     if (setting.mode !== 'AUTOMATIC') { skipped += 1; continue }
     const cooldownMs = setting.cooldownHours * 60 * 60 * 1000
-    if (setting.lastAutoPriceAt && Date.now() - setting.lastAutoPriceAt.getTime() < cooldownMs) { skipped += 1; continue }
+    if (setting.lastAutoPriceAt && now - setting.lastAutoPriceAt.getTime() < cooldownMs) { skipped += 1; continue }
     try {
       await applyApprovedPriceChange({ companyId, userId: SYSTEM_USER_ID, requestId: request.id })
       await markProductPriceRun(companyId, request.product_id)
+      processedProducts.add(request.product_id)
       applied += 1
     } catch (error) {
       console.error('Automatic price execution failed', request.id, error)
