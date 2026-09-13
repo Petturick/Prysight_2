@@ -17,7 +17,7 @@ export default async function IntegrationsPage() {
   const monitorReady = Boolean(process.env.PRICE_MONITOR_API_KEY)
   const feedReady = Boolean(process.env.DATA_FEED_API_KEY)
   const webhookReady = Boolean(process.env.ALERT_WEBHOOK_URL)
-  const magentoWritebackReady = isMagentoPricingConfigured()
+  const magentoWritebackReady = isMagentoPricingConfigured(actor.companyId)
   const databaseStatus = getSafeDatabaseStatus()
   const syntrxResult = await safeDatabaseQuery(
     () => prisma.feedSource.findFirst({
@@ -53,7 +53,7 @@ export default async function IntegrationsPage() {
       kicker: 'Gecontroleerde uitvoering',
       description: 'Goedgekeurde prijswijzigingen kunnen via de officiële base price API naar Magento worden gepubliceerd, teruggelezen en indien nodig veilig worden teruggedraaid.',
       ready: magentoWritebackReady,
-      detail: magentoWritebackReady ? 'HTTPS endpoint, access token en btw-modus zijn geconfigureerd. Publicatie controleert altijd eerst de actuele Magento-prijs.' : 'Nog niet actief. Configureer MAGENTO_BASE_URL, MAGENTO_ACCESS_TOKEN en MAGENTO_PRICES_INCLUDE_TAX voordat publiceren beschikbaar wordt.',
+      detail: magentoWritebackReady ? 'HTTPS endpoint, tenant, valuta, access token en btw-modus zijn voor deze organisatie geconfigureerd. Publicatie controleert altijd eerst de actuele Magento-prijs.' : 'Nog niet actief voor deze organisatie. Configureer MAGENTO_BASE_URL, MAGENTO_ACCESS_TOKEN, MAGENTO_COMPANY_ID, MAGENTO_CURRENCY en MAGENTO_PRICES_INCLUDE_TAX.',
       href: '/prijswijzigingen',
       linkLabel: 'Open goedkeuringscentrum',
     },
