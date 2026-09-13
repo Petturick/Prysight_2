@@ -1,6 +1,7 @@
 declare const Netlify: { env: { get(name: string): string | undefined } }
 
 const DEFAULT_BATCH_SIZE = 40
+const DISCOVERY_BATCH_SIZE = 4
 
 export default async (request: Request) => {
   const authorization = request.headers.get('authorization')?.trim()
@@ -18,22 +19,20 @@ export default async (request: Request) => {
       headers: {
         Authorization: `Bearer ${expected}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'PrysightBackgroundMonitor/2.0',
+        'User-Agent': 'PrysightBackgroundMonitor/3.0',
       },
-      body: JSON.stringify({ limit: DEFAULT_BATCH_SIZE }),
+      body: JSON.stringify({ limit: DEFAULT_BATCH_SIZE, smartDiscovery: true, discoveryLimit: DISCOVERY_BATCH_SIZE }),
     })
 
     const body = await response.text()
     if (!response.ok) {
-      console.error(`Background price check failed with HTTP ${response.status}: ${body}`)
+      console.error(`Background monitoring failed with HTTP ${response.status}: ${body}`)
       return
     }
-    console.log(`Background price check completed: ${body}`)
+    console.log(`Background monitoring and discovery completed: ${body}`)
   } catch (error) {
-    console.error('Background price check request failed.', error)
+    console.error('Background monitoring request failed.', error)
   }
 }
 
-export const config = {
-  path: '/internal/price-check-background',
-}
+export const config = { path: '/internal/price-check-background' }
