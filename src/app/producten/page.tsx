@@ -75,7 +75,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         include: {
           productGroup: true,
           productMarkets: { where: { companyId: actor.companyId }, include: { country: true } },
-          ownPriceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
           matches: { where: { companyId: actor.companyId }, include: { competitorOffer: { include: {
             competitor: { include: { country: true } },
             priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
@@ -108,8 +107,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     sourceByProduct.set(link.productId, current)
   }
 
-  type ProductRecord = (typeof products)[number]
-  const visibleMatches = (product: ProductRecord) => product.matches.filter((match) => {
+  type ProductMetricRecord = (typeof rows)[number]['product']
+  const visibleMatches = (product: ProductMetricRecord) => product.matches.filter((match) => {
     if (!match.competitorOffer.isActive) return false
     if (filters.competitorId && match.competitorOffer.competitorId !== filters.competitorId) return false
     if (filters.countryId && match.competitorOffer.competitor.countryId !== filters.countryId) return false
@@ -261,7 +260,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                         <td>—</td>
                         <td><div className="ps-position-track"><span className="ps-position-fill" style={{ width: `${scaleWidth(item.ownPrice)}%` }} /></div></td>
                         <td><span className={`ps-chip ${ownStock ? (isOutOfStock(ownStock) ? 'ps-chip-red' : 'ps-chip-green') : ''}`}>{stockLabel(ownStock)}</span></td>
-                        <td>{item.product.ownPriceHistory[0] ? formatDate(item.product.ownPriceHistory[0].recordedAt) : 'Huidige prijs'}</td>
+                        <td>{formatDate(item.selectedMarket?.updatedAt ?? item.product.updatedAt)}</td>
                       </tr>
                       {competitorRows.map(({ match, offer, price, delta }) => <tr key={match.id} className={price !== null && price === lowestVisiblePrice ? 'ps-best-row' : ''}>
                         <td><a href={offer.url} target="_blank" rel="noreferrer" className="font-black text-[#2b73c6]">{offer.competitor.name}</a><span className="ml-2 text-[9px] font-semibold text-[#8a98a9]">{offer.competitor.country.code}</span></td>
