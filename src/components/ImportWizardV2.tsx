@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { processImportRowsAction } from '@/app/actions/importActions'
 import { importFieldsForMode, inferImportMapping, type ImportMode } from '@/lib/import-mapping'
@@ -121,7 +122,7 @@ export function ImportWizard(){
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[['Producten',result.summary.products,'P'],['Markten',result.summary.markets,'M'],['Concurrent URLs',result.summary.competitorUrls,'U'],['Monitoring klaar',result.summary.readyForMonitoring,'✓']].map(([label,value,icon])=><div key={String(label)} className="rounded-[14px] bg-[#f5f8fb] p-4 shadow-[inset_0_0_0_1px_#e2e9f0]"><div className="flex items-center justify-between"><p className="text-[10px] font-bold text-[#748296]">{label}</p><span className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-white text-[10px] font-black text-[#2f7edb] shadow-[0_4px_10px_rgba(31,48,70,.06)]">{icon}</span></div><p className="mt-2 text-[24px] font-black text-[#26394f]">{value}</p></div>)}</div>
           {result.errors.length?<div className="rounded-[14px] bg-[#fff0f2] p-4"><p className="text-[10px] font-black text-[#b6414d]">Deze regels vragen aandacht</p><ul className="mt-2 space-y-1 text-[10px] font-semibold text-[#9d4952]">{result.errors.slice(0,20).map((error)=><li key={error}>• {error}</li>)}</ul></div>:null}
           {result.warnings.length?<div className="rounded-[14px] bg-[#fff4df] p-4"><p className="text-[10px] font-black text-[#a36816]">Waarschuwingen</p><ul className="mt-2 space-y-1 text-[10px] font-semibold text-[#8a611f]">{result.warnings.slice(0,20).map((warning)=><li key={warning}>• {warning}</li>)}</ul></div>:null}
-          <div className="flex flex-wrap gap-2"><button type="button" className="secondary-action" onClick={()=>{setStep(1);setResult(null);setRows([]);setHeaders([]);setFilename('')}}>Nieuwe import</button><a href="/producten" className="primary-action">Producten bekijken</a></div>
+          <div className="flex flex-wrap gap-2"><button type="button" className="secondary-action" onClick={()=>{setStep(1);setResult(null);setRows([]);setHeaders([]);setFilename('')}}>Nieuwe import</button><Link href="/producten" className="primary-action">Producten bekijken</Link></div>
         </>:null}
       </div>:null}
     </div>
