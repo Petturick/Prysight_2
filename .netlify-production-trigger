@@ -1,2 +1,2 @@
-Production deploy trigger 2026-09-10 16:14 Europe/Amsterdam
-Final Prysight hardening release, including strict tenant scoping, scalable background monitoring, dedicated auth secret usage in server and edge auth, and database status based on the actual server connection instead of a legacy password fallback. Production source includes commit c67865ade556363f3d3184c55f0e12a1df14ea74.
+Production deploy trigger 2026-09-14 Europe/Amsterdam
+Nieuwe Prysight visuele stijl websitebreed: sterkere B2B SaaS look, nieuwe content surfaces, KPI cards, tabellen, formulieren, alerts en acties. Navigatiestructuur en technische werking blijven behouden. Bron bevat commits 04cf6e25343c004887082444f02b16fc67a55a93 en 70ba166befe0d1e5c424ec6be8b5fc1688097c3e.
