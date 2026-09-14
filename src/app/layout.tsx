@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { auth } from '@/auth'
 import { AppShell } from '@/components/AppShell'
 import './globals.css'
+import './prysight-theme.css'
 
 export const metadata: Metadata = {
   title: 'Prysight pricing intelligence',
