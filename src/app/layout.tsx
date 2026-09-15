@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { AppShell } from '@/components/AppShell'
 import './globals.css'
 import './prysight-theme.css'
+import './prysight-ux.css'
 
 export const metadata: Metadata = {
   title: 'Prysight pricing intelligence',
