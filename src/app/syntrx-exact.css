@@ -1,0 +1,226 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --background:#f7fafc;
+  --foreground:#0b1f35;
+  --surface:#ffffff;
+  --surface-soft:#f9fbfc;
+  --surface-muted:#f1f5f9;
+  --border:#e5ebf0;
+  --border-strong:#dbe4eb;
+  --muted:#6b7b8e;
+  --muted-soft:#8aa0b4;
+  --accent:#2563eb;
+  --accent-strong:#1d4ed8;
+  --accent-soft:#eff6ff;
+  --blue:#2563eb;
+  --blue-soft:#eff6ff;
+  --green:#21835d;
+  --green-soft:#ecf8f2;
+  --amber:#a96a08;
+  --amber-soft:#fff6e4;
+  --red:#c64f52;
+  --red-soft:#fff0f0;
+  --ink:#0b1f35;
+  --ink-soft:#334b63;
+  --navy:#061a2f;
+  --shadow-card:0 8px 28px rgba(15,38,64,.06);
+}
+
+html,body {
+  background:var(--background)!important;
+  color:var(--foreground)!important;
+  font-family:'Inter',system-ui,sans-serif!important;
+}
+
+::selection { background:#dbeafe; color:#061a2f; }
+.ps-workspace-shell { background:var(--background)!important; color:var(--foreground); }
+
+main:not(.min-h-screen) { background:transparent!important; }
+main > div[class*='space-y'] { max-width:1540px!important; margin-inline:0!important; }
+
+/* Syntrx type scale, keep actual source sizes instead of inflating them. */
+main [class*='text-[9px]'] { font-size:9px!important; line-height:12px!important; }
+main [class*='text-[10px]'] { font-size:10px!important; line-height:14px!important; }
+main [class*='text-[11px]'] { font-size:11px!important; line-height:16px!important; }
+main [class*='text-[12px]'] { font-size:12px!important; line-height:18px!important; }
+main [class*='text-[13px]'] { font-size:13px!important; line-height:18px!important; }
+main [class*='text-[14px]'] { font-size:14px!important; line-height:20px!important; }
+main [class*='text-[15px]'] { font-size:15px!important; line-height:20px!important; }
+main [class*='text-[16px]'] { font-size:16px!important; line-height:22px!important; }
+main [class*='text-[27px]'] { font-size:22px!important; line-height:26px!important; }
+main [class*='font-black'],main [class*='font-extrabold'] { font-weight:600!important; }
+
+main h1,.ps-page-title { color:#0b1f35!important; font-size:22px!important; line-height:1.2!important; font-weight:600!important; letter-spacing:-.025em!important; }
+main h2 { color:#243a52!important; font-size:16px!important; line-height:22px!important; font-weight:600!important; letter-spacing:-.012em!important; }
+main h3 { color:#243a52!important; font-size:14px!important; line-height:20px!important; font-weight:600!important; }
+main .eyebrow { color:#6b7b8e!important; font-size:11px!important; line-height:16px!important; font-weight:600!important; letter-spacing:.04em!important; text-transform:none!important; }
+main p { text-wrap:pretty; }
+
+/* Quiet Syntrx surfaces. */
+main .surface-card,
+main .strong-panel,
+main .prysight-elevated-card,
+main .ps-panel,
+main details,
+main .ps-product-card,
+main .ps-insight-card {
+  border:1px solid #e5ebf0!important;
+  border-radius:12px!important;
+  background:#fff!important;
+  box-shadow:var(--shadow-card)!important;
+}
+
+main .surface-card:hover,
+main .prysight-elevated-card:hover,
+main .ps-panel:hover,
+main .ps-product-card:hover {
+  transform:none!important;
+  border-color:#dbe4eb!important;
+  box-shadow:var(--shadow-card)!important;
+}
+
+main .surface-card-flat,
+main .ps-soft-panel,
+main .ps-price-metric,
+main .ps-stat-card {
+  border:1px solid #e5ebf0!important;
+  border-radius:8px!important;
+  background:#f9fbfc!important;
+  box-shadow:none!important;
+}
+
+/* Remove old PrySight hero decoration and keep compact Syntrx hierarchy. */
+main section.strong-panel:first-of-type {
+  background:#fff!important;
+  box-shadow:var(--shadow-card)!important;
+}
+main section.strong-panel:first-of-type::after,
+main section.strong-panel:first-of-type > .grid > div::before { display:none!important; }
+main section.strong-panel:first-of-type > div:first-child { padding:16px 20px!important; }
+main section.strong-panel:first-of-type > .grid {
+  gap:0!important;
+  padding:0!important;
+  border-top:1px solid #e5ebf0!important;
+  background:#fff!important;
+}
+main section.strong-panel:first-of-type > .grid > div,
+main .ps-stat-card {
+  min-height:66px!important;
+  padding:10px 14px!important;
+  border:0!important;
+  border-right:1px solid #edf1f4!important;
+  border-radius:0!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+main section.strong-panel:first-of-type > .grid > div:last-child { border-right:0!important; }
+main section.strong-panel:first-of-type > .grid > div p:first-child { color:#6b7b8e!important; font-size:10px!important; line-height:14px!important; font-weight:600!important; letter-spacing:.04em!important; }
+main section.strong-panel:first-of-type > .grid > div p:nth-child(2) { margin-top:2px!important; color:#0b1f35!important; font-size:20px!important; line-height:24px!important; font-weight:600!important; }
+
+/* Same control density as Syntrx. */
+main .toolbar-control,
+main select,
+main input:not([type='checkbox']):not([type='radio']),
+main textarea {
+  min-height:38px!important;
+  border:1px solid #dbe4eb!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  color:#334b63!important;
+  font-size:13px!important;
+  line-height:18px!important;
+  font-weight:400!important;
+  box-shadow:none!important;
+}
+main textarea { padding-top:9px!important; padding-bottom:9px!important; }
+main .toolbar-control:hover,main select:hover,main input:hover,main textarea:hover { border-color:#cbd7e1!important; }
+main .toolbar-control:focus,main select:focus,main input:focus,main textarea:focus { border-color:#3b82f6!important; box-shadow:0 0 0 3px rgba(59,130,246,.12)!important; outline:none!important; }
+main input[type='checkbox'] { accent-color:#2563eb; }
+main label { color:#536b81!important; font-size:12px!important; font-weight:500!important; }
+
+main .primary-action,
+main .ps-button,
+main .secondary-action,
+main .ps-button-green,
+main .ps-button-orange,
+main .ps-button-danger {
+  min-height:36px!important;
+  border-radius:8px!important;
+  padding:7px 11px!important;
+  font-size:13px!important;
+  line-height:18px!important;
+  font-weight:500!important;
+  box-shadow:none!important;
+  transform:none!important;
+}
+main .primary-action,main .ps-button,main .ps-button-green { border:1px solid #2563eb!important; background:#2563eb!important; color:#fff!important; }
+main .primary-action:hover,main .ps-button:hover,main .ps-button-green:hover { border-color:#1d4ed8!important; background:#1d4ed8!important; }
+main .secondary-action { border:1px solid #dbe4eb!important; background:#fff!important; color:#40576e!important; }
+main .secondary-action:hover { border-color:#cbd7e1!important; background:#f9fbfc!important; color:#0b1f35!important; }
+main .ps-button-orange { border:1px solid #f2ddb1!important; background:#fff6e4!important; color:#a96a08!important; }
+main .ps-button-danger { border:1px solid #f1cfd0!important; background:#fff0f0!important; color:#c64f52!important; }
+main .ps-button-danger:hover { background:#fde7e8!important; }
+
+/* Syntrx statuses and chips. */
+main .ps-chip {
+  min-height:20px!important;
+  border:1px solid transparent!important;
+  border-radius:999px!important;
+  padding:2px 7px!important;
+  background:#f1f5f9!important;
+  color:#5d7185!important;
+  font-size:10px!important;
+  line-height:14px!important;
+  font-weight:500!important;
+}
+main .ps-chip-blue,.status-info { border-color:#dbeafe!important; background:#eff6ff!important; color:#1d4ed8!important; }
+main .ps-chip-green,.status-success,.status-good { border-color:#cfeadf!important; background:#ecf8f2!important; color:#21835d!important; }
+main .ps-chip-amber,.status-warning { border-color:#f2ddb1!important; background:#fff6e4!important; color:#a96a08!important; }
+main .ps-chip-red,.status-danger,.status-error { border-color:#f1cfd0!important; background:#fff0f0!important; color:#c64f52!important; }
+
+/* Product monitor, compact and scan first. */
+main .ps-product-layout { gap:14px!important; grid-template-columns:minmax(0,1fr) 255px!important; }
+main .ps-product-card-header { padding:13px 14px 11px!important; background:#fff!important; }
+main .ps-product-card-header a[class*='text-[15px]'] { color:#0b1f35!important; font-size:15px!important; line-height:20px!important; font-weight:600!important; }
+main .ps-product-meta { gap:5px!important; margin-top:5px!important; }
+main .ps-price-strip { gap:7px!important; padding:0 14px 11px!important; }
+main .ps-price-metric { padding:8px 9px!important; }
+main .ps-price-metric p:first-child { color:#6b7b8e!important; font-size:10px!important; line-height:14px!important; font-weight:500!important; }
+main .ps-price-metric p:last-child { margin-top:2px!important; color:#0b1f35!important; font-size:13px!important; line-height:18px!important; font-weight:600!important; }
+
+/* Syntrx table density. */
+main table {
+  border:1px solid #e5ebf0!important;
+  border-collapse:separate!important;
+  border-spacing:0!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+main thead,main .ps-competitor-table thead,main .ps-competitor-table thead tr { background:#f9fbfc!important; }
+main th,main .ps-competitor-table th { padding:8px 9px!important; border:0!important; border-bottom:1px solid #e5ebf0!important; color:#60778c!important; font-size:11px!important; line-height:15px!important; font-weight:600!important; }
+main td,main .ps-competitor-table td { padding:9px!important; border-color:#edf1f4!important; color:#344d65!important; font-size:12px!important; line-height:17px!important; font-weight:400!important; }
+main tbody tr:hover,main .ps-competitor-table tbody tr:hover { background:#f8fbff!important; box-shadow:inset 3px 0 0 #2563eb!important; }
+main .ps-competitor-table .ps-own-row { background:#f8fbff!important; }
+main .ps-competitor-table .ps-best-row { background:#f3faf6!important; }
+
+main .ps-position-track { height:6px!important; min-width:72px!important; border-radius:999px!important; background:#e7edf3!important; }
+main .ps-position-fill { border-radius:999px!important; background:#21835d!important; }
+
+/* Right rail remains informational, not a second dashboard. */
+main .ps-insight-section { padding:12px 13px!important; background:#fff!important; }
+main .ps-insight-section + .ps-insight-section { border-top:1px solid #e5ebf0!important; }
+main .ps-insight-title { color:#243a52!important; font-size:13px!important; line-height:18px!important; font-weight:600!important; }
+main .ps-insight-row { display:flex!important; justify-content:space-between!important; gap:10px!important; margin-top:6px!important; padding:0!important; border:0!important; background:transparent!important; color:#6b7b8e!important; font-size:11px!important; line-height:16px!important; font-weight:400!important; }
+main .ps-insight-row span,main .ps-insight-row strong { display:inline!important; width:auto!important; padding:0!important; background:transparent!important; color:inherit!important; }
+main .ps-insight-row strong { color:#0b1f35!important; font-weight:600!important; }
+
+/* Tabs and secondary navigation follow Syntrx quiet controls. */
+.ps-flow-tabs { border:1px solid #e5ebf0!important; border-radius:10px!important; background:#f9fbfc!important; padding:4px!important; }
+.ps-flow-tab { min-height:34px!important; border-radius:7px!important; color:#60778c!important; font-size:12px!important; font-weight:500!important; }
+.ps-flow-tab-active { background:#fff!important; color:#1d4ed8!important; box-shadow:0 1px 4px rgba(15,38,64,.06)!important; }
+
+@media (max-width:1280px) {
+  main .ps-product-layout { grid-template-columns:1fr!important; }
+}
