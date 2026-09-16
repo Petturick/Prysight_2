@@ -31,41 +31,56 @@ export function EanAutoDiscovery() {
     const lastRun = Number(window.localStorage.getItem(storageKey) ?? '0')
     const twelveHours = 12 * 60 * 60 * 1000
     if (lastRun && now - lastRun < twelveHours) return
+
     let cancelled = false
-    window.localStorage.setItem(storageKey, String(now))
-    queueMicrotask(() => {
+    let hideTimer: number | undefined
+    const controller = new AbortController()
+
+    const runDiscovery = () => {
       if (cancelled) return
+      window.localStorage.setItem(storageKey, String(Date.now()))
       setState('searching')
       setMessage('AI zoekt automatisch concurrent URLs op basis van EAN…')
-    })
-    fetch(`/api/producten/${encodeURIComponent(productId)}/discover`, { method: 'POST' })
-      .then(async (response) => {
-        const data = await response.json() as DiscoveryResult
-        if (!response.ok) throw new Error(data.error || 'EAN discovery mislukt')
-        return data
-      })
-      .then((data) => {
-        if (cancelled) return
-        if (data.skipped) { setState('idle'); return }
-        if ((data.created ?? 0) > 0) {
-          setState('found')
-          setMessage(`${data.created} nieuwe concurrent URL suggestie${data.created === 1 ? '' : 's'} gevonden via ${data.provider ?? 'web search'}.`)
-          router.refresh()
-          window.setTimeout(() => { if (!cancelled) setState('idle') }, 5500)
-          return
-        }
-        setState('empty')
-        setMessage(`EAN gecontroleerd${data.provider ? ` via ${data.provider}` : ''}, geen nieuwe betrouwbare URL suggesties.`)
-        window.setTimeout(() => { if (!cancelled) setState('idle') }, 4200)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        window.localStorage.removeItem(storageKey)
-        setState('error')
-        setMessage(error instanceof Error ? error.message : 'EAN discovery mislukt')
-        window.setTimeout(() => { if (!cancelled) setState('idle') }, 5000)
-      })
-    return () => { cancelled = true }
+
+      fetch(`/api/producten/${encodeURIComponent(productId)}/discover`, { method: 'POST', signal: controller.signal })
+        .then(async (response) => {
+          const data = await response.json() as DiscoveryResult
+          if (!response.ok) throw new Error(data.error || 'EAN discovery mislukt')
+          return data
+        })
+        .then((data) => {
+          if (cancelled) return
+          if (data.skipped) { setState('idle'); return }
+          if ((data.created ?? 0) > 0) {
+            setState('found')
+            setMessage(`${data.created} nieuwe concurrent URL suggestie${data.created === 1 ? '' : 's'} gevonden via ${data.provider ?? 'web search'}.`)
+            router.refresh()
+            hideTimer = window.setTimeout(() => { if (!cancelled) setState('idle') }, 5500)
+            return
+          }
+          setState('empty')
+          setMessage(`EAN gecontroleerd${data.provider ? ` via ${data.provider}` : ''}, geen nieuwe betrouwbare URL suggesties.`)
+          hideTimer = window.setTimeout(() => { if (!cancelled) setState('idle') }, 4200)
+        })
+        .catch((error) => {
+          if (cancelled || error instanceof DOMException && error.name === 'AbortError') return
+          window.localStorage.removeItem(storageKey)
+          setState('error')
+          setMessage(error instanceof Error ? error.message : 'EAN discovery mislukt')
+          hideTimer = window.setTimeout(() => { if (!cancelled) setState('idle') }, 5000)
+        })
+    }
+
+    // Discovery is useful, but it must never compete with the first product render.
+    // Give the page a short head start so navigation and interaction stay responsive.
+    const startTimer = window.setTimeout(runDiscovery, 1600)
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      window.clearTimeout(startTimer)
+      if (hideTimer) window.clearTimeout(hideTimer)
+    }
   }, [productId, router, serverDiscoveryDone])
 
   if (!productId || state === 'idle') return null

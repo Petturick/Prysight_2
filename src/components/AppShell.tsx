@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { EanAutoDiscovery } from '@/components/EanAutoDiscovery'
 import { InteractionFeedback } from '@/components/InteractionFeedback'
 import { RoutePrefetcher } from '@/components/RoutePrefetcher'
@@ -31,9 +31,11 @@ function routeMeta(pathname: string): RouteMeta {
 
 export function AppShell({ children, user }: { children: React.ReactNode; user?: ShellUser | null }) {
   const pathname = usePathname()
+  const router = useRouter()
   const isAuthenticationRoute = pathname === '/' || pathname === '/login' || pathname === '/reset-password'
   const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
   const context = routeMeta(pathname)
+  const warm = (href: string) => router.prefetch(href)
 
   if (isAuthenticationRoute) return <><InteractionFeedback key={pathname} /><main className="min-h-screen bg-[var(--background)]">{children}</main></>
 
@@ -42,41 +44,41 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
     <RoutePrefetcher />
     <EanAutoDiscovery />
     <div className="ps-workspace-shell flex min-h-dvh">
-      <div className="hidden lg:block lg:w-[248px] lg:flex-none">
-        <div className="fixed inset-y-0 z-30 w-[248px]"><Sidebar user={user} /></div>
+      <div className="hidden lg:block lg:w-60 lg:flex-none">
+        <div className="fixed inset-y-0 z-30 w-60"><Sidebar user={user} /></div>
       </div>
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 px-3 pt-3 sm:px-5 lg:px-6">
-          <div className="ps-workspace-topbar mx-auto flex min-h-[68px] max-w-[1540px] items-center gap-4 rounded-[17px] px-4 sm:px-5">
-            <div className="min-w-[145px] shrink-0 lg:min-w-[190px]">
-              <p className="ps-workspace-context-title text-[13px] sm:text-[14px]">{context.title}</p>
-              <p className="ps-workspace-context-copy mt-0.5 hidden text-[10px] xl:block">{context.helper}</p>
+        <header className="sticky top-0 z-20 border-b border-[#e5ebf0] bg-white/95 backdrop-blur-sm">
+          <div className="ps-workspace-topbar flex min-h-[88px] items-center gap-5 px-5 py-4 sm:px-7">
+            <div className="min-w-[180px] shrink-0">
+              <h1 className="ps-workspace-context-title text-[22px] font-semibold tracking-[-0.025em] text-[#0b1f35]">{context.title}</h1>
+              <p className="ps-workspace-context-copy mt-1 hidden text-sm leading-5 text-[#6b7b8e] xl:block">{context.helper}</p>
             </div>
 
-            <form action="/producten" className="relative min-w-0 flex-1 md:max-w-[610px]">
-              <svg className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#7c8a9c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-              <input name="q" aria-label="Zoeken" placeholder="Zoek product, EAN of concurrent" className="ps-workspace-search h-[43px] w-full rounded-[11px] pl-10 pr-4 text-[12px] font-semibold text-[#26394f] placeholder:font-medium placeholder:text-[#93a0af]" />
+            <form action="/producten" className="relative min-w-0 flex-1 md:max-w-[520px]">
+              <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7b8d9f]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input name="q" aria-label="Zoeken" placeholder="Zoek product, EAN of concurrent" className="ps-workspace-search h-10 w-full rounded-lg border border-[#dbe4eb] bg-[#f9fbfc] pl-9 pr-3 text-sm font-normal text-[#334b63] placeholder:text-[#8b9aaa]" />
             </form>
 
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              {context.action ? <Link href={context.action.href} prefetch={false} className="hidden min-h-[40px] items-center rounded-[10px] bg-[#367fda] px-3.5 text-[11px] font-bold text-white shadow-[0_5px_12px_rgba(54,127,218,.18)] transition hover:bg-[#2d74c9] md:inline-flex">{context.action.label}</Link> : null}
-              <Link href="/acties" prefetch={false} className="relative flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#f3f6f9] text-[#5f7187] transition hover:bg-[#eaf0f6]" title="Acties">
-                <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#df5c68] ring-2 ring-[#f3f6f9]" />
+            <div className="ml-auto flex shrink-0 items-center gap-2.5">
+              {context.action ? <Link href={context.action.href} prefetch={false} onMouseEnter={() => warm(context.action!.href)} onFocus={() => warm(context.action!.href)} className="hidden min-h-10 items-center rounded-lg bg-blue-600 px-3.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 md:inline-flex">{context.action.label}</Link> : null}
+              <Link href="/acties" prefetch={false} onMouseEnter={() => warm('/acties')} onFocus={() => warm('/acties')} className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-[#e5ebf0] bg-white text-[#60778c] transition-colors hover:bg-[#f9fbfc]" title="Acties">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>
+                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#cf5558]" />
               </Link>
-              {user ? <Link href="/instellingen/profiel" prefetch={false} className="flex items-center gap-2 rounded-[11px] bg-[#f4f6f9] py-1.5 pl-1.5 pr-2.5 transition hover:bg-[#edf1f5]">
-                <div className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-[#263247] text-[11px] font-extrabold text-white">{initials}</div>
-                <div className="hidden 2xl:block"><p className="max-w-[135px] truncate text-[11px] font-bold text-[#26384e]">{user.name || user.email}</p><p className="mt-0.5 text-[9px] font-semibold text-[#8b98a8]">Profiel</p></div>
+              {user ? <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} onFocus={() => warm('/instellingen/profiel')} className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-[#f9fbfc]">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#183d58] text-xs font-semibold text-white">{initials}</div>
+                <div className="hidden 2xl:block"><p className="max-w-[135px] truncate text-xs font-semibold text-[#0b1f35]">{user.name || user.email}</p><p className="mt-0.5 text-[10px] font-medium text-[#7c8fa3]">Profiel</p></div>
               </Link> : null}
             </div>
           </div>
 
-          <nav className="mx-auto mt-2 flex max-w-[1540px] gap-1 overflow-x-auto rounded-[12px] bg-white p-1.5 shadow-[0_4px_14px_rgba(31,48,70,.045)] lg:hidden" aria-label="Hoofdnavigatie">
-            {mobileItems.map(([href,label]) => <Link key={href} href={href} prefetch={false} className={`shrink-0 rounded-[8px] px-3 py-2.5 text-[10px] font-bold ${pathname === href || pathname.startsWith(`${href}/`) ? 'bg-[#263247] text-white' : 'text-[#607187]'}`}>{label}</Link>)}
+          <nav className="flex gap-1 overflow-x-auto border-t border-[#edf1f4] bg-white px-3 py-2 lg:hidden" aria-label="Hoofdnavigatie">
+            {mobileItems.map(([href,label]) => <Link key={href} href={href} prefetch={false} onMouseEnter={() => warm(href)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium ${pathname === href || pathname.startsWith(`${href}/`) ? 'bg-blue-600 text-white' : 'text-[#60778c]'}`}>{label}</Link>)}
           </nav>
         </header>
-        <main className="min-w-0 flex-1 px-4 pb-8 pt-5 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6 2xl:px-10">
-          <div className="mx-auto w-full max-w-[1460px]">{children}</div>
+        <main className="min-w-0 flex-1 px-4 pb-8 pt-5 sm:px-6 lg:px-7 lg:pb-10 lg:pt-6">
+          <div className="w-full max-w-[1540px]">{children}</div>
         </main>
       </div>
     </div>
