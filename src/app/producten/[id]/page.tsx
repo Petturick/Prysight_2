@@ -33,6 +33,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
   const [product, countries] = await Promise.all([
     prisma.product.findFirst({
+      relationLoadStrategy: 'join',
       where: { id, companyId: user.companyId },
       include: {
         productGroup: true,
