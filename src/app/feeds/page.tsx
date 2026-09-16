@@ -6,12 +6,18 @@ import { FeedConnectForm } from '@/components/FeedConnectForm'
 import { FeedTabs } from '@/components/FeedTabs'
 import { requirePermission } from '@/lib/authz'
 import { formatDate, formatNumber } from '@/lib/format'
+import { profileStep } from '@/lib/performance-profile'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function FeedsPage() {
   const actor = await requirePermission('feeds.read')
-  const result = await safeDatabaseQuery(() => prisma.feedSource.findMany({ where: { companyId: actor.companyId }, orderBy: { updatedAt: 'desc' }, take: 8 }), [])
+  const result = await profileStep('/feeds', 'sources', () => safeDatabaseQuery(() => prisma.feedSource.findMany({
+    where: { companyId: actor.companyId },
+    orderBy: { updatedAt: 'desc' },
+    take: 8,
+    select: { id: true, name: true, isActive: true, lastRunStatus: true, sourceType: true, lastItemCount: true, countryCode: true, format: true, lastRunAt: true },
+  }), []), { companyId: actor.companyId }, 200)
   const sources = result.data
   const activeSources = sources.filter((source) => source.isActive)
   const failedSources = sources.filter((source) => source.lastRunStatus === 'FAILED')

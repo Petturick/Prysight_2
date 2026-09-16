@@ -4,20 +4,23 @@ import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requirePermission } from '@/lib/authz'
 import { formatDate, formatNumber } from '@/lib/format'
+import { profileStep } from '@/lib/performance-profile'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function ProductmatchesPage() {
   const actor = await requirePermission('competitors.read')
   const canReview = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
-  const result = await safeDatabaseQuery(() => prisma.productMatch.findMany({
+  const result = await profileStep('/productmatches', 'review-matches', () => safeDatabaseQuery(() => prisma.productMatch.findMany({
+    relationLoadStrategy: 'join',
     where: { companyId: actor.companyId, matchStatus: 'REVIEW' },
-    include: {
-      product: true,
-      competitorOffer: { include: { competitor: true } },
+    select: {
+      id: true, confidenceScore: true, matchStatus: true, matchEvidence: true, createdAt: true,
+      product: { select: { name: true } },
+      competitorOffer: { select: { competitor: { select: { name: true } } } },
     },
     orderBy: [{ confidenceScore: 'desc' }, { createdAt: 'desc' }],
-  }), [])
+  }), []), { companyId: actor.companyId }, 250)
   const matches = result.data
 
   return (
