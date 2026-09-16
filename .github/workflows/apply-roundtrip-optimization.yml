@@ -1,0 +1,117 @@
+name: Apply roundtrip optimization
+
+on:
+  push:
+    branches:
+      - performance-roundtrip-optimization
+    paths:
+      - .github/workflows/apply-roundtrip-optimization.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: performance-roundtrip-optimization
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Reduce Prisma relation round trips
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f'{label} target not found')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/lib/authz.ts',
+              "  const user = await prisma.user.findUnique({\n    where: { id: session.user.id },",
+              "  const user = await prisma.user.findUnique({\n    relationLoadStrategy: 'join',\n    where: { id: session.user.id },",
+              'authz user relation join',
+          )
+
+          replace_once(
+              'src/lib/company-countries.ts',
+              "  const memberships = await prisma.companyCountry.findMany({\n    where:",
+              "  const memberships = await prisma.companyCountry.findMany({\n    relationLoadStrategy: 'join',\n    where:",
+              'company countries list relation join',
+          )
+
+          replace_once(
+              'src/lib/company-countries.ts',
+              "  const membership = await prisma.companyCountry.findUnique({\n    where:",
+              "  const membership = await prisma.companyCountry.findUnique({\n    relationLoadStrategy: 'join',\n    where:",
+              'licensed country relation join',
+          )
+
+          replace_once(
+              'src/lib/dashboard.ts',
+              "        ? prisma.companyCountry.findMany({\n            where:",
+              "        ? prisma.companyCountry.findMany({\n            relationLoadStrategy: 'join',\n            where:",
+              'dashboard countries relation join',
+          )
+
+          replace_once(
+              'src/lib/dashboard.ts',
+              "      prisma.competitor.findMany({ where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),",
+              "      prisma.competitor.findMany({ relationLoadStrategy: 'join', where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),",
+              'filter competitors relation join',
+          )
+
+          replace_once(
+              'src/lib/dashboard.ts',
+              "  return prisma.product.findMany({\n    where:",
+              "  return prisma.product.findMany({\n    relationLoadStrategy: 'join',\n    where:",
+              'filtered products relation join',
+          )
+
+          replace_once(
+              'src/lib/dashboard.ts',
+              "    prisma.priceCheck.findMany({\n      where:",
+              "    prisma.priceCheck.findMany({\n      relationLoadStrategy: 'join',\n      where:",
+              'failed price checks relation join',
+          )
+
+          replace_once(
+              'src/lib/dashboard.ts',
+              "    prisma.competitorOffer.findMany({\n      where:",
+              "    prisma.competitorOffer.findMany({\n      relationLoadStrategy: 'join',\n      where:",
+              'stale offers relation join',
+          )
+
+          replace_once(
+              'src/lib/dashboard.ts',
+              "  return prisma.competitor.findMany({\n    where:",
+              "  return prisma.competitor.findMany({\n    relationLoadStrategy: 'join',\n    where:",
+              'competitor overview relation join',
+          )
+          PY
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Commit verified optimization
+        run: |
+          rm .github/workflows/apply-roundtrip-optimization.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Reduce database relation round trips across PrySight"
+          git push origin HEAD:performance-roundtrip-optimization
