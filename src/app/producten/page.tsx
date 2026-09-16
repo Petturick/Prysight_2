@@ -75,11 +75,27 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         include: {
           productGroup: true,
           productMarkets: { where: { companyId: actor.companyId }, include: { country: true } },
-          matches: { where: { companyId: actor.companyId }, include: { competitorOffer: { include: {
-            competitor: { include: { country: true } },
-            priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
-            priceChecks: { where: { companyId: actor.companyId }, orderBy: { checkedAt: 'desc' }, take: 2 },
-          } } } },
+          feedLinks: {
+            where: { companyId: actor.companyId },
+            orderBy: { lastSeenAt: 'desc' },
+            take: 3,
+            select: { feedSource: { select: { name: true } } },
+          },
+          matches: {
+            where: {
+              companyId: actor.companyId,
+              competitorOffer: {
+                isActive: true,
+                competitorId: filters.competitorId || undefined,
+                competitor: filters.countryId ? { companyId: actor.companyId, countryId: filters.countryId } : undefined,
+              },
+            },
+            include: { competitorOffer: { include: {
+              competitor: { include: { country: true } },
+              priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
+              priceChecks: { where: { companyId: actor.companyId }, orderBy: { checkedAt: 'desc' }, take: 2 },
+            } } },
+          },
         },
         orderBy: [{ productGroup: { name: 'asc' } }, { articleNumber: 'asc' }],
         skip: (page - 1) * pageSize,
@@ -92,20 +108,12 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } })
 
   const { products, totalCount, filterOptions } = result.data
+  const sourceByProduct = new Map(products.map((product) => [
+    product.id,
+    [...new Set(product.feedLinks.map((link) => link.feedSource.name))],
+  ]))
   const rows = products.map((product) => deriveProductMetrics(product, filters))
   const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1)
-
-  const sourceResult = await safeDatabaseQuery(() => prisma.productFeedLink.findMany({
-    where: { companyId: actor.companyId, productId: { in: rows.map((item) => item.product.id) } },
-    include: { feedSource: true },
-    orderBy: { lastSeenAt: 'desc' },
-  }), [])
-  const sourceByProduct = new Map<string, string[]>()
-  for (const link of sourceResult.data) {
-    const current = sourceByProduct.get(link.productId) ?? []
-    if (!current.includes(link.feedSource.name)) current.push(link.feedSource.name)
-    sourceByProduct.set(link.productId, current)
-  }
 
   type ProductMetricRecord = (typeof rows)[number]['product']
   const visibleMatches = (product: ProductMetricRecord) => product.matches.filter((match) => {
@@ -233,7 +241,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                         <span className="ps-chip">Artikel {item.product.articleNumber}</span>
                         {item.product.ean || item.product.gtin ? <span className="ps-chip ps-chip-blue">EAN {item.product.ean ?? item.product.gtin}</span> : <Link href={`/producten/${item.product.id}`} className="ps-chip ps-chip-amber">EAN ontbreekt</Link>}
                         <span className="ps-chip">{item.product.productGroup.name}</span>
-                        <span className="ps-chip">{sourceByProduct.get(item.product.id)?.join(', ') ?? 'Handmatig'}</span>
+                        <span className="ps-chip">{sourceByProduct.get(item.product.id)?.join(', ') || 'Handmatig'}</span>
                       </div>
                     </div>
                   </div>
