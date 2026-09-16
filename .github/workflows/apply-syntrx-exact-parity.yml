@@ -1,0 +1,353 @@
+name: Apply exact Syntrx visual parity
+
+on:
+  push:
+    branches:
+      - syntrx-exact-visual-parity
+    paths:
+      - .github/workflows/apply-syntrx-exact-parity.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: syntrx-exact-visual-parity
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Rebuild PrySight shell from Syntrx visual contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          sidebar = r'''\
+'use client'
+
+import Image from 'next/image'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { logoutAction } from '@/app/actions/authActions'
+import { cn } from '@/lib/format'
+import { roleLabel, type AppRole } from '@/lib/roles'
+
+type IconName = 'dashboard' | 'products' | 'competitors' | 'alerts' | 'reports' | 'settings'
+type SidebarUser = { name?: string | null; email?: string | null; role?: AppRole | null }
+type NavItem = { href: string; label: string; icon: IconName; aliases?: string[] }
+
+const navItems: NavItem[] = [
+  { href: '/dashboard', label: 'Overzicht', icon: 'dashboard' },
+  { href: '/producten', label: 'Producten', icon: 'products' },
+  { href: '/concurrenten', label: 'Markt', icon: 'competitors', aliases: ['/monitoring', '/productmatches'] },
+  { href: '/acties', label: 'Acties', icon: 'alerts', aliases: ['/waarschuwingen', '/prijsstrategie', '/prijsregels', '/prijswijzigingen', '/prijsautomatisering'] },
+  { href: '/rapportages', label: 'Inzichten', icon: 'reports' },
+  { href: '/instellingen', label: 'Beheer', icon: 'settings', aliases: ['/feeds', '/import', '/integraties', '/beheer', '/onboarding'] },
+]
+
+function NavIcon({ name }: { name: IconName }) {
+  const common = 'h-4 w-4'
+  if (name === 'dashboard') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 13h6V4H4v9ZM14 20h6V11h-6v9ZM4 20h6v-3H4v3ZM14 7h6V4h-6v3Z" /></svg>
+  if (name === 'products') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m4 7 8-4 8 4-8 4-8-4Z" /><path d="m4 7 8 4 8-4v10l-8 4-8-4V7Z" /></svg>
+  if (name === 'competitors') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 19c.6-3.1 2.5-5 5.5-5s5 1.9 5.5 5M14.5 15c2.7.1 4.4 1.5 5 4" /></svg>
+  if (name === 'alerts') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z" /><path d="M10 20h4" /></svg>
+  if (name === 'reports') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 19V9M10 19V5M15 19v-7M20 19V3" /><path d="M3 21h19" /></svg>
+  return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L14.5 3h-5l-.3 3a8 8 0 0 0-1.7 1L5 6 3 9.5 5.1 11a7 7 0 0 0 0 2L3 14.5 5 18l2.5-1a8 8 0 0 0 1.7 1l.3 3h5l.3-3a8 8 0 0 0 1.7-1l2.5 1 2-3.5-2.1-1.5c.1-.3.1-.7.1-1Z" /></svg>
+}
+
+function activeFor(pathname: string, item: NavItem) {
+  return pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.aliases?.some((alias) => pathname === alias || pathname.startsWith(`${alias}/`)) ?? false)
+}
+
+export function Sidebar({ user }: { user?: SidebarUser | null }) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
+  const warm = (href: string) => router.prefetch(href)
+
+  return <aside className="flex h-dvh w-60 flex-col overflow-hidden border-r border-[#123858] bg-[#061a2f] text-white shadow-[12px_0_36px_rgba(5,24,44,.08)]">
+    <div className="border-b border-white/10 px-4 py-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0b334e] ring-1 ring-white/10">
+          <Image src="/prysight-mark.svg" width={30} height={22} alt="" priority className="h-auto w-[29px]" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[15px] font-bold leading-tight tracking-[-0.01em] text-white">Prysight</p>
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-[#8aa5bd]">Pricing intelligence</p>
+        </div>
+      </div>
+    </div>
+
+    <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2.5 py-3">
+      {navItems.map((item) => {
+        const active = activeFor(pathname, item)
+        return <Link
+          key={item.href}
+          href={item.href}
+          prefetch={false}
+          onMouseEnter={() => warm(item.href)}
+          onFocus={() => warm(item.href)}
+          className={cn(
+            'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150',
+            active
+              ? 'bg-blue-600 text-white shadow-[inset_0_0_0_1px_rgba(147,197,253,0.16)]'
+              : 'text-[#b8c8d5] hover:bg-white/[0.055] hover:text-white',
+          )}
+        >
+          <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors', active ? 'bg-white/10' : 'bg-white/[0.035] group-hover:bg-white/[0.06]')}><NavIcon name={item.icon}/></span>
+          <span className="truncate">{item.label}</span>
+        </Link>
+      })}
+    </nav>
+
+    {user ? <div className="border-t border-white/10 p-3">
+      <div className="flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.045]">
+        <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} onFocus={() => warm('/instellingen/profiel')} className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#183d58] text-xs font-semibold text-white ring-1 ring-white/10">{initials}</div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-white">{user.name || user.email}</p>
+            <span className="mt-1 inline-flex rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-medium leading-none text-[#b7cad7] ring-1 ring-white/10">{roleLabel(user.role)}</span>
+          </div>
+        </Link>
+        <form action={logoutAction}><button type="submit" className="rounded-lg p-1.5 text-[#7190a3] transition-colors hover:bg-white/[0.06] hover:text-white" title="Uitloggen" aria-label="Uitloggen"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg></button></form>
+      </div>
+      <div className="mt-1 flex gap-1">
+        <Link href="/onboarding" prefetch={false} onMouseEnter={() => warm('/onboarding')} className="flex-1 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[#7190a3] transition-colors hover:bg-white/[0.045] hover:text-white">Setup</Link>
+        <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} className="flex-1 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[#7190a3] transition-colors hover:bg-white/[0.045] hover:text-white">Profiel</Link>
+      </div>
+    </div> : null}
+  </aside>
+}
+'''
+
+          shell = r'''\
+'use client'
+
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { EanAutoDiscovery } from '@/components/EanAutoDiscovery'
+import { InteractionFeedback } from '@/components/InteractionFeedback'
+import { RoutePrefetcher } from '@/components/RoutePrefetcher'
+import { Sidebar } from '@/components/Sidebar'
+import type { AppRole } from '@/lib/roles'
+
+type ShellUser = { name?: string | null; email?: string | null; role?: AppRole | null }
+type RouteMeta = { title: string; helper: string; action?: { href: string; label: string } }
+
+const mobileItems = [
+  ['/dashboard','Overzicht'],
+  ['/producten','Producten'],
+  ['/concurrenten','Markt'],
+  ['/acties','Acties'],
+  ['/rapportages','Inzichten'],
+  ['/instellingen','Beheer'],
+] as const
+
+function routeMeta(pathname: string): RouteMeta {
+  if (pathname.startsWith('/producten')) return { title: 'Producten', helper: 'Vergelijk eigen prijzen met de markt', action: { href: '/producten/nieuw', label: 'Product toevoegen' } }
+  if (pathname.startsWith('/concurrenten') || pathname.startsWith('/monitoring') || pathname.startsWith('/productmatches')) return { title: 'Markt', helper: 'Concurrenten, matches en meetkwaliteit', action: { href: '/productmatches', label: 'Matches controleren' } }
+  if (pathname.startsWith('/acties') || pathname.startsWith('/waarschuwingen') || pathname.startsWith('/prijsstrategie') || pathname.startsWith('/prijsregels') || pathname.startsWith('/prijswijzigingen') || pathname.startsWith('/prijsautomatisering')) return { title: 'Acties', helper: 'Werk alleen af wat echt aandacht vraagt', action: { href: '/acties', label: 'Open acties' } }
+  if (pathname.startsWith('/rapportages')) return { title: 'Inzichten', helper: 'Analyseer trends en deel conclusies' }
+  if (pathname.startsWith('/instellingen') || pathname.startsWith('/feeds') || pathname.startsWith('/import') || pathname.startsWith('/integraties') || pathname.startsWith('/beheer') || pathname.startsWith('/onboarding')) return { title: 'Beheer', helper: 'Data, feeds, koppelingen en organisatie', action: { href: '/import/bulk', label: 'Bulk import' } }
+  return { title: 'Overzicht', helper: 'Zie direct wat vandaag belangrijk is', action: { href: '/acties', label: 'Bekijk acties' } }
+}
+
+export function AppShell({ children, user }: { children: React.ReactNode; user?: ShellUser | null }) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const isAuthenticationRoute = pathname === '/' || pathname === '/login' || pathname === '/reset-password'
+  const context = routeMeta(pathname)
+  const warm = (href: string) => router.prefetch(href)
+
+  if (isAuthenticationRoute) return <><InteractionFeedback key={pathname} /><main className="min-h-screen bg-[var(--background)]">{children}</main></>
+
+  return <>
+    <InteractionFeedback key={pathname} />
+    <RoutePrefetcher />
+    <EanAutoDiscovery />
+    <div className="ps-workspace-shell flex h-dvh overflow-hidden">
+      <div className="hidden lg:block lg:w-60 lg:flex-none"><Sidebar user={user} /></div>
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="relative z-20 border-b border-[#e5ebf0] bg-white/95 backdrop-blur-sm">
+          <div className="flex min-h-[88px] items-center justify-between px-5 py-5 sm:px-7">
+            <div className="min-w-0">
+              <h1 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.025em] text-[#0b1f35]">{context.title}</h1>
+              <p className="mt-1 text-sm leading-5 text-[#6b7b8e]">{context.helper}</p>
+            </div>
+            <div className="ml-6 flex shrink-0 items-center gap-3">
+              <Link href="/acties" prefetch={false} onMouseEnter={() => warm('/acties')} onFocus={() => warm('/acties')} className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#e5ebf0] bg-white text-[#60778c] transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700" title="Acties" aria-label="Acties">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>
+                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#c64f52]" />
+              </Link>
+              {context.action ? <Link href={context.action.href} prefetch={false} onMouseEnter={() => warm(context.action!.href)} onFocus={() => warm(context.action!.href)} className="hidden min-h-9 items-center rounded-lg bg-blue-600 px-3.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 md:inline-flex">{context.action.label}</Link> : null}
+            </div>
+          </div>
+          <nav className="flex gap-1 overflow-x-auto border-t border-[#edf1f4] bg-white px-3 py-2 lg:hidden" aria-label="Hoofdnavigatie">
+            {mobileItems.map(([href,label]) => <Link key={href} href={href} prefetch={false} onMouseEnter={() => warm(href)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium ${pathname === href || pathname.startsWith(`${href}/`) ? 'bg-blue-600 text-white' : 'text-[#60778c]'}`}>{label}</Link>)}
+          </nav>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,#fbfdff_0%,#f7fafc_100%)]">
+          <main className="min-w-0 px-4 pb-8 pt-5 sm:px-6 lg:px-7 lg:pb-10 lg:pt-6">
+            <div className="w-full max-w-[1540px]">{children}</div>
+          </main>
+        </div>
+      </section>
+    </div>
+  </>
+}
+'''
+
+          mark = '''<svg width="220" height="140" viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="eyeBlue" x1="22" y1="30" x2="188" y2="114" gradientUnits="userSpaceOnUse"><stop stop-color="#5F75FF"/><stop offset="0.55" stop-color="#5A70F2"/><stop offset="1" stop-color="#4C61E8"/></linearGradient>
+    <linearGradient id="barBlue" x1="72" y1="62" x2="122" y2="113" gradientUnits="userSpaceOnUse"><stop stop-color="#7B96FF"/><stop offset="1" stop-color="#5F75FF"/></linearGradient>
+  </defs>
+  <path d="M18 70C44 39 77 23 109 23C142 23 174 39 201 70C174 101 142 117 109 117C77 117 44 101 18 70Z" stroke="url(#eyeBlue)" stroke-width="12" stroke-linejoin="round"/>
+  <rect x="72" y="82" width="16" height="27" rx="2.5" fill="url(#barBlue)"/><rect x="95" y="66" width="16" height="43" rx="2.5" fill="url(#barBlue)"/><rect x="118" y="49" width="16" height="60" rx="2.5" fill="url(#barBlue)"/>
+</svg>'''
+
+          Path('src/components/Sidebar.tsx').write_text(sidebar)
+          Path('src/components/AppShell.tsx').write_text(shell)
+          Path('public/prysight-mark.svg').write_text(mark)
+
+          layout = Path('src/app/layout.tsx')
+          text = layout.read_text()
+          text = text.replace("import './prysight-ux.css'\n", '')
+          layout.write_text(text)
+
+          parity = Path('src/app/syntrx-parity.css')
+          text = parity.read_text()
+          marker = '/* Exact Syntrx parity contract v3 */'
+          if marker in text:
+              text = text.split(marker)[0].rstrip() + '\n\n'
+          text += r'''
+/* Exact Syntrx parity contract v3 */
+:root {
+  --background:#f7fafc;
+  --foreground:#0b1f35;
+  --surface:#ffffff;
+  --surface-soft:#f9fbfc;
+  --surface-muted:#f1f5f9;
+  --border:#e5ebf0;
+  --border-strong:#dbe4eb;
+  --muted:#6b7b8e;
+  --muted-soft:#8aa0b4;
+  --accent:#2563eb;
+  --accent-strong:#1d4ed8;
+  --accent-soft:#eff6ff;
+  --blue:#2563eb;
+  --blue-soft:#eff6ff;
+  --ink:#0b1f35;
+  --ink-soft:#334b63;
+  --navy:#061a2f;
+  --shadow-card:0 8px 28px rgba(15,38,64,.06);
+}
+
+html,body { background:#f7fafc !important; color:#0b1f35 !important; font-family:'Inter',system-ui,sans-serif !important; }
+.ps-workspace-shell { background:#f7fafc !important; }
+
+/* Preserve Syntrx scale instead of inflating microcopy. */
+main [class*='text-[9px]'] { font-size:9px !important; line-height:12px !important; }
+main [class*='text-[10px]'] { font-size:10px !important; line-height:14px !important; }
+main [class*='text-[11px]'] { font-size:11px !important; line-height:16px !important; }
+main [class*='text-[12px]'] { font-size:12px !important; line-height:18px !important; }
+main [class*='text-[13px]'] { font-size:13px !important; line-height:18px !important; }
+main [class*='text-[14px]'] { font-size:14px !important; line-height:20px !important; }
+main [class*='text-[15px]'] { font-size:15px !important; line-height:20px !important; }
+main [class*='text-[16px]'] { font-size:16px !important; line-height:22px !important; }
+main [class*='font-black'],main [class*='font-extrabold'] { font-weight:600 !important; }
+
+main h1,.ps-page-title { color:#0b1f35 !important; font-size:22px !important; line-height:1.2 !important; font-weight:600 !important; letter-spacing:-.025em !important; }
+main h2 { color:#243a52 !important; font-size:16px !important; line-height:22px !important; font-weight:600 !important; letter-spacing:-.012em !important; }
+main h3 { color:#243a52 !important; font-size:14px !important; line-height:20px !important; font-weight:600 !important; }
+main .eyebrow { color:#6b7b8e !important; font-size:11px !important; line-height:16px !important; font-weight:600 !important; letter-spacing:.04em !important; text-transform:none !important; }
+
+/* Syntrx uses quiet white surfaces, small radii and restrained depth. */
+main .surface-card,main .strong-panel,main .prysight-elevated-card,main .ps-panel,main details,main .ps-product-card,main .ps-insight-card {
+  border:1px solid #e5ebf0 !important;
+  border-radius:12px !important;
+  background:#fff !important;
+  box-shadow:0 8px 28px rgba(15,38,64,.06) !important;
+}
+main .surface-card:hover,main .prysight-elevated-card:hover,main .ps-panel:hover,main .ps-product-card:hover { transform:none !important; border-color:#dbe4eb !important; box-shadow:0 8px 28px rgba(15,38,64,.06) !important; }
+main .surface-card-flat,main .ps-soft-panel,main .ps-price-metric,main .ps-stat-card { border:1px solid #e5ebf0 !important; border-radius:8px !important; background:#f9fbfc !important; box-shadow:none !important; }
+
+/* No old PrySight hero styling. */
+main section.strong-panel:first-of-type { background:#fff !important; box-shadow:0 8px 28px rgba(15,38,64,.06) !important; }
+main section.strong-panel:first-of-type::after,main section.strong-panel:first-of-type > .grid > div::before { display:none !important; }
+main section.strong-panel:first-of-type > div:first-child { padding:16px 20px !important; }
+main section.strong-panel:first-of-type > .grid { gap:0 !important; padding:0 !important; border-top:1px solid #e5ebf0 !important; background:#fff !important; }
+main section.strong-panel:first-of-type > .grid > div,main .ps-stat-card { min-height:66px !important; padding:10px 14px !important; border:0 !important; border-right:1px solid #edf1f4 !important; border-radius:0 !important; background:#fff !important; box-shadow:none !important; }
+main section.strong-panel:first-of-type > .grid > div:last-child { border-right:0 !important; }
+main section.strong-panel:first-of-type > .grid > div p:first-child { color:#6b7b8e !important; font-size:10px !important; line-height:14px !important; font-weight:600 !important; letter-spacing:.04em !important; }
+main section.strong-panel:first-of-type > .grid > div p:nth-child(2) { margin-top:2px !important; color:#0b1f35 !important; font-size:20px !important; line-height:24px !important; font-weight:600 !important; }
+
+/* Same control density as Syntrx. */
+main .toolbar-control,main select,main input:not([type='checkbox']):not([type='radio']),main textarea { min-height:38px !important; border:1px solid #dbe4eb !important; border-radius:8px !important; background:#fff !important; color:#334b63 !important; font-size:13px !important; line-height:18px !important; font-weight:400 !important; box-shadow:none !important; }
+main .toolbar-control:focus,main select:focus,main input:focus,main textarea:focus { border-color:#3b82f6 !important; box-shadow:0 0 0 3px rgba(59,130,246,.12) !important; outline:none !important; }
+main label { color:#536b81 !important; font-size:12px !important; font-weight:500 !important; }
+
+main .primary-action,main .ps-button,main .secondary-action,main .ps-button-green,main .ps-button-orange,main .ps-button-danger { min-height:36px !important; border-radius:8px !important; padding:7px 11px !important; font-size:13px !important; line-height:18px !important; font-weight:500 !important; box-shadow:none !important; transform:none !important; }
+main .primary-action,main .ps-button,main .ps-button-green { border:1px solid #2563eb !important; background:#2563eb !important; color:#fff !important; }
+main .primary-action:hover,main .ps-button:hover,main .ps-button-green:hover { border-color:#1d4ed8 !important; background:#1d4ed8 !important; }
+main .secondary-action { border:1px solid #dbe4eb !important; background:#fff !important; color:#40576e !important; }
+main .secondary-action:hover { background:#f9fbfc !important; color:#0b1f35 !important; }
+main .ps-button-orange { border:1px solid #f2ddb1 !important; background:#fff6e4 !important; color:#a96a08 !important; }
+main .ps-button-danger { border:1px solid #f1cfd0 !important; background:#fff0f0 !important; color:#c64f52 !important; }
+
+/* Product monitor follows Syntrx scan density. */
+main .ps-product-layout { gap:14px !important; grid-template-columns:minmax(0,1fr) 255px !important; }
+main .ps-product-card-header { padding:13px 14px 11px !important; background:#fff !important; }
+main .ps-product-meta { gap:5px !important; margin-top:5px !important; }
+main .ps-price-strip { gap:7px !important; padding:0 14px 11px !important; }
+main .ps-price-metric { padding:8px 9px !important; }
+main .ps-price-metric p:first-child { color:#6b7b8e !important; font-size:10px !important; line-height:14px !important; font-weight:500 !important; }
+main .ps-price-metric p:last-child { margin-top:2px !important; color:#0b1f35 !important; font-size:13px !important; line-height:18px !important; font-weight:600 !important; }
+main .ps-chip { min-height:20px !important; border:1px solid transparent !important; border-radius:999px !important; padding:2px 7px !important; background:#f1f5f9 !important; color:#5d7185 !important; font-size:10px !important; line-height:14px !important; font-weight:500 !important; }
+main .ps-chip-blue,.status-info { border-color:#dbeafe !important; background:#eff6ff !important; color:#1d4ed8 !important; }
+main .ps-chip-green,.status-success,.status-good { border-color:#cfeadf !important; background:#ecf8f2 !important; color:#21835d !important; }
+main .ps-chip-amber,.status-warning { border-color:#f2ddb1 !important; background:#fff6e4 !important; color:#a96a08 !important; }
+main .ps-chip-red,.status-danger,.status-error { border-color:#f1cfd0 !important; background:#fff0f0 !important; color:#c64f52 !important; }
+
+main table { border:1px solid #e5ebf0 !important; border-radius:8px !important; background:#fff !important; box-shadow:none !important; }
+main thead,main .ps-competitor-table thead,main .ps-competitor-table thead tr { background:#f9fbfc !important; }
+main th,main .ps-competitor-table th { padding:8px 9px !important; border-bottom:1px solid #e5ebf0 !important; color:#60778c !important; font-size:11px !important; line-height:15px !important; font-weight:600 !important; }
+main td,main .ps-competitor-table td { padding:9px !important; border-color:#edf1f4 !important; color:#344d65 !important; font-size:12px !important; line-height:17px !important; font-weight:400 !important; }
+main tbody tr:hover,main .ps-competitor-table tbody tr:hover { background:#f8fbff !important; box-shadow:inset 3px 0 0 #2563eb !important; }
+main .ps-competitor-table .ps-own-row { background:#f8fbff !important; }
+main .ps-competitor-table .ps-best-row { background:#f3faf6 !important; }
+
+main .ps-insight-section { padding:12px 13px !important; background:#fff !important; }
+main .ps-insight-title { color:#243a52 !important; font-size:13px !important; line-height:18px !important; font-weight:600 !important; }
+main .ps-insight-row { margin-top:6px !important; color:#6b7b8e !important; font-size:11px !important; line-height:16px !important; font-weight:400 !important; }
+
+@media (max-width:1280px) { main .ps-product-layout { grid-template-columns:1fr !important; } }
+'''
+          parity.write_text(text)
+
+          placeholder = Path('docs/.placeholder')
+          if placeholder.exists(): placeholder.unlink()
+          PY
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Commit verified Syntrx parity
+        shell: bash
+        run: |
+          rm .github/workflows/apply-syntrx-exact-parity.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Rebuild PrySight shell to match Syntrx visual system"
+          git push origin HEAD:syntrx-exact-visual-parity
