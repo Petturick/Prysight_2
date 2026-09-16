@@ -1,10 +1,12 @@
 export const dynamic = 'force-dynamic'
 
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { addCompetitorOfferAction, discoverCompetitorUrlsAction, runProductResearchAction } from '@/app/actions/productActions'
 import { DataTable } from '@/components/DataTable'
-import { PriceChart } from '@/components/PriceChart'
+import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
+import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -14,52 +16,46 @@ function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
+function AnalyticsFallback({ label }: { label: string }) {
+  return (
+    <section className="surface-card p-5" aria-busy="true">
+      <div className="h-4 w-36 animate-pulse rounded bg-[#e5ebf0]" />
+      <div className="mt-4 h-56 animate-pulse rounded-[10px] bg-[#f1f5f9]" />
+      <p className="mt-3 text-[12px] text-[#8aa0b4]">{label} wordt geladen zonder de productpagina te blokkeren.</p>
+    </section>
+  )
+}
+
 export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireAuthenticatedUser()
   const { id } = await params
   const query = await searchParams
-  const product = await prisma.product.findFirst({
-    where: { id, companyId: user.companyId },
-    include: {
-      productGroup: true,
-      productMarkets: { include: { country: true }, orderBy: { country: { name: 'asc' } } },
-      ownPriceHistory: { orderBy: { recordedAt: 'asc' } },
-      matches: {
-        include: {
-          competitorOffer: {
-            include: {
-              competitor: { include: { country: true } },
-              priceHistory: { orderBy: { recordedAt: 'asc' } },
-              priceChecks: { orderBy: { checkedAt: 'desc' }, take: 5 },
+
+  const [product, countries] = await Promise.all([
+    prisma.product.findFirst({
+      where: { id, companyId: user.companyId },
+      include: {
+        productGroup: true,
+        productMarkets: { include: { country: true }, orderBy: { country: { name: 'asc' } } },
+        matches: {
+          include: {
+            competitorOffer: {
+              include: { competitor: { include: { country: true } } },
             },
           },
         },
       },
-    },
-  })
+    }),
+    getActiveCompanyCountries(user.companyId),
+  ])
 
   if (!product) notFound()
-  const countries = await getActiveCompanyCountries(user.companyId)
   const defaultCountry = countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id)) ?? countries.find((country) => country.code === 'NL') ?? countries[0]
-
-  const chartData = product.ownPriceHistory.map((entry) => {
-    const competitorPoints = product.matches
-      .filter((match) => match.matchStatus === 'CERTAIN')
-      .flatMap((match) => match.competitorOffer.priceHistory)
-      .filter((history) => history.recordedAt.toDateString() === entry.recordedAt.toDateString())
-      .map((history) => Number(history.normalizedPrice ?? history.price))
-    return {
-      date: entry.recordedAt.toLocaleDateString('nl-NL'),
-      ownPrice: Number(entry.price),
-      competitorPrice: competitorPoints.length ? Math.min(...competitorPoints) : null,
-    }
-  })
 
   const confirmedMatches = product.matches.filter((match) => match.matchStatus === 'CERTAIN')
   const reviewMatches = product.matches.filter((match) => match.matchStatus === 'REVIEW')
   const validPrices = confirmedMatches.map((match) => match.competitorOffer.normalizedPrice).filter((price): price is NonNullable<typeof price> => price !== null).map(Number)
   const lowestPrice = validPrices.length ? Math.min(...validPrices) : null
-  const averagePrice = validPrices.length ? validPrices.reduce((sum, value) => sum + value, 0) / validPrices.length : null
   const latestCheck = confirmedMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
   const ownPrice = product.ownPrice ? Number(product.ownPrice) : null
   const difference = ownPrice !== null && lowestPrice !== null ? ownPrice - lowestPrice : null
@@ -139,7 +135,9 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       </section>
 
-      <PriceChart data={chartData} />
+      <Suspense fallback={<AnalyticsFallback label="Prijsverloop" />}>
+        <ProductPriceHistoryPanel companyId={user.companyId} productId={product.id} />
+      </Suspense>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1"><div><h2 className="text-[14px] font-black text-[#252a37]">Bevestigde concurrentieprijzen</h2><p className="mt-1 text-[10px] text-[#697386]">{confirmedMatches.length} bevestigde bron{confirmedMatches.length === 1 ? '' : 'nen'}, laatste controle {formatDate(latestCheck)}.</p></div></div>
@@ -161,24 +159,9 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         />
       </section>
 
-      <section className="space-y-3">
-        <div className="px-1"><h2 className="text-[14px] font-black text-[#252a37]">Controlehistorie</h2><p className="mt-1 text-[10px] text-[#697386]">Technische resultaten van de laatste prijscontroles per bevestigde bron.</p></div>
-        <DataTable
-          columns={[
-            { key: 'tijd', header: 'Controlemoment' }, { key: 'concurrent', header: 'Concurrent' }, { key: 'methode', header: 'Methode' }, { key: 'status', header: 'Status' }, { key: 'prijs', header: 'Prijs' }, { key: 'melding', header: 'Melding' },
-          ]}
-          rows={confirmedMatches.flatMap((match) =>
-            match.competitorOffer.priceChecks.map((check) => ({
-              tijd: formatDate(check.checkedAt),
-              concurrent: match.competitorOffer.competitor.name,
-              methode: check.checkMethod,
-              status: check.isSuccess ? 'Succes' : `Fout ${check.statusCode ?? '—'}`,
-              prijs: formatCurrency(check.foundPrice, check.currency),
-              melding: check.errorMessage ?? '—',
-            })),
-          )}
-        />
-      </section>
+      <Suspense fallback={<AnalyticsFallback label="Controlehistorie" />}>
+        <ProductCheckHistoryPanel companyId={user.companyId} productId={product.id} />
+      </Suspense>
     </div>
   )
 }
