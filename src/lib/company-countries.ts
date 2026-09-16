@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function getActiveCompanyCountries(companyId: string) {
   const memberships = await prisma.companyCountry.findMany({
+    relationLoadStrategy: 'join',
     where: { companyId, isActive: true, country: { isActive: true } },
     include: { country: true },
     orderBy: { country: { name: 'asc' } },
@@ -11,6 +12,7 @@ export async function getActiveCompanyCountries(companyId: string) {
 
 export async function requireLicensedCountry(companyId: string, countryId: string) {
   const membership = await prisma.companyCountry.findUnique({
+    relationLoadStrategy: 'join',
     where: { companyId_countryId: { companyId, countryId } },
     include: { country: true },
   })

@@ -49,13 +49,14 @@ const getCachedFilterOptions = unstable_cache(
     const [countries, productGroups, competitors] = await Promise.all([
       companyId
         ? prisma.companyCountry.findMany({
+            relationLoadStrategy: 'join',
             where: { companyId, isActive: true, country: { isActive: true } },
             include: { country: true },
             orderBy: { country: { name: 'asc' } },
           }).then((rows) => rows.map((row) => row.country))
         : prisma.country.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
       prisma.productGroup.findMany({ where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' } }),
-      prisma.competitor.findMany({ where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),
+      prisma.competitor.findMany({ relationLoadStrategy: 'join', where: { companyId: companyId || undefined, isActive: true }, orderBy: { name: 'asc' }, include: { country: true } }),
     ])
 
     return { countries, productGroups, competitors }
@@ -70,6 +71,7 @@ export async function getFilterOptions(companyId?: string) {
 
 export async function getFilteredProducts(filters: DashboardFilters = {}, companyId?: string) {
   return prisma.product.findMany({
+    relationLoadStrategy: 'join',
     where: {
       companyId: companyId || undefined,
       isActive: true,
@@ -171,6 +173,7 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
   const [products, failedChecks, staleOffers, filterOptions] = await Promise.all([
     getFilteredProducts(filters, companyId),
     prisma.priceCheck.findMany({
+      relationLoadStrategy: 'join',
       where: {
         companyId: companyId || undefined,
         isSuccess: false,
@@ -181,6 +184,7 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
       take: 10,
     }),
     prisma.competitorOffer.findMany({
+      relationLoadStrategy: 'join',
       where: {
         companyId: companyId || undefined,
         isActive: true,
@@ -253,6 +257,7 @@ export type DashboardSnapshot = Awaited<ReturnType<typeof getDashboardSnapshot>>
 
 export async function getCompetitorsOverview(companyId?: string) {
   return prisma.competitor.findMany({
+    relationLoadStrategy: 'join',
     where: { companyId: companyId || undefined, isActive: true },
     include: competitorInclude,
     orderBy: [{ country: { name: 'asc' } }, { name: 'asc' }],
