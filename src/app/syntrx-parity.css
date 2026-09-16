@@ -1,10 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/*
- * Syntrx visual parity layer for PrySight.
- * Keeps PrySight pricing flows intact while sharing the Syntrx design language.
- */
-
+/* PrySight uses the same visual grammar as Syntrx. Pricing semantics stay PrySight specific. */
 :root {
   --background: #f7fafc;
   --foreground: #0b1f35;
@@ -20,21 +16,16 @@
   --accent-soft: #eff6ff;
   --blue: #2563eb;
   --blue-soft: #eff6ff;
-  --green: #229468;
+  --green: #21835d;
   --green-soft: #ecf8f2;
-  --violet: #2563eb;
-  --violet-soft: #eff6ff;
-  --amber: #d88d17;
+  --amber: #a96a08;
   --amber-soft: #fff6e4;
-  --red: #cf5558;
+  --red: #c64f52;
   --red-soft: #fff0f0;
   --ink: #0b1f35;
   --ink-soft: #334b63;
   --navy: #061a2f;
-  --navy-900: #08243f;
-  --navy-800: #0c3153;
-  --shadow-card: 0 8px 28px rgba(15, 38, 64, 0.06);
-  --shadow-soft: 0 10px 30px rgba(15, 38, 64, 0.07);
+  --shadow-card: 0 8px 28px rgba(15,38,64,.06);
 }
 
 html,
@@ -42,115 +33,105 @@ body {
   background: var(--background) !important;
   color: var(--foreground) !important;
   font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 16px;
 }
 
-::selection {
-  background: #dbeafe;
-  color: #061a2f;
-}
+::selection { background:#dbeafe; color:#061a2f; }
 
 .ps-workspace-shell {
-  background:
-    radial-gradient(circle at 82% 0%, rgba(59, 130, 246, 0.045), transparent 27rem),
-    var(--background) !important;
+  background: var(--background) !important;
   color: var(--foreground);
 }
 
-/* Sidebar parity with Syntrx */
-.ps-workspace-shell aside {
-  background: #061a2f !important;
-  border-right: 1px solid #123858 !important;
-  box-shadow: 12px 0 36px rgba(5, 24, 44, 0.08) !important;
-}
-
-.ps-workspace-shell aside nav p {
-  color: #8aa5bd !important;
-}
-
-.ps-workspace-shell aside nav a {
-  color: #b8c8d5 !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}
-
-.ps-workspace-shell aside nav a:hover {
-  background: rgba(255,255,255,.055) !important;
-  color: #ffffff !important;
-}
-
-.ps-workspace-shell aside nav a.bg-white {
-  background: #2563eb !important;
-  color: #ffffff !important;
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.16) !important;
-}
-
-.ps-workspace-shell aside nav a.bg-white > span:first-child {
-  background: rgba(255,255,255,.10) !important;
-  color: #ffffff !important;
-}
-
-.ps-workspace-shell aside nav a:not(.bg-white) > span:first-child {
-  background: rgba(255,255,255,.035) !important;
-  color: inherit !important;
-}
-
-.ps-workspace-shell aside nav a:not(.bg-white):hover > span:first-child {
-  background: rgba(255,255,255,.06) !important;
-}
-
-.ps-workspace-shell aside > div:first-child p {
-  color: #8aa5bd !important;
-}
-
-.ps-workspace-shell aside > div:last-child > div {
-  background: #08243f !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
-  box-shadow: none !important;
-}
-
-.ps-workspace-shell aside > div:last-child a,
-.ps-workspace-shell aside > div:last-child button {
-  color: #b8c8d5 !important;
-}
-
-/* Workspace chrome */
+/* The shell now follows Syntrx instead of the former floating-card workspace. */
 .ps-workspace-topbar {
-  background: rgba(255,255,255,.98) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 12px !important;
-  box-shadow: var(--shadow-card) !important;
-  backdrop-filter: blur(14px);
+  max-width: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
 .ps-workspace-context-title {
-  color: var(--foreground) !important;
-  font-weight: 700 !important;
-  letter-spacing: -.015em !important;
+  color:#0b1f35 !important;
+  font-size:22px !important;
+  line-height:1.2 !important;
+  font-weight:600 !important;
+  letter-spacing:-.025em !important;
 }
 
 .ps-workspace-context-copy {
-  color: var(--muted) !important;
-  font-weight: 500 !important;
+  color:#6b7b8e !important;
+  font-size:14px !important;
+  line-height:20px !important;
+  font-weight:400 !important;
 }
 
 .ps-workspace-search {
-  background: #f9fbfc !important;
-  border: 1px solid #dbe4eb !important;
-  border-radius: 9px !important;
-  box-shadow: none !important;
+  min-height:40px !important;
+  border:1px solid #dbe4eb !important;
+  border-radius:8px !important;
+  background:#f9fbfc !important;
+  color:#334b63 !important;
+  font-size:14px !important;
+  font-weight:400 !important;
+  box-shadow:none !important;
 }
 
 .ps-workspace-search:focus {
-  background: #fff !important;
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59,130,246,.12) !important;
+  border-color:#3b82f6 !important;
+  background:#fff !important;
+  box-shadow:0 0 0 3px rgba(59,130,246,.12) !important;
 }
 
-/* Shared surfaces */
 main:not(.min-h-screen) {
-  background: linear-gradient(180deg, #fbfdff 0%, var(--background) 100%) !important;
+  background: linear-gradient(180deg,#fbfdff 0%,#f7fafc 100%) !important;
 }
 
+main > div[class*='space-y'] {
+  margin-inline:0 !important;
+  max-width:1540px !important;
+}
+
+/* Syntrx typography scale, no 9px microcopy and no oversized prototype typography. */
+main [class*='text-[9px]'] { font-size:12px !important; line-height:16px !important; }
+main [class*='text-[10px]'] { font-size:12px !important; line-height:16px !important; }
+main [class*='text-[11px]'] { font-size:13px !important; line-height:18px !important; }
+main [class*='text-[12px]'] { font-size:14px !important; line-height:20px !important; }
+main [class*='text-[13px]'] { font-size:14px !important; }
+main [class*='font-black'] { font-weight:600 !important; }
+main [class*='font-extrabold'] { font-weight:600 !important; }
+
+main h1,
+main .ps-page-title,
+main .strong-panel h1,
+main .surface-card h1 {
+  color:#0b1f35 !important;
+  font-size:22px !important;
+  line-height:1.25 !important;
+  font-weight:600 !important;
+  letter-spacing:-.025em !important;
+}
+
+main h2,
+main h3 {
+  color:#243a52 !important;
+  font-weight:600 !important;
+  letter-spacing:-.012em !important;
+}
+
+main .eyebrow {
+  color:#6b7b8e !important;
+  font-size:12px !important;
+  line-height:16px !important;
+  font-weight:500 !important;
+  letter-spacing:.04em !important;
+  text-transform:none !important;
+}
+
+/* Quiet Syntrx surfaces, small radius, one subtle border and almost no decoration. */
 main .surface-card,
 main .strong-panel,
 main .prysight-elevated-card,
@@ -158,266 +139,202 @@ main .ps-panel,
 main details,
 main .ps-product-card,
 main .ps-insight-card {
-  background: #ffffff !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 12px !important;
-  box-shadow: var(--shadow-card) !important;
+  position:relative;
+  overflow:hidden;
+  border:1px solid #e5ebf0 !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  box-shadow:0 3px 14px rgba(15,38,64,.04) !important;
 }
 
 main .surface-card:hover,
 main .prysight-elevated-card:hover,
 main .ps-panel:hover,
 main .ps-product-card:hover {
-  transform: none !important;
-  border-color: #d7e1e9 !important;
-  box-shadow: 0 9px 30px rgba(15,38,64,.075) !important;
+  transform:none !important;
+  border-color:#dbe4eb !important;
+  box-shadow:0 5px 18px rgba(15,38,64,.055) !important;
 }
 
 main .surface-card-flat,
 main .ps-soft-panel,
 main .ps-price-metric,
 main .ps-stat-card {
-  background: #f9fbfc !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-  box-shadow: none !important;
+  border:1px solid #e5ebf0 !important;
+  border-radius:8px !important;
+  background:#f9fbfc !important;
+  box-shadow:none !important;
 }
 
+/* Old oversized page heroes become compact Syntrx content headers. */
 main section.strong-panel:first-of-type {
-  background: #ffffff !important;
-  border-color: var(--border) !important;
-  box-shadow: var(--shadow-card) !important;
+  border:1px solid #e5ebf0 !important;
+  background:#fff !important;
+  box-shadow:0 3px 14px rgba(15,38,64,.04) !important;
 }
 
 main section.strong-panel:first-of-type::after,
-main section.strong-panel:first-of-type > .grid > div::before {
-  display: none !important;
-}
+main section.strong-panel:first-of-type > .grid > div::before { display:none !important; }
 
 main section.strong-panel:first-of-type > div:first-child {
-  padding-top: 1.35rem !important;
-  padding-bottom: 1.25rem !important;
+  padding:18px 20px !important;
 }
 
-main section.strong-panel:first-of-type h1,
-main .strong-panel h1,
-main .surface-card h1,
-main .ps-page-title {
-  color: var(--foreground) !important;
-  font-size: clamp(1.65rem, 1.9vw, 2rem) !important;
-  line-height: 1.12 !important;
-  font-weight: 700 !important;
-  letter-spacing: -.025em !important;
+main section.strong-panel:first-of-type > .grid {
+  gap:0 !important;
+  padding:0 !important;
+  border-top:1px solid #e5ebf0 !important;
+  background:#fff !important;
 }
 
-main h2 {
-  color: #243a52 !important;
-  font-weight: 650 !important;
-  letter-spacing: -.012em !important;
+main section.strong-panel:first-of-type > .grid > div,
+main .ps-stat-card {
+  min-height:72px !important;
+  padding:12px 16px !important;
+  border:0 !important;
+  border-right:1px solid #edf1f4 !important;
+  border-radius:0 !important;
+  background:#fff !important;
+  box-shadow:none !important;
 }
 
-main .eyebrow {
-  color: #778b9e !important;
-  font-size: .69rem !important;
-  font-weight: 600 !important;
-  letter-spacing: .055em !important;
-  text-transform: uppercase !important;
+main section.strong-panel:first-of-type > .grid > div:last-child { border-right:0 !important; }
+main section.strong-panel:first-of-type > .grid > div p:first-child { color:#6b7b8e !important; font-size:12px !important; font-weight:500 !important; letter-spacing:0 !important; text-transform:none !important; }
+main section.strong-panel:first-of-type > .grid > div p:nth-child(2) { margin-top:3px !important; color:#0b1f35 !important; font-size:22px !important; font-weight:600 !important; line-height:1.2 !important; }
+
+/* Controls are the same height and type size as Syntrx. */
+main .toolbar-control,
+main select,
+main input:not([type='checkbox']):not([type='radio']),
+main textarea {
+  min-height:40px !important;
+  border:1px solid #dbe4eb !important;
+  border-radius:8px !important;
+  background:#fff !important;
+  color:#334b63 !important;
+  font-size:14px !important;
+  font-weight:400 !important;
+  box-shadow:none !important;
 }
 
-/* Actions */
+main textarea { padding-top:10px !important; padding-bottom:10px !important; }
+main .toolbar-control:hover,
+main select:hover,
+main input:hover,
+main textarea:hover { border-color:#cbd7e1 !important; }
+main .toolbar-control:focus,
+main select:focus,
+main input:focus,
+main textarea:focus { border-color:#3b82f6 !important; box-shadow:0 0 0 3px rgba(59,130,246,.12) !important; outline:none !important; }
+main input[type='checkbox'] { accent-color:#2563eb; }
+main label { color:#536b81 !important; font-size:13px; font-weight:500 !important; }
+
 main .primary-action,
 main .ps-button,
 main .secondary-action,
 main .ps-button-green,
 main .ps-button-orange,
 main .ps-button-danger {
-  min-height: 40px !important;
-  border-radius: 8px !important;
-  padding: .6rem .95rem !important;
-  font-size: .76rem !important;
-  font-weight: 600 !important;
-  box-shadow: none !important;
+  min-height:38px !important;
+  border-radius:8px !important;
+  padding:8px 12px !important;
+  font-size:14px !important;
+  line-height:20px !important;
+  font-weight:500 !important;
+  box-shadow:none !important;
 }
 
 main .primary-action,
-main .ps-button {
-  background: #2563eb !important;
-  border: 1px solid #2563eb !important;
-  color: #ffffff !important;
+main .ps-button,
+main .ps-button-green {
+  border:1px solid #2563eb !important;
+  background:#2563eb !important;
+  color:#fff !important;
 }
-
 main .primary-action:hover,
-main .ps-button:hover {
-  background: #1d4ed8 !important;
-  border-color: #1d4ed8 !important;
+main .ps-button:hover,
+main .ps-button-green:hover { border-color:#1d4ed8 !important; background:#1d4ed8 !important; }
+main .secondary-action { border:1px solid #dbe4eb !important; background:#fff !important; color:#40576e !important; }
+main .secondary-action:hover { border-color:#cbd7e1 !important; background:#f9fbfc !important; color:#0b1f35 !important; }
+main .ps-button-orange { border:1px solid #f2ddb1 !important; background:#fff6e4 !important; color:#a96a08 !important; }
+main .ps-button-danger { border:1px solid #f1cfd0 !important; background:#fff0f0 !important; color:#c64f52 !important; }
+main .ps-button-danger:hover { background:#fde7e8 !important; }
+
+/* Pricing product card, compact and scan first. */
+main .ps-product-layout { gap:14px !important; grid-template-columns:minmax(0,1fr) 255px !important; }
+main .ps-product-card-header { padding:14px 16px 12px !important; background:#fff !important; }
+main .ps-product-card-header a[class*='text-[15px]'] { color:#0b1f35 !important; font-size:15px !important; line-height:20px !important; font-weight:600 !important; }
+main .ps-product-meta { gap:6px !important; margin-top:6px !important; }
+main .ps-price-strip { gap:8px !important; padding:0 16px 12px !important; }
+main .ps-price-metric { padding:9px 10px !important; }
+main .ps-price-metric p:first-child { color:#6b7b8e !important; font-size:12px !important; line-height:16px !important; font-weight:500 !important; }
+main .ps-price-metric p:last-child { margin-top:2px !important; color:#0b1f35 !important; font-size:14px !important; line-height:20px !important; font-weight:600 !important; }
+
+main .ps-chip {
+  min-height:22px !important;
+  border:1px solid transparent !important;
+  border-radius:999px !important;
+  padding:2px 8px !important;
+  background:#f1f5f9 !important;
+  color:#5d7185 !important;
+  font-size:12px !important;
+  line-height:16px !important;
+  font-weight:500 !important;
 }
+main .ps-chip-blue,.status-info { border-color:#dbeafe !important; background:#eff6ff !important; color:#1d4ed8 !important; }
+main .ps-chip-green,.status-success,.status-good { border-color:#cfeadf !important; background:#ecf8f2 !important; color:#21835d !important; }
+main .ps-chip-amber,.status-warning { border-color:#f2ddb1 !important; background:#fff6e4 !important; color:#a96a08 !important; }
+main .ps-chip-red,.status-danger,.status-error { border-color:#f1cfd0 !important; background:#fff0f0 !important; color:#c64f52 !important; }
 
-main .secondary-action {
-  background: #ffffff !important;
-  border: 1px solid #dbe4eb !important;
-  color: #40576e !important;
-}
-
-main .secondary-action:hover {
-  background: #f9fbfc !important;
-  border-color: #cbd7e1 !important;
-  color: #0b1f35 !important;
-}
-
-main .ps-button-green { background: #229468 !important; border: 1px solid #229468 !important; }
-main .ps-button-orange { background: #d88d17 !important; border: 1px solid #d88d17 !important; }
-main .ps-button-danger { background: #cf5558 !important; border: 1px solid #cf5558 !important; }
-
-/* Forms */
-main .toolbar-control,
-main select,
-main input:not([type='checkbox']):not([type='radio']),
-main textarea {
-  min-height: 40px !important;
-  border: 1px solid #dbe4eb !important;
-  border-radius: 8px !important;
-  background: #ffffff !important;
-  color: #334b63 !important;
-  font-size: .79rem !important;
-  font-weight: 500 !important;
-  box-shadow: none !important;
-}
-
-main .toolbar-control:hover,
-main select:hover,
-main input:hover,
-main textarea:hover {
-  border-color: #cbd7e1 !important;
-}
-
-main .toolbar-control:focus,
-main select:focus,
-main input:focus,
-main textarea:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59,130,246,.12) !important;
-}
-
-main input[type='checkbox'] { accent-color: #2563eb; }
-main label { color: #536b81 !important; font-weight: 600 !important; }
-
-/* Metrics */
-main section.strong-panel:first-of-type > .grid {
-  gap: 10px !important;
-  padding: 0 18px 18px !important;
-  border-top: 1px solid var(--border) !important;
-  background: #ffffff !important;
-}
-
-main section.strong-panel:first-of-type > .grid > div,
-main .ps-stat-card {
-  min-height: 88px !important;
-  padding: .9rem 1rem !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-  background: #ffffff !important;
-  color: var(--foreground) !important;
-  box-shadow: none !important;
-}
-
-main section.strong-panel:first-of-type > .grid > div p:first-child {
-  color: #71869a !important;
-  font-size: .69rem !important;
-  font-weight: 600 !important;
-}
-
-main section.strong-panel:first-of-type > .grid > div p:nth-child(2) {
-  color: var(--foreground) !important;
-  font-size: 1.5rem !important;
-  font-weight: 700 !important;
-}
-
-/* Tables */
+/* Tables follow Syntrx, no chunky headers and no retro blocks. */
 main table {
-  border: 1px solid var(--border) !important;
-  border-collapse: separate !important;
-  border-spacing: 0 !important;
-  border-radius: 10px !important;
-  overflow: hidden !important;
-  background: #ffffff !important;
-  box-shadow: none !important;
+  border:1px solid #e5ebf0 !important;
+  border-collapse:separate !important;
+  border-spacing:0 !important;
+  border-radius:8px !important;
+  background:#fff !important;
+  box-shadow:none !important;
 }
-
 main thead,
 main .ps-competitor-table thead,
-main .ps-competitor-table thead tr {
-  background: #f9fbfc !important;
-}
-
+main .ps-competitor-table thead tr { background:#f9fbfc !important; }
 main th,
-main .ps-competitor-table th {
-  color: #60778c !important;
-  font-size: .7rem !important;
-  font-weight: 600 !important;
-  border-bottom: 1px solid var(--border) !important;
-}
-
+main .ps-competitor-table th { padding:9px 10px !important; border:0 !important; border-bottom:1px solid #e5ebf0 !important; color:#60778c !important; font-size:12px !important; line-height:16px !important; font-weight:600 !important; }
 main td,
-main .ps-competitor-table td {
-  color: #344d65 !important;
-  border-color: #edf1f4 !important;
-}
-
+main .ps-competitor-table td { padding:10px !important; border-color:#edf1f4 !important; color:#344d65 !important; font-size:13px !important; line-height:18px !important; font-weight:400 !important; }
 main tbody tr:hover,
-main .ps-competitor-table tbody tr:hover {
-  background: #f8fbff !important;
-  box-shadow: inset 3px 0 0 #2563eb !important;
+main .ps-competitor-table tbody tr:hover { background:#f8fbff !important; box-shadow:inset 3px 0 0 #2563eb !important; }
+main .ps-competitor-table .ps-own-row { background:#f8fbff !important; }
+main .ps-competitor-table .ps-best-row { background:#f3faf6 !important; }
+
+main .ps-position-track { height:6px !important; min-width:72px !important; border-radius:999px !important; background:#e7edf3 !important; }
+main .ps-position-fill { border-radius:999px !important; background:#21835d !important; }
+
+/* Right rail is informational, not a second dashboard. */
+main .ps-insight-card { border-radius:10px !important; }
+main .ps-insight-section { padding:13px 14px !important; background:#fff !important; }
+main .ps-insight-section + .ps-insight-section { border-top:1px solid #e5ebf0 !important; }
+main .ps-insight-title { color:#243a52 !important; font-size:14px !important; line-height:20px !important; font-weight:600 !important; }
+main .ps-insight-row { display:flex !important; justify-content:space-between !important; gap:10px !important; margin-top:7px !important; padding:0 !important; border:0 !important; background:transparent !important; color:#6b7b8e !important; font-size:12px !important; line-height:18px !important; font-weight:400 !important; }
+main .ps-insight-row span,
+main .ps-insight-row strong { display:inline !important; width:auto !important; padding:0 !important; background:transparent !important; color:inherit !important; }
+main .ps-insight-row strong { color:#0b1f35 !important; font-weight:600 !important; }
+
+.ps-flow-tabs { border:1px solid #e5ebf0 !important; border-radius:8px !important; background:#f9fbfc !important; padding:3px !important; }
+.ps-flow-tab { min-height:36px !important; border-radius:6px !important; color:#60778c !important; font-size:13px !important; font-weight:500 !important; }
+.ps-flow-tab-active { background:#fff !important; color:#1d4ed8 !important; box-shadow:0 1px 4px rgba(15,38,64,.06) !important; }
+
+@media (max-width:1199px) {
+  main .ps-product-layout { grid-template-columns:1fr !important; }
+  main .ps-insight-card { position:static !important; }
 }
 
-/* Chips and states */
-main .ps-chip {
-  min-height: 24px !important;
-  border-radius: 999px !important;
-  padding: 4px 9px !important;
-  font-size: .69rem !important;
-  font-weight: 600 !important;
+@media (max-width:1023px) {
+  main { padding-top:16px !important; }
+  main section.strong-panel:first-of-type > .grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
 }
 
-main .ps-chip-blue,
-.status-info { background: #eff6ff !important; color: #1d4ed8 !important; border-color: #dbeafe !important; }
-main .ps-chip-green,
-.status-success,
-.status-good { background: #ecf8f2 !important; color: #21835d !important; border-color: #cfeadf !important; }
-main .ps-chip-amber,
-.status-warning { background: #fff6e4 !important; color: #a96a08 !important; border-color: #f2ddb1 !important; }
-main .ps-chip-red,
-.status-danger,
-.status-error { background: #fff0f0 !important; color: #c64f52 !important; border-color: #f1cfd0 !important; }
-
-/* Flow tabs */
-.ps-flow-tabs {
-  background: #f9fbfc !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-  padding: 4px !important;
-}
-
-.ps-flow-tab {
-  min-height: 38px !important;
-  border-radius: 8px !important;
-  color: #60778c !important;
-  font-size: .75rem !important;
-  font-weight: 600 !important;
-}
-
-.ps-flow-tab-active {
-  background: #ffffff !important;
-  color: #1d4ed8 !important;
-  box-shadow: 0 2px 7px rgba(15,38,64,.06) !important;
-}
-
-/* PrySight keeps its own pricing semantics, but uses the Syntrx visual grammar. */
-main .ps-product-card-header { background: #ffffff !important; }
-main .ps-price-strip { gap: 10px !important; }
-main .ps-position-track { background: #e7edf3 !important; }
-main .ps-position-fill { background: #229468 !important; }
-
-@media (max-width: 1023px) {
-  .ps-workspace-topbar { border-radius: 10px !important; }
-  main { padding-top: 1rem !important; }
+@media (max-width:720px) {
+  main section.strong-panel:first-of-type > .grid { grid-template-columns:1fr !important; }
+  main .ps-price-strip { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
 }
