@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import './globals.css'
 import './prysight-theme.css'
 import './prysight-ux.css'
+import './syntrx-parity.css'
 
 export const metadata: Metadata = {
   title: 'Prysight pricing intelligence',

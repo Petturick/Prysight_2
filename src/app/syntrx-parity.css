@@ -1,0 +1,423 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/*
+ * Syntrx visual parity layer for PrySight.
+ * Keeps PrySight pricing flows intact while sharing the Syntrx design language.
+ */
+
+:root {
+  --background: #f7fafc;
+  --foreground: #0b1f35;
+  --surface: #ffffff;
+  --surface-soft: #f9fbfc;
+  --surface-muted: #f1f5f9;
+  --border: #e5ebf0;
+  --border-strong: #dbe4eb;
+  --muted: #6b7b8e;
+  --muted-soft: #8aa0b4;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --blue: #2563eb;
+  --blue-soft: #eff6ff;
+  --green: #229468;
+  --green-soft: #ecf8f2;
+  --violet: #2563eb;
+  --violet-soft: #eff6ff;
+  --amber: #d88d17;
+  --amber-soft: #fff6e4;
+  --red: #cf5558;
+  --red-soft: #fff0f0;
+  --ink: #0b1f35;
+  --ink-soft: #334b63;
+  --navy: #061a2f;
+  --navy-900: #08243f;
+  --navy-800: #0c3153;
+  --shadow-card: 0 8px 28px rgba(15, 38, 64, 0.06);
+  --shadow-soft: 0 10px 30px rgba(15, 38, 64, 0.07);
+}
+
+html,
+body {
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+::selection {
+  background: #dbeafe;
+  color: #061a2f;
+}
+
+.ps-workspace-shell {
+  background:
+    radial-gradient(circle at 82% 0%, rgba(59, 130, 246, 0.045), transparent 27rem),
+    var(--background) !important;
+  color: var(--foreground);
+}
+
+/* Sidebar parity with Syntrx */
+.ps-workspace-shell aside {
+  background: #061a2f !important;
+  border-right: 1px solid #123858 !important;
+  box-shadow: 12px 0 36px rgba(5, 24, 44, 0.08) !important;
+}
+
+.ps-workspace-shell aside nav p {
+  color: #8aa5bd !important;
+}
+
+.ps-workspace-shell aside nav a {
+  color: #b8c8d5 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.ps-workspace-shell aside nav a:hover {
+  background: rgba(255,255,255,.055) !important;
+  color: #ffffff !important;
+}
+
+.ps-workspace-shell aside nav a.bg-white {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(147,197,253,.16) !important;
+}
+
+.ps-workspace-shell aside nav a.bg-white > span:first-child {
+  background: rgba(255,255,255,.10) !important;
+  color: #ffffff !important;
+}
+
+.ps-workspace-shell aside nav a:not(.bg-white) > span:first-child {
+  background: rgba(255,255,255,.035) !important;
+  color: inherit !important;
+}
+
+.ps-workspace-shell aside nav a:not(.bg-white):hover > span:first-child {
+  background: rgba(255,255,255,.06) !important;
+}
+
+.ps-workspace-shell aside > div:first-child p {
+  color: #8aa5bd !important;
+}
+
+.ps-workspace-shell aside > div:last-child > div {
+  background: #08243f !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: none !important;
+}
+
+.ps-workspace-shell aside > div:last-child a,
+.ps-workspace-shell aside > div:last-child button {
+  color: #b8c8d5 !important;
+}
+
+/* Workspace chrome */
+.ps-workspace-topbar {
+  background: rgba(255,255,255,.98) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+  backdrop-filter: blur(14px);
+}
+
+.ps-workspace-context-title {
+  color: var(--foreground) !important;
+  font-weight: 700 !important;
+  letter-spacing: -.015em !important;
+}
+
+.ps-workspace-context-copy {
+  color: var(--muted) !important;
+  font-weight: 500 !important;
+}
+
+.ps-workspace-search {
+  background: #f9fbfc !important;
+  border: 1px solid #dbe4eb !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+
+.ps-workspace-search:focus {
+  background: #fff !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12) !important;
+}
+
+/* Shared surfaces */
+main:not(.min-h-screen) {
+  background: linear-gradient(180deg, #fbfdff 0%, var(--background) 100%) !important;
+}
+
+main .surface-card,
+main .strong-panel,
+main .prysight-elevated-card,
+main .ps-panel,
+main details,
+main .ps-product-card,
+main .ps-insight-card {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+main .surface-card:hover,
+main .prysight-elevated-card:hover,
+main .ps-panel:hover,
+main .ps-product-card:hover {
+  transform: none !important;
+  border-color: #d7e1e9 !important;
+  box-shadow: 0 9px 30px rgba(15,38,64,.075) !important;
+}
+
+main .surface-card-flat,
+main .ps-soft-panel,
+main .ps-price-metric,
+main .ps-stat-card {
+  background: #f9fbfc !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+main section.strong-panel:first-of-type {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+main section.strong-panel:first-of-type::after,
+main section.strong-panel:first-of-type > .grid > div::before {
+  display: none !important;
+}
+
+main section.strong-panel:first-of-type > div:first-child {
+  padding-top: 1.35rem !important;
+  padding-bottom: 1.25rem !important;
+}
+
+main section.strong-panel:first-of-type h1,
+main .strong-panel h1,
+main .surface-card h1,
+main .ps-page-title {
+  color: var(--foreground) !important;
+  font-size: clamp(1.65rem, 1.9vw, 2rem) !important;
+  line-height: 1.12 !important;
+  font-weight: 700 !important;
+  letter-spacing: -.025em !important;
+}
+
+main h2 {
+  color: #243a52 !important;
+  font-weight: 650 !important;
+  letter-spacing: -.012em !important;
+}
+
+main .eyebrow {
+  color: #778b9e !important;
+  font-size: .69rem !important;
+  font-weight: 600 !important;
+  letter-spacing: .055em !important;
+  text-transform: uppercase !important;
+}
+
+/* Actions */
+main .primary-action,
+main .ps-button,
+main .secondary-action,
+main .ps-button-green,
+main .ps-button-orange,
+main .ps-button-danger {
+  min-height: 40px !important;
+  border-radius: 8px !important;
+  padding: .6rem .95rem !important;
+  font-size: .76rem !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+main .primary-action,
+main .ps-button {
+  background: #2563eb !important;
+  border: 1px solid #2563eb !important;
+  color: #ffffff !important;
+}
+
+main .primary-action:hover,
+main .ps-button:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+main .secondary-action {
+  background: #ffffff !important;
+  border: 1px solid #dbe4eb !important;
+  color: #40576e !important;
+}
+
+main .secondary-action:hover {
+  background: #f9fbfc !important;
+  border-color: #cbd7e1 !important;
+  color: #0b1f35 !important;
+}
+
+main .ps-button-green { background: #229468 !important; border: 1px solid #229468 !important; }
+main .ps-button-orange { background: #d88d17 !important; border: 1px solid #d88d17 !important; }
+main .ps-button-danger { background: #cf5558 !important; border: 1px solid #cf5558 !important; }
+
+/* Forms */
+main .toolbar-control,
+main select,
+main input:not([type='checkbox']):not([type='radio']),
+main textarea {
+  min-height: 40px !important;
+  border: 1px solid #dbe4eb !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #334b63 !important;
+  font-size: .79rem !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+main .toolbar-control:hover,
+main select:hover,
+main input:hover,
+main textarea:hover {
+  border-color: #cbd7e1 !important;
+}
+
+main .toolbar-control:focus,
+main select:focus,
+main input:focus,
+main textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12) !important;
+}
+
+main input[type='checkbox'] { accent-color: #2563eb; }
+main label { color: #536b81 !important; font-weight: 600 !important; }
+
+/* Metrics */
+main section.strong-panel:first-of-type > .grid {
+  gap: 10px !important;
+  padding: 0 18px 18px !important;
+  border-top: 1px solid var(--border) !important;
+  background: #ffffff !important;
+}
+
+main section.strong-panel:first-of-type > .grid > div,
+main .ps-stat-card {
+  min-height: 88px !important;
+  padding: .9rem 1rem !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: var(--foreground) !important;
+  box-shadow: none !important;
+}
+
+main section.strong-panel:first-of-type > .grid > div p:first-child {
+  color: #71869a !important;
+  font-size: .69rem !important;
+  font-weight: 600 !important;
+}
+
+main section.strong-panel:first-of-type > .grid > div p:nth-child(2) {
+  color: var(--foreground) !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+}
+
+/* Tables */
+main table {
+  border: 1px solid var(--border) !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+main thead,
+main .ps-competitor-table thead,
+main .ps-competitor-table thead tr {
+  background: #f9fbfc !important;
+}
+
+main th,
+main .ps-competitor-table th {
+  color: #60778c !important;
+  font-size: .7rem !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+main td,
+main .ps-competitor-table td {
+  color: #344d65 !important;
+  border-color: #edf1f4 !important;
+}
+
+main tbody tr:hover,
+main .ps-competitor-table tbody tr:hover {
+  background: #f8fbff !important;
+  box-shadow: inset 3px 0 0 #2563eb !important;
+}
+
+/* Chips and states */
+main .ps-chip {
+  min-height: 24px !important;
+  border-radius: 999px !important;
+  padding: 4px 9px !important;
+  font-size: .69rem !important;
+  font-weight: 600 !important;
+}
+
+main .ps-chip-blue,
+.status-info { background: #eff6ff !important; color: #1d4ed8 !important; border-color: #dbeafe !important; }
+main .ps-chip-green,
+.status-success,
+.status-good { background: #ecf8f2 !important; color: #21835d !important; border-color: #cfeadf !important; }
+main .ps-chip-amber,
+.status-warning { background: #fff6e4 !important; color: #a96a08 !important; border-color: #f2ddb1 !important; }
+main .ps-chip-red,
+.status-danger,
+.status-error { background: #fff0f0 !important; color: #c64f52 !important; border-color: #f1cfd0 !important; }
+
+/* Flow tabs */
+.ps-flow-tabs {
+  background: #f9fbfc !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 4px !important;
+}
+
+.ps-flow-tab {
+  min-height: 38px !important;
+  border-radius: 8px !important;
+  color: #60778c !important;
+  font-size: .75rem !important;
+  font-weight: 600 !important;
+}
+
+.ps-flow-tab-active {
+  background: #ffffff !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 2px 7px rgba(15,38,64,.06) !important;
+}
+
+/* PrySight keeps its own pricing semantics, but uses the Syntrx visual grammar. */
+main .ps-product-card-header { background: #ffffff !important; }
+main .ps-price-strip { gap: 10px !important; }
+main .ps-position-track { background: #e7edf3 !important; }
+main .ps-position-fill { background: #229468 !important; }
+
+@media (max-width: 1023px) {
+  .ps-workspace-topbar { border-radius: 10px !important; }
+  main { padding-top: 1rem !important; }
+}
