@@ -138,7 +138,9 @@ export async function getPricingRecommendations(
   usePersistedRules = true,
 ): Promise<{ config: PricingEngineConfig; recommendations: PricingRecommendation[] }> {
   const baseConfig: PricingEngineConfig = { ...defaultConfig, ...configOverrides }
-  const products = await prisma.product.findMany({
+  const [products, persistedRules] = await Promise.all([
+    prisma.product.findMany({
+    relationLoadStrategy: 'join',
     where: { companyId, isActive: true },
     select: {
       id: true,
@@ -172,12 +174,11 @@ export async function getPricingRecommendations(
     },
     orderBy: { name: 'asc' },
     take: Math.min(Math.max(limit, 1), 500),
-  })
-
-  const [guardrailMap, persistedRules] = await Promise.all([
-    getProductPricingGuardrails(companyId, products.map((product) => product.id)),
+  }),
     usePersistedRules ? getPersistedPricingRules(companyId) : Promise.resolve([]),
   ])
+
+  const guardrailMap = await getProductPricingGuardrails(companyId, products.map((product) => product.id))
 
   const recommendations: PricingRecommendation[] = []
 

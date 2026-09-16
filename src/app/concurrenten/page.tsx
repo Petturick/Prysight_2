@@ -6,6 +6,7 @@ import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { deriveCompetitorMetrics } from '@/lib/dashboard'
 import { formatDate, formatNumber } from '@/lib/format'
+import { profileStep } from '@/lib/performance-profile'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
@@ -31,9 +32,10 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
   const params = await searchParams
   const user = await requireAuthenticatedUser()
   const canWrite = user.role !== 'READONLY' && user.membershipRole !== 'READONLY'
-  const result = await safeDatabaseQuery(async () => {
+  const result = await profileStep('/concurrenten', 'overview', () => safeDatabaseQuery(async () => {
     const [competitors, companyCountries] = await Promise.all([
       prisma.competitor.findMany({
+        relationLoadStrategy: 'join',
         where: { companyId: user.companyId, isActive: true },
         include: {
           country: true,
@@ -42,20 +44,21 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
             include: {
               productMatch: { include: { product: true } },
               priceChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
-              priceHistory: { orderBy: { recordedAt: 'desc' }, take: 2 },
+              priceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
             },
           },
         },
         orderBy: [{ country: { name: 'asc' } }, { name: 'asc' }],
       }),
       prisma.companyCountry.findMany({
+        relationLoadStrategy: 'join',
         where: { companyId: user.companyId, isActive: true, country: { isActive: true } },
         include: { country: true },
         orderBy: { country: { name: 'asc' } },
       }),
     ])
     return { competitors, countries: companyCountries.map((item) => item.country) }
-  }, { competitors: [], countries: [] })
+  }, { competitors: [], countries: [] }), { companyId: user.companyId }, 300)
 
   const { competitors, countries } = result.data
   const added = params.toegevoegd === '1'
