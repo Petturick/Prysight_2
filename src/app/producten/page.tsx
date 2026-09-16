@@ -71,6 +71,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const result = await safeDatabaseQuery(async () => {
     const [products, totalCount, filterOptions] = await Promise.all([
       prisma.product.findMany({
+        relationLoadStrategy: 'join',
         where,
         include: {
           productGroup: true,
