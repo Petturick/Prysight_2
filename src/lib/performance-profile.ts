@@ -4,7 +4,17 @@ export async function profileStep<T>(route: string, step: string, work: () => Pr
   const startedAt = performance.now()
   try { return await work() } finally {
     const durationMs = Math.round((performance.now() - startedAt) * 10) / 10
-    const payload = { type: 'prysight_performance', route, step, durationMs, budgetMs, slow: durationMs > budgetMs, ...meta }
+    const payload = {
+      type: 'prysight_performance',
+      route,
+      step,
+      durationMs,
+      budgetMs,
+      slow: durationMs > budgetMs,
+      observedAt: new Date().toISOString(),
+      runtimeRegion: process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? null,
+      ...meta,
+    }
     if (durationMs > budgetMs) console.warn(JSON.stringify(payload))
     else if (process.env.PRYSIGHT_PERFORMANCE_LOG === '1') console.info(JSON.stringify(payload))
   }
