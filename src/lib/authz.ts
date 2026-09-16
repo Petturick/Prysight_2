@@ -62,6 +62,7 @@ const getAuthenticatedUser = cache(async () => {
   const requestedCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value || undefined
   const sessionCompanyId = session.user.companyId || undefined
   const user = await prisma.user.findUnique({
+    relationLoadStrategy: 'join',
     where: { id: session.user.id },
     select: {
       id: true, email: true, name: true, role: true, isSuperAdmin: true,
