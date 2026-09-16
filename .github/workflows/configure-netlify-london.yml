@@ -1,0 +1,76 @@
+name: Configure Netlify London region
+
+on:
+  push:
+    branches:
+      - netlify-london-region
+    paths:
+      - .github/workflows/configure-netlify-london.yml
+
+permissions:
+  contents: write
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    env:
+      SITE_ID: 1b4cbad4-7c92-429d-9731-bc94d0a977f8
+      TOKEN_PRIMARY: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      TOKEN_FALLBACK: ${{ secrets.NETLIFY_TOKEN }}
+      TOKEN_ALT: ${{ secrets.NETLIFY_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: netlify-london-region
+          fetch-depth: 0
+
+      - name: Configure London functions region and trigger production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${TOKEN_PRIMARY:-}"
+          if [ -z "$TOKEN" ]; then TOKEN="${TOKEN_FALLBACK:-}"; fi
+          if [ -z "$TOKEN" ]; then TOKEN="${TOKEN_ALT:-}"; fi
+          if [ -z "$TOKEN" ]; then
+            echo "No Netlify API token is configured in GitHub Actions secrets."
+            exit 2
+          fi
+
+          RESPONSE=$(curl --fail-with-body --silent --show-error \
+            -X PATCH \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"functions_region":"lhr"}' \
+            "https://api.netlify.com/api/v1/sites/$SITE_ID")
+
+          python - <<'PY' "$RESPONSE"
+          import json, sys
+          payload = json.loads(sys.argv[1])
+          region = payload.get('functions_region')
+          if region != 'lhr':
+              raise SystemExit(f'Netlify region update not confirmed, got {region!r}')
+          print('Netlify functions region confirmed as lhr')
+          PY
+
+          BUILD=$(curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            "https://api.netlify.com/api/v1/sites/$SITE_ID/builds?branch=main&clear_cache=false&title=PrySight%20London%20region%20redeploy")
+
+          python - <<'PY' "$BUILD"
+          import json, sys
+          payload = json.loads(sys.argv[1])
+          if not payload.get('id'):
+              raise SystemExit('Netlify build trigger did not return a build id')
+          print('Netlify production build triggered successfully')
+          PY
+
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          rm .github/workflows/configure-netlify-london.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Remove temporary Netlify region workflow"
+          git push origin HEAD:netlify-london-region
