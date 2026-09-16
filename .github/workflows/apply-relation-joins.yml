@@ -1,0 +1,90 @@
+name: Apply relation join performance patch
+
+on:
+  push:
+    branches:
+      - performance-relation-joins
+    paths:
+      - .github/workflows/apply-relation-joins.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: performance-relation-joins
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Enable database relation joins on hot product reads
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          schema = Path('prisma/schema.prisma')
+          text = schema.read_text()
+          old = '''generator client {
+            provider = "prisma-client"
+            output   = "../src/generated/prisma"
+          }'''
+          new = '''generator client {
+            provider        = "prisma-client"
+            output          = "../src/generated/prisma"
+            previewFeatures = ["relationJoins"]
+          }'''
+          if old not in text and 'previewFeatures = ["relationJoins"]' not in text:
+              raise SystemExit('Generator block not found')
+          if old in text:
+              schema.write_text(text.replace(old, new, 1))
+
+          products = Path('src/app/producten/page.tsx')
+          text = products.read_text()
+          old = '''      prisma.product.findMany({
+                  where,'''
+          new = '''      prisma.product.findMany({
+                  relationLoadStrategy: 'join',
+                  where,'''
+          if old not in text and "relationLoadStrategy: 'join'" not in text:
+              raise SystemExit('Products findMany target not found')
+          if old in text:
+              products.write_text(text.replace(old, new, 1))
+
+          detail = Path('src/app/producten/[id]/page.tsx')
+          text = detail.read_text()
+          old = '''  const productPromise = prisma.product.findFirst({
+              where:'''
+          new = '''  const productPromise = prisma.product.findFirst({
+              relationLoadStrategy: 'join',
+              where:'''
+          if old not in text:
+              old = '''  const product = await prisma.product.findFirst({
+              where:'''
+              new = '''  const product = await prisma.product.findFirst({
+              relationLoadStrategy: 'join',
+              where:'''
+          if old not in text and "relationLoadStrategy: 'join'" not in text:
+              raise SystemExit('Product detail findFirst target not found')
+          if old in text:
+              detail.write_text(text.replace(old, new, 1))
+          PY
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Commit verified performance patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prisma/schema.prisma src/app/producten/page.tsx 'src/app/producten/[id]/page.tsx'
+          git commit -m "Enable Prisma relation joins for hot product reads"
+          git push origin HEAD:performance-relation-joins
