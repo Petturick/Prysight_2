@@ -48,10 +48,10 @@ jobs:
           products = Path('src/app/producten/page.tsx')
           text = products.read_text()
           old = '''      prisma.product.findMany({
-                  where,'''
+        where,'''
           new = '''      prisma.product.findMany({
-                  relationLoadStrategy: 'join',
-                  where,'''
+        relationLoadStrategy: 'join',
+        where,'''
           if old not in text and "relationLoadStrategy: 'join'" not in text:
               raise SystemExit('Products findMany target not found')
           if old in text:
@@ -59,17 +59,11 @@ jobs:
 
           detail = Path('src/app/producten/[id]/page.tsx')
           text = detail.read_text()
-          old = '''  const productPromise = prisma.product.findFirst({
-              where:'''
-          new = '''  const productPromise = prisma.product.findFirst({
-              relationLoadStrategy: 'join',
-              where:'''
-          if old not in text:
-              old = '''  const product = await prisma.product.findFirst({
-              where:'''
-              new = '''  const product = await prisma.product.findFirst({
-              relationLoadStrategy: 'join',
-              where:'''
+          old = '''    prisma.product.findFirst({
+      where: { id, companyId: user.companyId },'''
+          new = '''    prisma.product.findFirst({
+      relationLoadStrategy: 'join',
+      where: { id, companyId: user.companyId },'''
           if old not in text and "relationLoadStrategy: 'join'" not in text:
               raise SystemExit('Product detail findFirst target not found')
           if old in text:
