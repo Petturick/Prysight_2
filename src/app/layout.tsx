@@ -3,10 +3,10 @@ import { auth } from '@/auth'
 import { AppShell } from '@/components/AppShell'
 import './globals.css'
 import './prysight-theme.css'
-import './syntrx-exact.css'
+import './prysight-modern.css'
 
 export const metadata: Metadata = {
-  title: 'Prysight pricing intelligence',
+  title: 'PrySight pricing intelligence',
   description: 'Prijsmonitoring, concurrentie intelligence en prijsadvies vanuit één duidelijke workflow.',
 }
 

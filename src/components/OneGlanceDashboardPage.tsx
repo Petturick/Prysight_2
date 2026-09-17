@@ -10,9 +10,45 @@ export const dynamic = 'force-dynamic'
 function readParam(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value }
 const emptySnapshot: DashboardSnapshot = { filterOptions: { countries: [], productGroups: [], competitors: [] }, metrics: [], kpis: { monitoredProducts: 0, activeOffers: 0, validMatches: 0, reviewMatches: 0, withoutCompetitorPrice: 0, engelsLowest: 0, engelsHigher: 0, averagePriceIndex: null, failedChecks: 0, staleData: 0 }, biggestIncreases: [], biggestDecreases: [], failedChecks: [], staleOffers: [] }
 
-function KpiCard({ label, value, helper, href, tone }: { label: string; value: string; helper: string; href: string; tone: 'red'|'amber'|'green'|'blue' }) {
-  const colors = { red: ['#ee6769','#fff0f0'], amber: ['#f2a51a','#fff6e4'], green: ['#29a56f','#ecf8f2'], blue: ['#4f86e8','#edf4ff'] }[tone]
-  return <Link href={href} prefetch className="relative overflow-hidden rounded-[10px] border border-[#e2e7ee] bg-white p-5 pl-6 shadow-[0_2px_8px_rgba(31,49,77,.04)] transition hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(31,49,77,.065)]"><span className="absolute inset-y-0 left-0 w-[3px]" style={{background:colors[0]}}/><div className="flex items-start gap-4"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[9px] text-[20px] font-bold" style={{background:colors[1],color:colors[0]}}>•</div><div className="min-w-0 flex-1"><p className="text-[11px] font-semibold text-[#2d3b51]">{label}</p><p className="mt-1 text-[29px] font-bold tracking-[-.04em] text-[#17233a]">{value}</p><p className="mt-1 text-[10px] text-[#7b889a]">{helper}</p><span className="mt-3 inline-flex text-[10px] font-semibold text-[#3977db]">Bekijk overzicht →</span></div></div></Link>
+type KpiTone = 'red'|'amber'|'green'|'blue'
+
+function MetricIcon({ tone }: { tone: KpiTone }) {
+  const common = 'h-[18px] w-[18px]'
+  if (tone === 'red') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 17 10 12l4 4 5-7"/><path d="M15 9h4v4"/></svg>
+  if (tone === 'amber') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16h.01"/></svg>
+  if (tone === 'green') return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2L15.8 9"/></svg>
+  return <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 7h14M5 12h14M5 17h9"/><path d="m17 15 2 2 3-4"/></svg>
+}
+
+function KpiCard({ label, value, helper, href, tone }: { label: string; value: string; helper: string; href: string; tone: KpiTone }) {
+  const colors = {
+    red: { text:'#b94d53', soft:'#fff2f2', ring:'#f5d9db' },
+    amber: { text:'#a9640d', soft:'#fff8ea', ring:'#f3e1bb' },
+    green: { text:'#16785a', soft:'#edf8f3', ring:'#d6ede3' },
+    blue: { text:'#2f65c7', soft:'#eff4ff', ring:'#dce7fb' },
+  }[tone]
+
+  return <Link href={href} prefetch className="group relative min-h-[148px] overflow-hidden rounded-[16px] border border-[#e7ebf0] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,.02),0_8px_22px_rgba(16,24,40,.035)] transition-all hover:-translate-y-px hover:border-[#dce3eb] hover:shadow-[0_2px_4px_rgba(16,24,40,.025),0_14px_28px_rgba(16,24,40,.055)]">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-[12px] font-semibold tracking-[-0.01em] text-[#526071]">{label}</p>
+        <p className="mt-3 text-[30px] font-semibold leading-none tracking-[-0.05em] text-[#172033]">{value}</p>
+      </div>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ring-1" style={{background:colors.soft,color:colors.text,boxShadow:`inset 0 0 0 1px ${colors.ring}`}}><MetricIcon tone={tone}/></div>
+    </div>
+    <div className="mt-4 flex items-end justify-between gap-3">
+      <p className="max-w-[220px] text-[11px] leading-4 text-[#8a94a4]">{helper}</p>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f5f7fa] text-[#667085] transition-colors group-hover:bg-[#172033] group-hover:text-white"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </div>
+  </Link>
+}
+
+function EmptyChart() {
+  return <div className="flex h-[238px] flex-col items-center justify-center rounded-[13px] border border-dashed border-[#dce3ea] bg-[#fafbfc] px-6 text-center">
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f1f4f8] text-[#8793a4]"><svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg></div>
+    <p className="mt-3 text-[12px] font-semibold text-[#475467]">Nog geen prijsbewegingen</p>
+    <p className="mt-1 max-w-[310px] text-[11px] leading-4 text-[#98a2b3]">Zodra prijschecks beschikbaar zijn verschijnen de marktbewegingen hier automatisch.</p>
+  </div>
 }
 
 export default async function OneGlanceDashboardPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
@@ -34,21 +70,71 @@ export default async function OneGlanceDashboardPage({ searchParams }: { searchP
   const greeting = now.getHours() < 12 ? 'Goedemorgen' : now.getHours() < 18 ? 'Goedemiddag' : 'Goedenavond'
   const dateLabel = new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now)
   const attentionRows = movements.slice(0,5)
-  const maxMove = Math.max(...movements.map(m=>Math.abs(m.latestPrice)),1)
+  const maxMove = Math.max(...movements.map(m=>Math.max(Math.abs(m.latestPrice),Math.abs(m.previousPrice))),1)
 
   return <div className="space-y-5">
-    {!databaseAvailable && <div className="rounded-[9px] border border-[#f1cfd0] bg-[#fff0f0] p-4 text-[12px] font-semibold text-[#c64f52]">Databaseverbinding mislukt. Prysight toont bewust geen vervangende data.</div>}
+    {!databaseAvailable && <div className="rounded-[12px] border border-[#efc9cc] bg-[#fff4f4] p-4 text-[12px] font-semibold text-[#b5474c]">Databaseverbinding mislukt. PrySight toont bewust geen vervangende data.</div>}
 
-    <section className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><h1 className="text-[30px] font-bold tracking-[-.04em] text-[#17233a]">{greeting}, {actor.name || 'Prysight gebruiker'}</h1><p className="mt-1 text-[12px] text-[#718096]">Hier is het actuele overzicht van je prijspositie en marktontwikkelingen{selectedCountryName ? ` voor ${selectedCountryName}` : ''}.</p></div><div className="flex flex-wrap items-center gap-3"><div className="rounded-[9px] border border-[#e2e7ee] bg-white px-4 py-3 shadow-[0_2px_8px_rgba(31,49,77,.035)]"><p className="text-[10px] font-semibold capitalize text-[#2f3d53]">{dateLabel}</p><p className="mt-1 text-[9px] text-[#8b98aa]">Actuele monitoringdata</p></div><form className="flex gap-2"><select name="land" defaultValue={filters.countryId} className="toolbar-control min-w-[165px]"><option value="">Alle landen</option>{snapshot.filterOptions.countries.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><button className="primary-action">Toepassen</button></form></div></section>
+    <section className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-medium capitalize text-[#98a2b3]"><span className="h-1.5 w-1.5 rounded-full bg-[#72a2ff]" />{dateLabel}</div>
+        <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#172033]">{greeting}, {actor.name || 'PrySight gebruiker'}</h1>
+        <p className="mt-2 max-w-[650px] text-[13px] leading-5 text-[#7a8699]">Hier zie je wat vandaag aandacht vraagt in je prijspositie en marktmonitoring{selectedCountryName ? ` voor ${selectedCountryName}` : ''}.</p>
+      </div>
+      <form className="flex flex-wrap items-center gap-2 rounded-[13px] border border-[#e7ebf0] bg-white p-1.5 shadow-[0_1px_2px_rgba(16,24,40,.02)]">
+        <select name="land" defaultValue={filters.countryId} className="toolbar-control min-w-[180px] border-0 bg-transparent shadow-none"><option value="">Alle landen</option>{snapshot.filterOptions.countries.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <button className="primary-action min-h-[38px]">Toepassen</button>
+      </form>
+    </section>
 
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><KpiCard label="Producten te duur" value={formatNumber(snapshot.kpis.engelsHigher)} helper="Staan boven de gemeten marktprijs" href="/producten" tone="red" /><KpiCard label="Ontbrekende prijsdata" value={formatNumber(snapshot.kpis.withoutCompetitorPrice)} helper="Geen actuele concurrentieprijs" href="/producten" tone="amber" /><KpiCard label="Monitoring gezond" value={`${coverage}%`} helper="Bevestigde prijsdekking" href="/monitoring" tone="green" /><KpiCard label="Acties vandaag" value={formatNumber(snapshot.kpis.reviewMatches + snapshot.kpis.failedChecks)} helper="Matches en controles vragen aandacht" href="/waarschuwingen" tone="blue" /></section>
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <KpiCard label="Producten te duur" value={formatNumber(snapshot.kpis.engelsHigher)} helper="Staan boven de gemeten marktprijs" href="/producten" tone="red" />
+      <KpiCard label="Ontbrekende prijsdata" value={formatNumber(snapshot.kpis.withoutCompetitorPrice)} helper="Geen actuele concurrentieprijs beschikbaar" href="/producten" tone="amber" />
+      <KpiCard label="Monitoring gezond" value={`${coverage}%`} helper="Van de producten heeft bevestigde prijsdekking" href="/monitoring" tone="green" />
+      <KpiCard label="Acties vandaag" value={formatNumber(snapshot.kpis.reviewMatches + snapshot.kpis.failedChecks)} helper="Matches en controles vragen aandacht" href="/waarschuwingen" tone="blue" />
+    </section>
 
-    <section className="grid gap-4 xl:grid-cols-[1.6fr_.9fr]"><div className="surface-card p-5"><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-[#24344d]">Prijspositie t.o.v. concurrenten</h2><div className="flex gap-4 text-[9px] text-[#718096]"><span className="text-[#2f6dbb]">● Eigen / laatste prijs</span><span className="text-[#aeb8c7]">● Vorige prijs</span></div></div><div className="mt-6 flex h-[210px] items-end gap-5 border-b border-l border-[#e9edf3] px-5">{(movements.length ? movements : [{productName:'Geen data',competitor:'',previousPrice:0,latestPrice:0,delta:0}]).map((m,i)=>{ const latest=Math.max(Math.abs(m.latestPrice),1); const previous=Math.max(Math.abs(m.previousPrice),1); return <div key={`${m.productName}-${i}`} className="flex min-w-0 flex-1 items-end justify-center gap-1.5"><div className="w-[38%] rounded-t-[2px] bg-[#2f6dbb]" style={{height:`${Math.max(20,latest/maxMove*165)}px`}}/><div className="w-[38%] rounded-t-[2px] bg-[#d5ddea]" style={{height:`${Math.max(14,previous/maxMove*165)}px`}}/></div>})}</div><div className="mt-2 grid text-center text-[9px] text-[#8090a4]" style={{gridTemplateColumns:`repeat(${Math.max(movements.length,1)},minmax(0,1fr))`}}>{(movements.length ? movements : [{productName:'Geen data'}]).map((m,i)=><span key={i} className="truncate px-1">{m.productName}</span>)}</div></div>
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,.72fr)]">
+      <div className="surface-card p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="text-[16px] font-semibold text-[#25324a]">Prijspositie ten opzichte van concurrenten</h2><p className="mt-1 text-[11px] text-[#98a2b3]">Laatste gemeten prijs afgezet tegen de vorige meting</p></div>
+          <div className="flex items-center gap-4 rounded-full bg-[#f7f9fb] px-3 py-2 text-[10px] font-medium text-[#7a8699]"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#4777cf]" />Laatste prijs</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#cfd7e3]" />Vorige prijs</span></div>
+        </div>
+        <div className="mt-5">
+          {movements.length ? <>
+            <div className="flex h-[238px] items-end gap-5 rounded-[13px] border border-[#edf0f3] bg-[#fafbfc] px-5 pb-0 pt-5" style={{backgroundImage:'linear-gradient(to top, rgba(226,232,240,.55) 1px, transparent 1px)',backgroundSize:'100% 48px'}}>
+              {movements.map((m,i)=>{ const latest=Math.max(Math.abs(m.latestPrice),1); const previous=Math.max(Math.abs(m.previousPrice),1); return <div key={`${m.productName}-${i}`} className="flex min-w-0 flex-1 items-end justify-center gap-1.5"><div className="w-[34%] rounded-t-[5px] bg-[#4777cf] shadow-[0_1px_2px_rgba(47,101,199,.12)]" style={{height:`${Math.max(22,latest/maxMove*185)}px`}}/><div className="w-[34%] rounded-t-[5px] bg-[#d7dee8]" style={{height:`${Math.max(16,previous/maxMove*185)}px`}}/></div>})}
+            </div>
+            <div className="mt-2 grid text-center text-[10px] text-[#8a94a4]" style={{gridTemplateColumns:`repeat(${movements.length},minmax(0,1fr))`}}>{movements.map((m,i)=><span key={i} className="truncate px-1">{m.productName}</span>)}</div>
+          </> : <EmptyChart />}
+        </div>
+      </div>
 
-      <div className="surface-card p-5"><h2 className="text-[15px] font-semibold text-[#24344d]">Prijsverdeling producten</h2><div className="mt-6 flex items-center gap-6"><div className="relative h-[150px] w-[150px] shrink-0 rounded-full" style={{background:`conic-gradient(#29a56f 0 ${lowPct}%, #ee6769 ${lowPct}% ${lowPct+highPct}%, #f2a51a ${lowPct+highPct}% 100%)`}}><div className="absolute inset-[27px] flex flex-col items-center justify-center rounded-full bg-white"><span className="text-[22px] font-bold text-[#17233a]">{formatNumber(snapshot.kpis.monitoredProducts)}</span><span className="text-[9px] text-[#7c899b]">producten</span></div></div><div className="space-y-3 text-[10px] text-[#44546a]"><p><span className="mr-2 text-[#29a56f]">●</span>Onder / gelijk markt <b className="float-right ml-5">{lowPct}%</b></p><p><span className="mr-2 text-[#ee6769]">●</span>Boven markt <b className="float-right ml-5">{highPct}%</b></p><p><span className="mr-2 text-[#f2a51a]">●</span>Geen prijsdata <b className="float-right ml-5">{missingPct}%</b></p></div></div></div></section>
+      <div className="surface-card p-5 sm:p-6">
+        <div><h2 className="text-[16px] font-semibold text-[#25324a]">Prijsverdeling</h2><p className="mt-1 text-[11px] text-[#98a2b3]">Verdeling van de gemonitorde producten</p></div>
+        <div className="mt-7 flex flex-col items-center">
+          <div className="relative h-[164px] w-[164px] rounded-full shadow-[inset_0_0_0_1px_rgba(16,24,40,.025)]" style={{background:`conic-gradient(#2a9b73 0 ${lowPct}%, #c95c61 ${lowPct}% ${lowPct+highPct}%, #dfa13d ${lowPct+highPct}% 100%)`}}>
+            <div className="absolute inset-[29px] flex flex-col items-center justify-center rounded-full bg-white shadow-[0_1px_4px_rgba(16,24,40,.035)]"><span className="text-[25px] font-semibold leading-none tracking-[-0.04em] text-[#172033]">{formatNumber(snapshot.kpis.monitoredProducts)}</span><span className="mt-1 text-[10px] text-[#98a2b3]">producten</span></div>
+          </div>
+          <div className="mt-7 w-full space-y-3 text-[11px] text-[#526071]">
+            <div className="flex items-center justify-between"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-[#2a9b73]" />Onder of gelijk aan markt</span><strong className="font-semibold text-[#344054]">{lowPct}%</strong></div>
+            <div className="flex items-center justify-between"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-[#c95c61]" />Boven markt</span><strong className="font-semibold text-[#344054]">{highPct}%</strong></div>
+            <div className="flex items-center justify-between"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-[#dfa13d]" />Geen prijsdata</span><strong className="font-semibold text-[#344054]">{missingPct}%</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <section className="grid gap-4 xl:grid-cols-[1.6fr_.9fr]"><div className="surface-card overflow-hidden"><div className="flex items-center justify-between px-5 py-4"><h2 className="text-[15px] font-semibold text-[#24344d]">Producten die direct aandacht nodig hebben</h2><Link href="/producten" className="text-[10px] font-semibold text-[#3977db]">Bekijk alle →</Link></div><div className="overflow-x-auto"><table className="min-w-full border-0 rounded-none"><thead><tr><th className="px-5 py-3 text-left">Product</th><th className="px-4 py-3 text-left">Concurrent</th><th className="px-4 py-3 text-right">Vorige prijs</th><th className="px-4 py-3 text-right">Laatste prijs</th><th className="px-5 py-3 text-right">Verschil</th></tr></thead><tbody>{attentionRows.length ? attentionRows.map((m,i)=><tr key={i}><td className="px-5 py-3.5 font-semibold text-[#2e3e55]">{m.productName}</td><td className="px-4 py-3.5 text-[#718096]">{m.competitor}</td><td className="px-4 py-3.5 text-right">{formatCurrency(m.previousPrice)}</td><td className="px-4 py-3.5 text-right">{formatCurrency(m.latestPrice)}</td><td className={`px-5 py-3.5 text-right font-semibold ${m.delta>0?'text-[#ee6769]':'text-[#29a56f]'}`}>{m.delta>0?'+':''}{formatCurrency(m.delta)}</td></tr>) : <tr><td colSpan={5} className="px-5 py-12 text-center text-[11px] text-[#8491a2]">Nog geen prijsbewegingen beschikbaar.</td></tr>}</tbody></table></div></div>
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,.72fr)]">
+      <div className="surface-card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 sm:px-6"><div><h2 className="text-[15px] font-semibold text-[#25324a]">Producten die aandacht nodig hebben</h2><p className="mt-1 text-[10px] text-[#98a2b3]">Grootste recente prijsbewegingen</p></div><Link href="/producten" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#416bbd] hover:text-[#2f5aa8]">Bekijk alles <span>→</span></Link></div>
+        <div className="overflow-x-auto border-t border-[#edf0f3]"><table className="min-w-full"><thead><tr><th className="px-5 py-3 text-left sm:px-6">Product</th><th className="px-4 py-3 text-left">Concurrent</th><th className="px-4 py-3 text-right">Vorige prijs</th><th className="px-4 py-3 text-right">Laatste prijs</th><th className="px-5 py-3 text-right sm:px-6">Verschil</th></tr></thead><tbody>{attentionRows.length ? attentionRows.map((m,i)=><tr key={i}><td className="px-5 py-3.5 font-semibold text-[#344054] sm:px-6">{m.productName}</td><td className="px-4 py-3.5 text-[#7a8699]">{m.competitor}</td><td className="px-4 py-3.5 text-right text-[#667085]">{formatCurrency(m.previousPrice)}</td><td className="px-4 py-3.5 text-right font-medium text-[#344054]">{formatCurrency(m.latestPrice)}</td><td className={`px-5 py-3.5 text-right font-semibold sm:px-6 ${m.delta>0?'text-[#b94d53]':'text-[#16785a]'}`}>{m.delta>0?'+':''}{formatCurrency(m.delta)}</td></tr>) : <tr><td colSpan={5} className="px-5 py-12 text-center text-[11px] text-[#98a2b3]">Nog geen prijsbewegingen beschikbaar.</td></tr>}</tbody></table></div>
+      </div>
 
-      <div className="surface-card p-5"><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-[#24344d]">Recente prijswijzigingen</h2><Link href="/producten" className="text-[10px] font-semibold text-[#3977db]">Bekijk alle →</Link></div><div className="mt-3 divide-y divide-[#edf0f4]">{movements.slice(0,5).map((m,i)=><div key={i} className="flex items-center gap-3 py-3"><div className={`flex h-7 w-7 items-center justify-center rounded-full ${m.delta>0?'bg-[#fff0f0] text-[#ee6769]':'bg-[#ecf8f2] text-[#29a56f]'}`}>{m.delta>0?'↑':'↓'}</div><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-semibold text-[#2f3e54]">{m.productName}</p><p className="truncate text-[9px] text-[#8794a6]">{m.competitor}</p></div><p className="text-[10px] font-semibold text-[#2f3e54]">{formatCurrency(m.previousPrice)} → {formatCurrency(m.latestPrice)}</p></div>)}</div></div></section>
+      <div className="surface-card p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-[15px] font-semibold text-[#25324a]">Recente prijswijzigingen</h2><p className="mt-1 text-[10px] text-[#98a2b3]">Laatste bewegingen in de markt</p></div><Link href="/producten" className="text-[11px] font-semibold text-[#416bbd] hover:text-[#2f5aa8]">Bekijk alles →</Link></div>
+        {movements.length ? <div className="mt-4 divide-y divide-[#eef1f4]">{movements.slice(0,5).map((m,i)=><div key={i} className="flex items-center gap-3 py-3.5"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${m.delta>0?'bg-[#fff1f1] text-[#b94d53]':'bg-[#edf8f3] text-[#16785a]'}`}>{m.delta>0?'↑':'↓'}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#344054]">{m.productName}</p><p className="mt-0.5 truncate text-[10px] text-[#98a2b3]">{m.competitor}</p></div><p className="text-right text-[10px] font-semibold text-[#475467]"><span className="block text-[#98a2b3]">{formatCurrency(m.previousPrice)}</span>{formatCurrency(m.latestPrice)}</p></div>)}</div> : <div className="mt-5 flex min-h-[190px] flex-col items-center justify-center rounded-[12px] bg-[#fafbfc] px-5 text-center"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f4f8] text-[#8793a4]">↕</div><p className="mt-3 text-[11px] font-semibold text-[#667085]">Nog geen wijzigingen</p><p className="mt-1 text-[10px] leading-4 text-[#98a2b3]">Nieuwe prijsbewegingen verschijnen hier na de eerstvolgende metingen.</p></div>}
+      </div>
+    </section>
   </div>
 }
