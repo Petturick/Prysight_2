@@ -34,7 +34,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const crawlStatus = readParam(params.crawlstatus)
   const crawlResult = readParam(params.crawl)
   const crawlSources = Math.max(Number(readParam(params.bronnen) ?? '0') || 0, 0)
-  const crawlProducts = Math.max(Number(readParam(params.producten) ?? '0') || 0, 0)
   const crawlProduct = readParam(params.crawlproduct)
   const openProduct = readParam(params.openproduct)
   const crawlLimited = readParam(params.limiet) === '1'
@@ -130,7 +129,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           {openProduct ? <Link href={`/producten/${openProduct}#concurrent-bron-toevoegen`} className="secondary-action min-h-0 shrink-0 px-3 py-2 text-[11px]">Concurrent koppelen</Link> : null}
         </div>
       ) : null}
-      {crawlStatus === 'geen-bronnen-selectie' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">De geselecteerde producten hebben nog geen gekoppelde concurrentbronnen. Koppel eerst product URL's en haal daarna de prijzen op.</div> : null}
+      {crawlStatus === 'geen-bronnen-selectie' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">De geselecteerde producten hebben nog geen gekoppelde concurrentbronnen. Koppel eerst product URLs en haal daarna de prijzen op.</div> : null}
       {crawlStatus === 'mislukt' ? <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff2f3] px-4 py-3 text-[12px] font-semibold text-[#9c3442]">De prijscontrole kon niet worden afgerond{crawlProduct ? ` voor artikel ${crawlProduct}` : ''}. Er is niets aangepast. Probeer opnieuw, blijft dit terugkomen, controleer dan de gekoppelde bron URL op het product.</div> : null}
       {crawlStatus === 'klaar' && crawlResult ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#1e7448]">Prijscontrole klaar{crawlProduct ? ` voor artikel ${crawlProduct}` : ''}, {formatNumber(crawlSources)} bron{crawlSources === 1 ? '' : 'nen'} gecontroleerd, resultaat {crawlResult}.{crawlLimited ? ' De batchlimiet is bereikt, voer de resterende selectie nogmaals uit.' : ''}</div> : null}
 
