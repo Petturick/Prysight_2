@@ -87,6 +87,38 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const failedLatestChecks = confirmedMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
   const lowestMatch = pricedMatches[0] ?? null
   const highestMatch = pricedMatches[pricedMatches.length - 1] ?? null
+  const cheaperCompetitors = ownPrice === null ? 0 : pricedMatches.filter((match) => Number(match.competitorOffer.normalizedPrice) < ownPrice).length
+  const moreExpensiveCompetitors = ownPrice === null ? 0 : pricedMatches.filter((match) => Number(match.competitorOffer.normalizedPrice) > ownPrice).length
+  const equalCompetitors = ownPrice === null ? 0 : pricedMatches.filter((match) => Number(match.competitorOffer.normalizedPrice) === ownPrice).length
+  const ownRank = ownPrice === null || pricedMatches.length === 0 ? null : cheaperCompetitors + 1
+  const closestMatch = ownPrice === null || pricedMatches.length === 0
+    ? null
+    : [...pricedMatches].sort((a, b) => Math.abs(Number(a.competitorOffer.normalizedPrice) - ownPrice) - Math.abs(Number(b.competitorOffer.normalizedPrice) - ownPrice))[0]
+  const closestPrice = closestMatch ? Number(closestMatch.competitorOffer.normalizedPrice) : null
+  const closestDifferencePct = ownPrice !== null && closestPrice !== null && ownPrice > 0 ? ((closestPrice - ownPrice) / ownPrice) * 100 : null
+  const measurementQuality = confirmedMatches.length >= 3 && staleSources === 0 && failedLatestChecks === 0
+    ? 'Sterk'
+    : confirmedMatches.length >= 2 && failedLatestChecks === 0
+      ? 'Redelijk'
+      : 'Beperkt'
+  const positionTitle = ownPrice === null
+    ? 'Eigen prijs ontbreekt'
+    : pricedMatches.length === 0
+      ? 'Nog geen bruikbare marktprijs'
+      : cheaperCompetitors === 0
+        ? 'Je staat momenteel onderaan de marktprijs'
+        : moreExpensiveCompetitors === 0
+          ? 'Je staat momenteel bovenaan de marktprijs'
+          : `Je staat op positie ${ownRank} van ${pricedMatches.length + 1}`
+  const positionExplanation = ownPrice === null
+    ? 'Voeg eerst een eigen verkoopprijs toe. Zonder eigen prijs kan PrySight de marktpositie niet betrouwbaar duiden.'
+    : pricedMatches.length === 0
+      ? 'Er zijn nog geen bevestigde concurrentbronnen met een betrouwbare prijs. Haal prijzen op of voeg eerst een geldige bron toe.'
+      : cheaperCompetitors === 0
+        ? `Geen van de ${pricedMatches.length} gemeten concurrenten is goedkoper. De eerstvolgende marktprijs ligt bij ${lowestMatch?.competitorOffer.competitor.name ?? 'de markt'} op ${formatCurrency(lowestPrice)}.`
+        : moreExpensiveCompetitors === 0
+          ? `Alle ${pricedMatches.length} gemeten concurrenten liggen onder jouw prijs. De goedkoopste bron is ${lowestMatch?.competitorOffer.competitor.name ?? 'de markt'} op ${formatCurrency(lowestPrice)}.`
+          : `${cheaperCompetitors} concurrent${cheaperCompetitors === 1 ? '' : 'en'} liggen lager en ${moreExpensiveCompetitors} hoger dan jouw prijs. Daardoor zit je midden in de gemeten markt in plaats van aan één van de uiteinden.`
 
   const controlMessage = readParam(query.controle)
   const discovered = Number(readParam(query.suggesties) ?? '0') || 0
@@ -131,6 +163,31 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <div className="px-5 py-4"><p className="text-[9px] font-black uppercase tracking-[0.08em] text-[#697386]">Hoogste markt</p><p className="mt-1 text-[22px] font-black text-[#202536]">{formatCurrency(highestPrice)}</p><p className="mt-1 truncate text-[9px] font-semibold text-[#7e8b9b]">{highestMatch?.competitorOffer.competitor.name ?? 'Geen prijsbron'}</p></div>
           <div className="px-5 py-4"><p className="text-[9px] font-black uppercase tracking-[0.08em] text-[#697386]">Vs. laagste</p><p className={`mt-1 text-[22px] font-black ${difference !== null && difference > 0 ? 'text-[#b6414d]' : difference !== null && difference < 0 ? 'text-[#20814d]' : 'text-[#202536]'}`}>{differencePct === null ? '—' : `${differencePct > 0 ? '+' : ''}${formatNumber(differencePct, 1)}%`}</p></div>
           <div className="px-5 py-4"><p className="text-[9px] font-black uppercase tracking-[0.08em] text-[#697386]">Laatste crawl</p><p className="mt-1 text-[15px] font-black text-[#202536]">{latestCheck ? formatDate(latestCheck) : 'Nog niet gemeten'}</p><p className="mt-1 text-[9px] font-semibold text-[#7e8b9b]">{confirmedMatches.length} bevestigde bron{confirmedMatches.length === 1 ? '' : 'nen'}</p></div>
+        </div>
+      </section>
+
+      <section className="ps-panel overflow-hidden">
+        <div className="grid gap-5 px-5 py-5 lg:grid-cols-[1.25fr_0.75fr] lg:px-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="eyebrow">Directe duiding</p>
+              <span className={`ps-chip ${measurementQuality === 'Sterk' ? 'ps-chip-green' : measurementQuality === 'Redelijk' ? 'ps-chip-amber' : 'ps-chip-red'}`}>Datakwaliteit {measurementQuality.toLowerCase()}</span>
+            </div>
+            <h2 className="mt-2 text-[21px] font-black tracking-[-0.025em] text-[#1f3248]">{positionTitle}</h2>
+            <p className="mt-2 max-w-3xl text-[11px] font-semibold leading-5 text-[#68798b]">{positionExplanation}</p>
+            {(staleSources > 0 || failedLatestChecks > 0) ? <div className="mt-4 rounded-[11px] border border-[#ead6a6] bg-[#fff8e9] px-3.5 py-3 text-[10px] font-bold leading-5 text-[#865f19]">Gebruik deze marktpositie niet als definitieve commerciële conclusie voordat de verouderde of mislukte bronnen opnieuw zijn opgehaald.</div> : null}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-[12px] bg-[#f4f7fa] p-3"><p className="text-[8px] font-black uppercase tracking-[.07em] text-[#8190a1]">Jouw rang</p><p className="mt-1 text-[18px] font-black text-[#24384f]">{ownRank === null ? '—' : `${ownRank} / ${pricedMatches.length + 1}`}</p></div>
+            <div className="rounded-[12px] bg-[#f4f7fa] p-3"><p className="text-[8px] font-black uppercase tracking-[.07em] text-[#8190a1]">Goedkoper dan jij</p><p className="mt-1 text-[18px] font-black text-[#24384f]">{pricedMatches.length ? cheaperCompetitors : '—'}</p></div>
+            <div className="rounded-[12px] bg-[#f4f7fa] p-3"><p className="text-[8px] font-black uppercase tracking-[.07em] text-[#8190a1]">Duurder dan jij</p><p className="mt-1 text-[18px] font-black text-[#24384f]">{pricedMatches.length ? moreExpensiveCompetitors : '—'}</p></div>
+            <div className="rounded-[12px] bg-[#f4f7fa] p-3"><p className="text-[8px] font-black uppercase tracking-[.07em] text-[#8190a1]">Gelijk geprijsd</p><p className="mt-1 text-[18px] font-black text-[#24384f]">{pricedMatches.length ? equalCompetitors : '—'}</p></div>
+          </div>
+        </div>
+        <div className="grid border-t border-[#e7edf3] md:grid-cols-[1fr_1fr_auto]">
+          <div className="px-5 py-4"><p className="text-[9px] font-black uppercase tracking-[.07em] text-[#8190a1]">Dichtstbijzijnde concurrent</p><p className="mt-1 text-[12px] font-black text-[#24384f]">{closestMatch?.competitorOffer.competitor.name ?? '—'}</p><p className="mt-1 text-[9px] font-semibold text-[#7d8b9a]">{closestPrice === null ? 'Geen vergelijkbare prijs' : `${formatCurrency(closestPrice)} · ${closestDifferencePct === null ? '—' : `${closestDifferencePct > 0 ? '+' : ''}${formatNumber(closestDifferencePct, 1)}% vs. eigen`}`}</p></div>
+          <div className="px-5 py-4"><p className="text-[9px] font-black uppercase tracking-[.07em] text-[#8190a1]">Tegen marktgemiddelde</p><p className={`mt-1 text-[12px] font-black ${averageDifferencePct !== null && averageDifferencePct > 0 ? 'text-[#b6414d]' : averageDifferencePct !== null && averageDifferencePct < 0 ? 'text-[#20814d]' : 'text-[#24384f]'}`}>{averageDifferencePct === null ? '—' : `${averageDifferencePct > 0 ? '+' : ''}${formatNumber(averageDifferencePct, 1)}%`}</p><p className="mt-1 text-[9px] font-semibold text-[#7d8b9a]">Gebaseerd op {pricedMatches.length} gemeten concurrent{pricedMatches.length === 1 ? '' : 'en'}</p></div>
+          <div className="flex items-center gap-2 px-5 py-4 md:justify-end"><Link href="/prijsregels" className="secondary-action min-h-[38px] px-3 py-2 text-[9px]">Prijsregels</Link><Link href="/prijsstrategie" className="primary-action min-h-[38px] px-3 py-2 text-[9px]">Prijsstrategie</Link></div>
         </div>
       </section>
 
