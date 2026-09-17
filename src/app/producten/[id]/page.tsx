@@ -21,6 +21,11 @@ function numberValue(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null
 }
 
+function isStalePriceSource(value: Date | null | undefined, hours = 72) {
+  if (!value) return true
+  return Date.now() - value.getTime() > hours * 60 * 60 * 1000
+}
+
 function AnalyticsFallback({ label }: { label: string }) {
   return (
     <section className="surface-card p-5" aria-busy="true">
@@ -78,8 +83,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const difference = ownPrice !== null && lowestPrice !== null ? ownPrice - lowestPrice : null
   const differencePct = ownPrice !== null && lowestPrice !== null && lowestPrice > 0 ? ((ownPrice - lowestPrice) / lowestPrice) * 100 : null
   const averageDifferencePct = ownPrice !== null && averagePrice !== null && averagePrice > 0 ? ((ownPrice - averagePrice) / averagePrice) * 100 : null
-  const staleThreshold = Date.now() - 72 * 60 * 60 * 1000
-  const staleSources = confirmedMatches.filter((match) => !match.competitorOffer.lastCheckedAt || match.competitorOffer.lastCheckedAt.getTime() < staleThreshold).length
+  const staleSources = confirmedMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = confirmedMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
   const lowestMatch = pricedMatches[0] ?? null
   const highestMatch = pricedMatches[pricedMatches.length - 1] ?? null
