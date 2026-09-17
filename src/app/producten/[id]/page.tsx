@@ -105,7 +105,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const averageDifferencePct = ownPrice !== null && averagePrice !== null && averagePrice > 0 ? ((ownPrice - averagePrice) / averagePrice) * 100 : null
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
-  const lowestMatch = pricedMatches[0] ?? null
   const measurementQuality = confirmedMatches.length >= 3 && staleSources === 0 && failedLatestChecks === 0
     ? 'Sterk'
     : confirmedMatches.length >= 2 && failedLatestChecks === 0
@@ -296,7 +295,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-[#253149]">Concurrenten automatisch vinden</h2>
-            <p className="mt-1 text-[11px] text-[#6f7d8f]">Gebruik EAN om mogelijke product URL's te vinden. Suggesties worden eerst beoordeeld.</p>
+            <p className="mt-1 text-[11px] text-[#6f7d8f]">Gebruik EAN om mogelijke product URLs te vinden. Suggesties worden eerst beoordeeld.</p>
           </div>
           {product.ean && defaultCountry ? (
             <form action={discoverCompetitorUrlsAction} className="flex shrink-0 flex-wrap items-center gap-2">
