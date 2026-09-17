@@ -36,6 +36,27 @@ body {
   background: var(--background) !important;
 }
 
+/* Keep the global header action legible independently of page-level button styles. */
+.app-header-primary-action,
+.app-header-primary-action:visited {
+  color: #fff !important;
+  background: #172033 !important;
+  box-shadow: 0 4px 10px rgba(16,24,40,.12) !important;
+}
+
+.app-header-primary-action:hover {
+  color: #fff !important;
+  background: #25324a !important;
+  box-shadow: 0 7px 14px rgba(16,24,40,.16) !important;
+  transform: translateY(-1px) !important;
+}
+
+.app-header-primary-action:focus-visible {
+  color: #fff !important;
+  outline: 3px solid rgba(47,111,236,.24);
+  outline-offset: 3px;
+}
+
 main:not(.min-h-screen) {
   background: transparent !important;
 }
