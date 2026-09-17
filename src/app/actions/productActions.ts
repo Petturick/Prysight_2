@@ -146,3 +146,18 @@ export async function runProductResearchAction(formData: FormData) {
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`)
   redirect(`/producten/${productId}?controle=${summary.successful}-${summary.failed}`)
 }
+
+export async function runCompetitorOfferResearchAction(formData: FormData) {
+  const user = await requirePermission('pricing.manage')
+  const productId = text(formData, 'productId')
+  const competitorOfferId = text(formData, 'competitorOfferId')
+  if (!productId || !competitorOfferId) throw new Error('Product of concurrentiebron ontbreekt.')
+  const offer = await prisma.competitorOffer.findFirst({
+    where: { id: competitorOfferId, companyId: user.companyId, isActive: true, productMatch: { companyId: user.companyId, productId } },
+    select: { id: true },
+  })
+  if (!offer) throw new Error('Concurrentiebron niet gevonden of niet actief.')
+  const summary = await runDuePriceChecks({ companyId: user.companyId, competitorOfferId: offer.id, limit: 1, force: true })
+  revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`); revalidatePath('/monitoring')
+  redirect(`/producten/${productId}?broncontrole=${summary.successful}-${summary.failed}#concurrentieprijzen`)
+}

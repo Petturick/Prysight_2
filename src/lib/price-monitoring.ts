@@ -553,7 +553,11 @@ export async function runDuePriceChecks({
 
   if (due.length > 0) await assertCompanyCapacity(companyId, 'checksPerDay', due.length)
   const results = []
-  for (const offer of due) results.push(await runPriceCheck(offer.id, companyId, true))
+  const concurrency = Math.min(4, due.length)
+  for (let index = 0; index < due.length; index += concurrency) {
+    const batch = due.slice(index, index + concurrency)
+    results.push(...await Promise.all(batch.map((offer) => runPriceCheck(offer.id, companyId, true))))
+  }
 
   return {
     requested: cappedLimit,

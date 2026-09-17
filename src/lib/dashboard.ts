@@ -152,6 +152,7 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
     averagePrice,
     difference,
     offerCount: pricedOffers.length,
+    sourceCount: relevantMatches.length,
     validMatches: validMatches.length,
     reviewMatches: reviewMatches.length,
     lastCheckedAt,
