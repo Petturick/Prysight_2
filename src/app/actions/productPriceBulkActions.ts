@@ -9,9 +9,84 @@ import { prisma } from '@/lib/prisma'
 
 const MAX_SELECTED_PRODUCTS = 50
 
+function selectedProductIds(formData: FormData) {
+  return [...new Set(formData.getAll('productIds').map((value) => String(value)).filter(Boolean))].slice(0, MAX_SELECTED_PRODUCTS)
+}
+
+function singleProductId(formData: FormData) {
+  return String(formData.get('singleProductId') ?? '').trim()
+}
+
+async function logManualRefresh({
+  actor,
+  products,
+  result,
+  mode,
+}: {
+  actor: { companyId: string; id: string }
+  products: Array<{ id: string; articleNumber: string; name: string }>
+  result: Awaited<ReturnType<typeof runSelectedPriceChecks>>
+  mode: 'single' | 'bulk'
+}) {
+  await createAuditLog({
+    companyId: actor.companyId,
+    userId: actor.id,
+    action: 'PRODUCT_PRICES_MANUALLY_REFRESHED',
+    entityType: 'Product',
+    entityId: mode === 'single' ? products[0]?.id ?? 'single:unknown' : `bulk:${products.length}`,
+    newValue: {
+      mode,
+      products: products.map((product) => ({ id: product.id, articleNumber: product.articleNumber, name: product.name })),
+      offers: result.offers,
+      successful: result.successful,
+      failed: result.failed,
+      truncated: result.truncated,
+    },
+  })
+}
+
+function revalidateProducts(products: Array<{ id: string }>) {
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath('/monitoring')
+  revalidatePath('/prijswijzigingen')
+  for (const product of products) revalidatePath(`/producten/${product.id}`)
+}
+
+export async function refreshSingleProductPriceAction(formData: FormData) {
+  const actor = await requirePermission('pricing.manage')
+  const productId = singleProductId(formData)
+
+  if (!productId) redirect('/producten?crawlstatus=product-ontbreekt')
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: actor.companyId, isActive: true },
+    select: { id: true, articleNumber: true, name: true },
+  })
+
+  if (!product) redirect('/producten?crawlstatus=product-ontbreekt')
+
+  let result: Awaited<ReturnType<typeof runSelectedPriceChecks>>
+  try {
+    result = await runSelectedPriceChecks({ companyId: actor.companyId, productIds: [product.id], limit: 40 })
+  } catch (error) {
+    console.error('Manual single product price refresh failed', { companyId: actor.companyId, productId: product.id, error })
+    redirect(`/producten?crawlstatus=mislukt&crawlproduct=${encodeURIComponent(product.articleNumber)}`)
+  }
+
+  await logManualRefresh({ actor, products: [product], result, mode: 'single' })
+  revalidateProducts([product])
+
+  if (result.offers === 0) {
+    redirect(`/producten?crawlstatus=geen-bron&crawlproduct=${encodeURIComponent(product.articleNumber)}&openproduct=${encodeURIComponent(product.id)}`)
+  }
+
+  redirect(`/producten?crawlstatus=klaar&crawl=${result.successful}-${result.failed}&bronnen=${result.offers}&producten=1&crawlproduct=${encodeURIComponent(product.articleNumber)}`)
+}
+
 export async function refreshSelectedProductPricesAction(formData: FormData) {
   const actor = await requirePermission('pricing.manage')
-  const productIds = [...new Set(formData.getAll('productIds').map((value) => String(value)).filter(Boolean))].slice(0, MAX_SELECTED_PRODUCTS)
+  const productIds = selectedProductIds(formData)
 
   if (productIds.length === 0) redirect('/producten?selectie=leeg')
 
@@ -22,32 +97,24 @@ export async function refreshSelectedProductPricesAction(formData: FormData) {
 
   if (products.length === 0) redirect('/producten?selectie=ongeldig')
 
-  const result = await runSelectedPriceChecks({
-    companyId: actor.companyId,
-    productIds: products.map((product) => product.id),
-    limit: 120,
-  })
+  let result: Awaited<ReturnType<typeof runSelectedPriceChecks>>
+  try {
+    result = await runSelectedPriceChecks({
+      companyId: actor.companyId,
+      productIds: products.map((product) => product.id),
+      limit: 120,
+    })
+  } catch (error) {
+    console.error('Manual bulk product price refresh failed', { companyId: actor.companyId, productIds: products.map((product) => product.id), error })
+    redirect(`/producten?crawlstatus=mislukt&producten=${products.length}`)
+  }
 
-  await createAuditLog({
-    companyId: actor.companyId,
-    userId: actor.id,
-    action: 'PRODUCT_PRICES_MANUALLY_REFRESHED',
-    entityType: 'Product',
-    entityId: `bulk:${products.length}`,
-    newValue: {
-      products: products.map((product) => ({ id: product.id, articleNumber: product.articleNumber, name: product.name })),
-      offers: result.offers,
-      successful: result.successful,
-      failed: result.failed,
-      truncated: result.truncated,
-    },
-  })
+  await logManualRefresh({ actor, products, result, mode: 'bulk' })
+  revalidateProducts(products)
 
-  revalidatePath('/dashboard')
-  revalidatePath('/producten')
-  revalidatePath('/monitoring')
-  revalidatePath('/prijswijzigingen')
-  for (const product of products) revalidatePath(`/producten/${product.id}`)
+  if (result.offers === 0) {
+    redirect(`/producten?crawlstatus=geen-bronnen-selectie&producten=${products.length}`)
+  }
 
-  redirect(`/producten?crawl=${result.successful}-${result.failed}&bronnen=${result.offers}&producten=${products.length}${result.truncated ? '&limiet=1' : ''}`)
+  redirect(`/producten?crawlstatus=klaar&crawl=${result.successful}-${result.failed}&bronnen=${result.offers}&producten=${products.length}${result.truncated ? '&limiet=1' : ''}`)
 }
