@@ -14,7 +14,11 @@ function selectedProductIds(formData: FormData) {
 }
 
 function singleProductId(formData: FormData) {
-  return String(formData.get('singleProductId') ?? '').trim()
+  return String(formData.get('singleProductId') ?? formData.get('productId') ?? '').trim()
+}
+
+function returnToDetail(formData: FormData) {
+  return String(formData.get('returnTo') ?? '') === 'detail'
 }
 
 async function logManualRefresh({
@@ -56,6 +60,7 @@ function revalidateProducts(products: Array<{ id: string }>) {
 export async function refreshSingleProductPriceAction(formData: FormData) {
   const actor = await requirePermission('pricing.manage')
   const productId = singleProductId(formData)
+  const detail = returnToDetail(formData)
 
   if (!productId) redirect('/producten?crawlstatus=product-ontbreekt')
 
@@ -71,6 +76,7 @@ export async function refreshSingleProductPriceAction(formData: FormData) {
     result = await runSelectedPriceChecks({ companyId: actor.companyId, productIds: [product.id], limit: 40 })
   } catch (error) {
     console.error('Manual single product price refresh failed', { companyId: actor.companyId, productId: product.id, error })
+    if (detail) redirect(`/producten/${product.id}?crawlstatus=mislukt`)
     redirect(`/producten?crawlstatus=mislukt&crawlproduct=${encodeURIComponent(product.articleNumber)}`)
   }
 
@@ -78,9 +84,11 @@ export async function refreshSingleProductPriceAction(formData: FormData) {
   revalidateProducts([product])
 
   if (result.offers === 0) {
+    if (detail) redirect(`/producten/${product.id}?crawlstatus=geen-bron#concurrent-bron-toevoegen`)
     redirect(`/producten?crawlstatus=geen-bron&crawlproduct=${encodeURIComponent(product.articleNumber)}&openproduct=${encodeURIComponent(product.id)}`)
   }
 
+  if (detail) redirect(`/producten/${product.id}?controle=${result.successful}-${result.failed}&bronnen=${result.offers}`)
   redirect(`/producten?crawlstatus=klaar&crawl=${result.successful}-${result.failed}&bronnen=${result.offers}&producten=1&crawlproduct=${encodeURIComponent(product.articleNumber)}`)
 }
 
