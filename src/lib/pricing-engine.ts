@@ -136,50 +136,55 @@ export async function getPricingRecommendations(
   configOverrides: Partial<PricingEngineConfig> = {},
   limit = 200,
   usePersistedRules = true,
+  productIds?: string[],
 ): Promise<{ config: PricingEngineConfig; recommendations: PricingRecommendation[] }> {
   const baseConfig: PricingEngineConfig = { ...defaultConfig, ...configOverrides }
+  const scopedProductIds = productIds ? [...new Set(productIds.filter(Boolean))] : []
   const [products, persistedRules] = await Promise.all([
     prisma.product.findMany({
-    relationLoadStrategy: 'join',
-    where: { companyId, isActive: true },
-    select: {
-      id: true,
-      articleNumber: true,
-      name: true,
-      productGroupId: true,
-      ownPrice: true,
-      vatIncluded: true,
-      productMarkets: {
-        where: { companyId, isActive: true },
-        select: {
-          countryId: true,
-          ownPrice: true,
-          currency: true,
-          country: { select: { code: true, name: true, vatRate: true } },
-        },
+      relationLoadStrategy: 'join',
+      where: {
+        companyId,
+        isActive: true,
+        ...(scopedProductIds.length > 0 ? { id: { in: scopedProductIds } } : {}),
       },
-      matches: {
-        where: { companyId, matchStatus: MatchStatus.CERTAIN },
-        select: {
-          competitorOffer: {
-            select: {
-              isActive: true,
-              normalizedPrice: true,
-              stockStatus: true,
-              competitor: { select: { countryId: true, country: { select: { code: true, name: true, vatRate: true } } } },
+      select: {
+        id: true,
+        articleNumber: true,
+        name: true,
+        productGroupId: true,
+        ownPrice: true,
+        vatIncluded: true,
+        productMarkets: {
+          where: { companyId, isActive: true },
+          select: {
+            countryId: true,
+            ownPrice: true,
+            currency: true,
+            country: { select: { code: true, name: true, vatRate: true } },
+          },
+        },
+        matches: {
+          where: { companyId, matchStatus: MatchStatus.CERTAIN },
+          select: {
+            competitorOffer: {
+              select: {
+                isActive: true,
+                normalizedPrice: true,
+                stockStatus: true,
+                competitor: { select: { countryId: true, country: { select: { code: true, name: true, vatRate: true } } } },
+              },
             },
           },
         },
       },
-    },
-    orderBy: { name: 'asc' },
-    take: Math.min(Math.max(limit, 1), 500),
-  }),
+      orderBy: { name: 'asc' },
+      take: scopedProductIds.length > 0 ? Math.min(scopedProductIds.length, 500) : Math.min(Math.max(limit, 1), 500),
+    }),
     usePersistedRules ? getPersistedPricingRules(companyId) : Promise.resolve([]),
   ])
 
   const guardrailMap = await getProductPricingGuardrails(companyId, products.map((product) => product.id))
-
   const recommendations: PricingRecommendation[] = []
 
   for (const product of products) {
