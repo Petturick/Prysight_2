@@ -20,6 +20,9 @@ export async function createSmartProductAction(formData: FormData) {
   const country=countryId?await requireLicensedCountry(actor.companyId,countryId):null
   const currency=text(formData,'currency')||country?.currency||'EUR'
   const ean=text(formData,'ean'), gtin=text(formData,'gtin'), mpn=text(formData,'mpn')
+  const ownPrice=text(formData,'ownPrice')
+  const parsedOwnPrice=Number(ownPrice.replace(',', '.'))
+  if(!ownPrice||!Number.isFinite(parsedOwnPrice)||parsedOwnPrice<=0)throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
   const pricingFields=['costPrice','minimumMarginPct','targetMarginPct','minimumPrice','maximumPrice','pricingMode','pricingCooldownHours']
   const hasPricingInput=pricingFields.some((key)=>text(formData,key))
   if(hasPricingInput&&actor.role!=='SUPER_ADMIN'&&!actor.permissions.includes('pricing.manage'))throw new Error('Onvoldoende rechten om pricinginstellingen te wijzigen.')
@@ -39,7 +42,7 @@ export async function createSmartProductAction(formData: FormData) {
       model:text(formData,'model')||undefined,
       name,
       productGroup:text(formData,'productGroup')||'Onbekend',
-      ownPrice:text(formData,'ownPrice')||undefined,
+      ownPrice,
       costPrice:text(formData,'costPrice')||undefined,
       minimumMarginPct:text(formData,'minimumMarginPct')||undefined,
       targetMarginPct:text(formData,'targetMarginPct')||undefined,
