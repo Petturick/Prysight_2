@@ -85,10 +85,11 @@ function resolveConnectionString(value: string, region: string, poolerPort: stri
 }
 
 /**
- * Prefer an explicit DATABASE_URL in production. This makes the Netlify
- * runtime deterministic and avoids depending on custom password variables
- * being available during function initialization. PRICING_DB_* remains a
- * fallback for Bolt and older environments.
+ * PRICING_DB_* is the canonical production database configuration.
+ *
+ * Keep it ahead of DATABASE_URL so an older or stale connection string cannot
+ * silently override a newer rotated Supabase database password. DATABASE_URL
+ * remains supported as a fallback for local tooling and legacy environments.
  */
 export function resolveDatabaseConnection(
   rawConnectionString = process.env.DATABASE_URL ?? '',
@@ -98,14 +99,15 @@ export function resolveDatabaseConnection(
   poolerPort = process.env.PRICING_DB_POOLER_PORT ?? process.env.SUPABASE_DB_POOLER_PORT ?? DEFAULT_SUPAVISOR_PORT,
 ): DatabaseConnectionInfo {
   const cleanRegion = region.trim() || DEFAULT_SUPABASE_REGION
-  const explicitUrl = rawConnectionString.trim()
-  if (explicitUrl) return resolveConnectionString(explicitUrl, cleanRegion, poolerPort)
-
   const cleanProjectId = projectId.trim()
   const cleanPassword = dbPassword.trim()
+
   if (cleanProjectId && cleanPassword) {
     return buildSupavisorConnection(cleanProjectId, cleanPassword, cleanRegion, poolerPort)
   }
+
+  const explicitUrl = rawConnectionString.trim()
+  if (explicitUrl) return resolveConnectionString(explicitUrl, cleanRegion, poolerPort)
 
   return { connectionString: '', configured: false, mode: 'missing', host: null }
 }
