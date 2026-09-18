@@ -140,7 +140,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
             <p className="mt-1 text-[12px] text-[#6f7d90]">Monitor, vergelijk en ververs prijzen per product.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/import" className="secondary-action">Bulk importeren</Link>
             <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
           </div>
         </div>
@@ -150,6 +149,30 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Bronnen op deze pagina</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(monitoredOffers)}</p></div>
           <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Aandacht nodig</p><p className={`mt-1 text-[22px] font-semibold ${attentionCount ? 'text-[#a36816]' : 'text-[#20814d]'}`}>{formatNumber(attentionCount)}</p></div>
         </div>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-3" aria-label="Producten toevoegen">
+        <Link href="/producten/nieuw" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-[10px] font-semibold text-[#4f86e8]">Eén product</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Handmatig toevoegen</p></div>
+            <span className="text-[18px] text-[#8aa7d6] transition group-hover:translate-x-0.5">→</span>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Voer product, eigen verkoopprijs en markt in. Beste keuze voor een losse SKU.</p>
+        </Link>
+        <Link href="/import/bulk" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-[10px] font-semibold text-[#7a8798]">Veel producten</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Excel of CSV importeren</p></div>
+            <span className="text-[18px] text-[#9ba8b8] transition group-hover:translate-x-0.5">→</span>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Upload meerdere SKU’s tegelijk. Prysight herkent artikelnummer, prijs en productvelden automatisch.</p>
+        </Link>
+        <Link href="/feeds" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-[10px] font-semibold text-[#7a8798]">Automatisch bijhouden</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Productfeed koppelen</p></div>
+            <span className="text-[18px] text-[#9ba8b8] transition group-hover:translate-x-0.5">→</span>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Voor structureel beheer vanuit ERP, PIM of webshop zonder handmatig onderhoud.</p>
+        </Link>
       </section>
 
       <form className="ps-panel p-4">
@@ -210,7 +233,12 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                 </div>
 
                 <div className="grid border-t border-[#edf1f5] sm:grid-cols-2 lg:grid-cols-5">
-                  <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Eigen prijs</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.ownPrice, item.ownCurrency)}</p></div>
+                  <div className="px-4 py-3">
+                    <p className="text-[10px] font-medium text-[#8591a0]">Eigen prijs</p>
+                    {item.ownPrice !== null && item.ownPrice !== undefined
+                      ? <p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.ownPrice, item.ownCurrency)}</p>
+                      : <Link href={`/producten/${item.product.id}#eigen-prijs`} className="mt-1 inline-flex text-[11px] font-semibold text-[#2f6edb]">Prijs toevoegen →</Link>}
+                  </div>
                   <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Laagste markt</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.lowestPrice)}</p>{cheapestCompetitor ? <p className="mt-0.5 truncate text-[10px] text-[#8793a3]">{cheapestCompetitor}</p> : null}</div>
                   <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Verschil</p><p className={`mt-1 text-[16px] font-semibold ${pctDiff !== null && pctDiff > 0 ? 'text-[#b6414d]' : pctDiff !== null && pctDiff < 0 ? 'text-[#20814d]' : 'text-[#24384f]'}`}>{pctDiff !== null ? `${pctDiff > 0 ? '+' : ''}${formatNumber(pctDiff, 1)}%` : '—'}</p></div>
                   <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Bronnen</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatNumber(item.sourceCount)}</p></div>
