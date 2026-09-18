@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { signIn, signOut } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { createPasswordResetToken, verifyPasswordResetToken } from '@/lib/password-reset'
+import { profileStep } from '@/lib/performance-profile'
 
 function safeLoginPath(value: FormDataEntryValue | null): '/' | '/login' {
   return value === '/login' ? '/login' : '/'
@@ -69,7 +70,7 @@ export async function loginAction(formData: FormData) {
   if (!email || !password) redirect(withQuery(loginPath, 'error=missing'))
 
   try {
-    await signIn('credentials', { email, password, redirectTo })
+    await profileStep('/auth/login', 'sign_in_total', () => signIn('credentials', { email, password, redirectTo }), {}, 1000)
   } catch (error) {
     if (error instanceof AuthError) {
       if (error.type === 'CredentialsSignin') redirect(withQuery(loginPath, 'error=credentials'))
