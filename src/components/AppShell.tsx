@@ -36,7 +36,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
   const context = routeMeta(pathname)
   const warm = (href: string) => router.prefetch(href)
 
-  if (isAuthenticationRoute) return <><InteractionFeedback key={pathname} /><main className="min-h-screen bg-[var(--background)]">{children}</main></>
+  if (isAuthenticationRoute) return <><InteractionFeedback key={pathname} /><div className="min-h-screen bg-[var(--background)]">{children}</div></>
 
   return <>
     <InteractionFeedback key={pathname} />
