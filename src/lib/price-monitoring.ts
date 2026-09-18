@@ -8,7 +8,7 @@ import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
 
-type ExtractionMethod = 'JSON_LD' | 'META' | 'HTML_REGEX'
+type ExtractionMethod = 'JSON_LD' | 'META' | 'MAGENTO' | 'HTML_REGEX'
 type ExtractedOffer = {
   price: number | null
   currency: string | null
@@ -235,6 +235,39 @@ function extractMeta(html: string): ExtractedOffer | null {
   }
 }
 
+function extractMagento(html: string): ExtractedOffer | null {
+  const compact = html.replace(/\s+/g, ' ')
+  const candidates = [
+    compact.match(/data-price-amount=["']([0-9][0-9.,]*)["']/i)?.[1],
+    compact.match(/"finalPrice"\s*:\s*\{[^{}]{0,320}?"amount"\s*:\s*"?([0-9][0-9.,]*)"?/i)?.[1],
+    compact.match(/"basePrice"\s*:\s*\{[^{}]{0,320}?"amount"\s*:\s*"?([0-9][0-9.,]*)"?/i)?.[1],
+    compact.match(/"priceAmount"\s*:\s*"?([0-9][0-9.,]*)"?/i)?.[1],
+  ]
+  const price = candidates.map((value) => parseLocalizedPrice(value)).find((value) => value !== null) ?? null
+  if (!price) return null
+
+  const title = compact.match(/<title[^>]*>([^<]{2,180})<\/title>/i)?.[1]?.trim() ?? null
+  const currency = compact.match(/"priceCurrency"\s*:\s*"([A-Z]{3})"/i)?.[1]
+    ?? compact.match(/data-price-currency=["']([A-Z]{3})["']/i)?.[1]
+    ?? (/€/.test(compact) ? 'EUR' : /£/.test(compact) ? 'GBP' : null)
+  const stockStatus = /niet op voorraad|out of stock|sold out/i.test(compact)
+    ? 'Niet op voorraad'
+    : /op voorraad|in stock|available/i.test(compact)
+      ? 'Op voorraad'
+      : null
+
+  return {
+    price,
+    currency,
+    stockStatus,
+    productTitle: title,
+    sku: compact.match(/"sku"\s*:\s*"([^"\\]{1,120})"/i)?.[1] ?? null,
+    ean: compact.match(/"(?:gtin13|gtin|ean)"\s*:\s*"([0-9]{8,14})"/i)?.[1] ?? null,
+    packagingQty: packagingQuantity(title, compact.slice(0, 7000)),
+    method: 'MAGENTO',
+  }
+}
+
 function extractHtmlFallback(html: string): ExtractedOffer | null {
   const compact = html.replace(/\s+/g, ' ')
   const patterns: Array<{ regex: RegExp; currency: string }> = [
@@ -259,7 +292,7 @@ function extractHtmlFallback(html: string): ExtractedOffer | null {
 }
 
 export function extractOfferSnapshot(html: string, target?: PriceExtractionTarget): ExtractedOffer {
-  return extractJsonLd(html, target) ?? extractMeta(html) ?? extractHtmlFallback(html) ?? {
+  return extractJsonLd(html, target) ?? extractMeta(html) ?? extractMagento(html) ?? extractHtmlFallback(html) ?? {
     price: null,
     currency: null,
     stockStatus: null,
@@ -332,7 +365,9 @@ async function fetchHtmlOnce(targetUrl: string) {
       if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
         throw new Error(`Onverwacht contenttype: ${contentType || 'onbekend'}.`)
       }
-      return { html: await response.text(), statusCode: response.status }
+      const html = await response.text()
+      if (!html.trim()) throw new Error('Bron gaf een lege productpagina terug.')
+      return { html, statusCode: response.status }
     }
     const error = new Error(`Bron gaf HTTP ${response.status}.`)
     return { error, retryable: response.status === 429 || response.status >= 500, statusCode: response.status }
@@ -362,6 +397,29 @@ function browserRendererConfigured() {
   return Boolean(process.env.BROWSER_RENDERER_URL?.trim())
 }
 
+function renderedHtmlFromPayload(value: unknown, depth = 0): string | null {
+  if (typeof value === 'string') return value.trim() ? value : null
+  if (!value || typeof value !== 'object' || Array.isArray(value) || depth > 2) return null
+  const record = value as Record<string, unknown>
+  for (const key of ['html', 'content', 'body', 'result', 'data']) {
+    const html = renderedHtmlFromPayload(record[key], depth + 1)
+    if (html) return html
+  }
+  return null
+}
+
+export function publicPriceCheckErrorMessage(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error ?? '')
+  const normalized = raw.toLowerCase()
+  if (/empty response|no result returned|geen html|lege productpagina/.test(normalized)) return 'Bron leverde geen leesbare productpagina terug.'
+  if (/\b429\b|too many requests|rate limit/.test(normalized)) return 'Bron beperkt het aantal prijscontroles. Probeer later opnieuw.'
+  if (/\b403\b|forbidden|access denied|captcha|robots\.txt|robot check|bot protection/.test(normalized)) return 'Bron blokkeert automatische prijscontrole.'
+  if (/timeout|timed out|aborterror|aborted/.test(normalized)) return 'Bron reageerde niet op tijd.'
+  if (/geen betrouwbare prijs|prijs niet gevonden|price not found/.test(normalized)) return 'Geen betrouwbare prijs gevonden op deze productpagina.'
+  if (/browser renderer|scraping service|renderer/.test(normalized)) return 'Dynamische productpagina kon niet worden uitgelezen.'
+  return 'Prijscontrole kon niet worden afgerond.'
+}
+
 async function fetchRenderedOfferPage(targetUrl: string) {
   const rendererUrl = process.env.BROWSER_RENDERER_URL?.trim()
   if (!rendererUrl) throw new Error('Browser rendering is niet geconfigureerd.')
@@ -383,9 +441,15 @@ async function fetchRenderedOfferPage(targetUrl: string) {
     if (!response.ok) throw new Error(`Browser renderer gaf HTTP ${response.status}.`)
     const contentType = response.headers.get('content-type') ?? ''
     if (contentType.includes('application/json')) {
-      const body = await response.json() as { html?: unknown; statusCode?: unknown }
-      if (typeof body.html !== 'string' || !body.html.trim()) throw new Error('Browser renderer gaf geen HTML terug.')
-      return { html: body.html, statusCode: typeof body.statusCode === 'number' ? body.statusCode : 200 }
+      const body = await response.json() as Record<string, unknown>
+      const html = renderedHtmlFromPayload(body)
+      if (!html) throw new Error('Browser renderer gaf geen HTML terug.')
+      const statusCode = typeof body.statusCode === 'number'
+        ? body.statusCode
+        : typeof body.status === 'number'
+          ? body.status
+          : 200
+      return { html, statusCode }
     }
     const html = await response.text()
     if (!html.trim()) throw new Error('Browser renderer gaf geen HTML terug.')
@@ -439,9 +503,21 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     let extracted = extractOfferSnapshot(page.html, extractionTarget)
 
     if (!extracted.price && browserRendererConfigured()) {
-      page = await fetchRenderedOfferPage(offer.url)
-      extracted = extractOfferSnapshot(page.html, extractionTarget)
-      fetchMode = 'BROWSER'
+      try {
+        const renderedPage = await fetchRenderedOfferPage(offer.url)
+        const renderedExtraction = extractOfferSnapshot(renderedPage.html, extractionTarget)
+        if (renderedExtraction.price) {
+          page = renderedPage
+          extracted = renderedExtraction
+          fetchMode = 'BROWSER'
+        }
+      } catch (rendererError) {
+        console.warn('Browser renderer fallback failed', {
+          companyId: offer.companyId,
+          competitorOfferId: offer.id,
+          error: rendererError instanceof Error ? rendererError.message : String(rendererError),
+        })
+      }
     }
 
     if (!extracted.price) throw new Error('Geen betrouwbare prijs gevonden op de productpagina.')
@@ -570,7 +646,13 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       stockStatus: extracted.stockStatus ?? offer.stockStatus,
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Onbekende fout tijdens prijscontrole.'
+    const rawMessage = error instanceof Error ? error.message : 'Onbekende fout tijdens prijscontrole.'
+    const message = publicPriceCheckErrorMessage(error)
+    console.warn('Price check failed', {
+      companyId: offer.companyId,
+      competitorOfferId: offer.id,
+      error: rawMessage,
+    })
     await prisma.$transaction([
       prisma.priceCheck.create({
         data: {
