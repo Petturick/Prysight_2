@@ -30,6 +30,14 @@ function monitoringFrequency(value: string, fallback = 24) {
   return allowed.includes(rounded) ? rounded : fallback
 }
 
+function requiredPrice(value: string) {
+  const normalized = value.replace(/\s/g, '').replace(',', '.')
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
+  return parsed
+}
+
+
 export async function createProductAction(formData: FormData) {
   const user = await requirePermission('products.write')
   const articleNumber = text(formData, 'articleNumber')
@@ -65,6 +73,79 @@ export async function createProductAction(formData: FormData) {
   }
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath('/feeds'); revalidatePath('/productmatches')
   redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestionCount}`)
+}
+
+export async function updateProductOwnPriceAction(formData: FormData) {
+  const user = await requirePermission('products.write')
+  const productId = text(formData, 'productId')
+  const countryId = text(formData, 'countryId')
+  const ownPrice = requiredPrice(text(formData, 'ownPrice'))
+  const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
+  const ownUrl = text(formData, 'ownUrl')
+  if (!productId) throw new Error('Product ontbreekt.')
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true, ownPrice: true, currency: true },
+  })
+  if (!product) throw new Error('Product niet gevonden.')
+
+  const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
+  const currency = text(formData, 'currency') || country?.currency || product.currency || 'EUR'
+  const companyCountry = countryId
+    ? await prisma.companyCountry.findFirst({
+        where: { companyId: user.companyId, countryId, isActive: true },
+        select: { isDefault: true },
+      })
+    : null
+
+  await prisma.$transaction(async (tx) => {
+    if (country) {
+      await tx.productMarket.upsert({
+        where: { companyId_productId_countryId: { companyId: user.companyId, productId, countryId: country.id } },
+        update: {
+          ownPrice,
+          currency,
+          stockStatus,
+          ownUrl: ownUrl || null,
+          isActive: true,
+        },
+        create: {
+          companyId: user.companyId,
+          productId,
+          countryId: country.id,
+          ownPrice,
+          currency,
+          stockStatus,
+          ownUrl: ownUrl || null,
+          isActive: true,
+        },
+      })
+      await tx.ownPriceHistory.create({
+        data: { companyId: user.companyId, productId, countryId: country.id, recordedAt: new Date(), price: ownPrice, currency },
+      })
+      if (companyCountry?.isDefault || product.ownPrice === null) {
+        await tx.product.update({
+          where: { id: productId },
+          data: { ownPrice, currency, stockStatus },
+        })
+      }
+    } else {
+      await tx.product.update({
+        where: { id: productId },
+        data: { ownPrice, currency, stockStatus },
+      })
+      await tx.ownPriceHistory.create({
+        data: { companyId: user.companyId, productId, countryId: null, recordedAt: new Date(), price: ownPrice, currency },
+      })
+    }
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/prijsstrategie')
+  redirect(`/producten/${productId}?prijs=bijgewerkt#eigen-prijs`)
 }
 
 export async function createCompetitorAction(formData: FormData) {
