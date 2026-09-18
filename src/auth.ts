@@ -14,7 +14,6 @@ type DatabaseAuthUser = {
   isSuperAdmin: boolean
   companyId: string | null
   membershipRole: 'OWNER' | 'ADMIN' | 'ANALYST' | 'READONLY' | null
-  hasSupabaseAuth: boolean
 }
 
 const developmentSecret = 'prysight-development-only-secret-change-in-production'
@@ -49,12 +48,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             u.role::text AS role,
             COALESCE(u.is_super_admin, false) AS "isSuperAdmin",
             cm.company_id AS "companyId",
-            cm.role::text AS "membershipRole",
-            EXISTS (
-              SELECT 1
-              FROM auth.users au
-              WHERE lower(au.email) = lower(u.email)
-            ) AS "hasSupabaseAuth"
+            cm.role::text AS "membershipRole"
           FROM users u
           LEFT JOIN company_memberships cm
             ON cm.user_id = u.id
@@ -72,7 +66,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         if (!user || !user.companyId || !user.membershipRole) return null
         const localPasswordMatches = await bcrypt.compare(password, user.passwordHash)
         let passwordMatches = localPasswordMatches
-        if (!passwordMatches && user.hasSupabaseAuth) passwordMatches = (await verifySupabasePassword(email, password)) === 'valid'
+        if (!passwordMatches) passwordMatches = (await verifySupabasePassword(email, password)) === 'valid'
         if (!passwordMatches) return null
         const role: AppRole = user.isSuperAdmin ? 'SUPER_ADMIN' : user.role
         return { id: user.id, email: user.email, name: user.name, role, companyId: user.companyId, membershipRole: user.membershipRole }
