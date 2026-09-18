@@ -200,7 +200,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-5 sm:px-6 lg:border-b-0 lg:border-r">
             <p className="text-[11px] font-medium text-[#7a8798]">Actuele eigen prijs</p>
             <p className="mt-2 text-[30px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-2 text-[11px] leading-5 text-[#7b8999]">{selectedMarket ? `Prijs voor ${selectedMarket.country.name}` : 'Algemene productprijs'}{selectedMarket?.stockStatus || product.stockStatus ? ` · ${selectedMarket?.stockStatus ?? product.stockStatus}` : ''}</p>
+            <p className="mt-2 text-[11px] leading-5 text-[#7b8999]">
+              {selectedMarket ? <>Prijs voor {selectedMarket.country.name}</> : <>Algemene productprijs</>}
+              {(selectedMarket?.stockStatus ?? product.stockStatus) ? <> · {selectedMarket?.stockStatus ?? product.stockStatus}</> : null}
+            </p>
             {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voeg eerst je eigen prijs toe om marktverschillen en prijsadvies correct te berekenen.</p> : null}
           </div>
           <div className="p-5 sm:p-6">
@@ -211,7 +214,26 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 <input type="hidden" name="currency" value={ownCurrency} />
                 <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *
                   <div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]">
-                    <span className="px-3 text-[13px] font-semibold text-[#64748b]">{ownCurrency === 'GBP' ? '£' : ownCurrency === 'USD' ? '
+                    <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
+                    <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
+                  </div>
+                </label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
+                {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
+                <div className="md:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-[10px] leading-4 text-[#8a95a4]">Een wijziging wordt in de prijshistorie vastgelegd. Concurrentieprijzen pas je hier niet handmatig aan.</p>
+                  <button type="submit" className="primary-action shrink-0">Prijs opslaan</button>
+                </div>
+              </form>
+            ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen-lezen toegang tot productprijzen.</p>}
+          </div>
+        </div>
+      </section>
+
+      <section className="ps-panel overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-[16px] font-semibold text-[#21364d]">Pricing cockpit</h2>
             <p className="mt-1 text-[11px] text-[#7a8798]">Actuele marktpositie en prijsadvies binnen je ingestelde grenzen.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
