@@ -11,6 +11,7 @@ export type PriceQualityInput = {
   articleNumber?: string | null
   productName?: string | null
   ownPrice?: number | null
+  trustedProductMapping?: boolean
 }
 
 export type PriceQualityResult = {
@@ -61,13 +62,19 @@ export function assessPriceQuality(input: PriceQualityInput): PriceQualityResult
   const eanComparable = Boolean(productEan && extractedEan)
   const eanMatch = eanComparable && productEan === extractedEan
   if (eanComparable && !eanMatch) {
-    return { accepted: false, confidence: 'REJECTED', reasons: ['EAN of GTIN van de concurrentpagina wijkt af van het gekoppelde product.'] }
+    if (!input.trustedProductMapping) {
+      return { accepted: false, confidence: 'REJECTED', reasons: ['EAN of GTIN van de concurrentpagina wijkt af van het gekoppelde product.'] }
+    }
+    reasons.push('EAN of GTIN wijkt af, maar de concurrentbron is handmatig als productmatch bevestigd.')
   }
 
   const skuComparable = Boolean(articleNumber && extractedSku)
   const skuMatch = skuComparable && articleNumber === extractedSku
   if (skuComparable && !skuMatch) {
-    return { accepted: false, confidence: 'REJECTED', reasons: ['SKU of artikelnummer van de concurrentpagina wijkt af van het gekoppelde product.'] }
+    if (!input.trustedProductMapping) {
+      return { accepted: false, confidence: 'REJECTED', reasons: ['SKU of artikelnummer van de concurrentpagina wijkt af van het gekoppelde product.'] }
+    }
+    reasons.push('SKU of artikelnummer wijkt af, maar de concurrentbron is handmatig als productmatch bevestigd.')
   }
 
   const similarity = titleSimilarity(input.productName, input.extractedTitle)
@@ -86,7 +93,10 @@ export function assessPriceQuality(input: PriceQualityInput): PriceQualityResult
   if (input.method === 'JSON_LD' || input.method === 'META') {
     if (!plausible) return { accepted: false, confidence: 'REJECTED', reasons }
     if (similarity !== null && similarity >= 0.5) {
-      return { accepted: true, confidence: 'MEDIUM', reasons: ['Producttitel komt voldoende overeen met het gekoppelde product.'] }
+      return { accepted: true, confidence: 'MEDIUM', reasons: [...reasons, 'Producttitel komt voldoende overeen met het gekoppelde product.'] }
+    }
+    if (input.trustedProductMapping) {
+      return { accepted: true, confidence: 'MEDIUM', reasons: [...reasons, 'De product URL is handmatig als zekere concurrentmatch bevestigd.'] }
     }
     return { accepted: false, confidence: 'LOW', reasons: ['Prijsbron is gestructureerd, maar productidentiteit is onvoldoende bevestigd.'] }
   }
