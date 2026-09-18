@@ -400,6 +400,11 @@ function methodLabel(method: ExtractionMethod | null, fetchMode: FetchMode, fxSo
   return fxSource && fxAsOf ? `${base}|FX:${fxSource}:${fxAsOf}` : base
 }
 
+function isManuallyConfirmedMatch(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return String((value as Record<string, unknown>).source ?? '').trim().toLowerCase() === 'manual'
+}
+
 export async function runPriceCheck(competitorOfferId: string, companyId = DEFAULT_COMPANY_ID, capacityVerified = false) {
   const offer = await prisma.competitorOffer.findFirst({
     where: { id: competitorOfferId, companyId },
@@ -413,9 +418,10 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
   const previousPrice = offer.normalizedPrice
   const previousStockStatus = offer.stockStatus
   const product = offer.productMatch?.product
+  const trustedProductMapping = offer.productMatch?.matchStatus === MatchStatus.CERTAIN && isManuallyConfirmedMatch(offer.productMatch?.matchEvidence)
   const extractionTarget: PriceExtractionTarget = {
-    ean: product?.ean ?? product?.gtin,
-    sku: product?.articleNumber,
+    ean: trustedProductMapping ? null : product?.ean ?? product?.gtin,
+    sku: trustedProductMapping ? null : product?.articleNumber,
     productName: product?.name,
   }
   let diagnosticSnapshot: {
@@ -484,6 +490,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       articleNumber: product?.articleNumber,
       productName: product?.name,
       ownPrice: product?.ownPrice === null || product?.ownPrice === undefined ? null : Number(product.ownPrice),
+      trustedProductMapping,
     })
 
     if (!quality.accepted) {
