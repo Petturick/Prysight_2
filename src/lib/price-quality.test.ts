@@ -84,3 +84,36 @@ test('accepts plausible structured prices with a sufficiently matching title whe
   assert.equal(result.accepted, true)
   assert.equal(result.confidence, 'MEDIUM')
 })
+
+
+test('allows different competitor identifiers when the product URL was manually confirmed', () => {
+  const result = assessPriceQuality({
+    extractedPrice: 31.5,
+    normalizedPrice: 31.5,
+    method: 'JSON_LD',
+    extractedEan: '9999999999999',
+    productEan: '8719667010643',
+    extractedSku: 'BINQER-120-GREY',
+    articleNumber: 'MGB 120.700',
+    extractedTitle: 'Minicontainer 120 liter grijs',
+    productName: 'Afvalcontainer 120 liter, grijs met deksel',
+    ownPrice: 38.2,
+    trustedProductMapping: true,
+  })
+  assert.equal(result.accepted, true)
+  assert.equal(result.confidence, 'MEDIUM')
+})
+
+test('manually confirmed mappings still reject implausible prices', () => {
+  const result = assessPriceQuality({
+    extractedPrice: 9999,
+    normalizedPrice: 9999,
+    method: 'JSON_LD',
+    extractedEan: '9999999999999',
+    productEan: '8719667010643',
+    ownPrice: 38.2,
+    trustedProductMapping: true,
+  })
+  assert.equal(result.accepted, false)
+  assert.equal(result.confidence, 'REJECTED')
+})
