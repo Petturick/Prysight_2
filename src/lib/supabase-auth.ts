@@ -26,6 +26,7 @@ export async function verifySupabasePassword(email: string, password: string): P
       },
       body: JSON.stringify({ email, password }),
       cache: 'no-store',
+      signal: AbortSignal.timeout(2500),
     })
 
     if (response.ok) return 'valid'
