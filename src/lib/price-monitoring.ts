@@ -527,7 +527,6 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           lastCheckedAt: checkedAt,
         },
       }),
-      prisma.competitorOffer.update({ where: { id: offer.id }, data: { lastCheckedAt: checkedAt } }),
       prisma.competitor.update({ where: { id: offer.competitorId }, data: { lastCheckedAt: checkedAt } }),
     ])
 
@@ -580,6 +579,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           isSuccess: false,
         },
       }),
+      prisma.competitorOffer.update({ where: { id: offer.id }, data: { lastCheckedAt: checkedAt } }),
       prisma.competitor.update({ where: { id: offer.competitorId }, data: { lastCheckedAt: checkedAt } }),
     ])
     return { competitorOfferId: offer.id, success: false, checkedAt, error: message }
