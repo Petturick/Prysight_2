@@ -4,6 +4,7 @@ import Credentials from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/prisma'
 import type { AppRole } from '@/lib/roles'
 import { verifySupabasePassword } from '@/lib/supabase-auth'
+import { profileStep } from '@/lib/performance-profile'
 
 type DatabaseAuthUser = {
   id: string
@@ -39,7 +40,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         const email = typeof credentials.email === 'string' ? credentials.email.trim().toLowerCase() : ''
         const password = typeof credentials.password === 'string' ? credentials.password : ''
         if (!email || !password) return null
-        const users = await prisma.$queryRaw<DatabaseAuthUser[]>`
+        const users = await profileStep('/auth/login', 'credential_lookup', () => prisma.$queryRaw<DatabaseAuthUser[]>`
           SELECT
             u.id,
             u.email,
@@ -61,12 +62,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             AND c.id IS NOT NULL
           ORDER BY cm.created_at ASC
           LIMIT 1
-        `
+        `, {}, 150)
         const user = users[0]
         if (!user || !user.companyId || !user.membershipRole) return null
-        const localPasswordMatches = await bcrypt.compare(password, user.passwordHash)
+        const localPasswordMatches = await profileStep('/auth/login', 'bcrypt_compare', () => bcrypt.compare(password, user.passwordHash), {}, 500)
         let passwordMatches = localPasswordMatches
-        if (!passwordMatches) passwordMatches = (await verifySupabasePassword(email, password)) === 'valid'
+        if (!passwordMatches) passwordMatches = (await profileStep('/auth/login', 'supabase_fallback', () => verifySupabasePassword(email, password), {}, 2600)) === 'valid'
         if (!passwordMatches) return null
         const role: AppRole = user.isSuperAdmin ? 'SUPER_ADMIN' : user.role
         return { id: user.id, email: user.email, name: user.name, role, companyId: user.companyId, membershipRole: user.membershipRole }
