@@ -86,7 +86,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             competitorOffer: {
               include: {
                 competitor: { include: { country: true } },
-                priceHistory: { where: { companyId: user.companyId }, orderBy: { recordedAt: 'desc' }, take: 3 },
                 priceChecks: { where: { companyId: user.companyId }, orderBy: { checkedAt: 'desc' }, take: 3 },
               },
             },
@@ -162,7 +161,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const sourceControlMessage = readParam(query.broncontrole)
   const crawlStatus = readParam(query.crawlstatus)
   const discovered = Number(readParam(query.suggesties) ?? '0') || 0
-  const found = Number(readParam(query.gevonden) ?? '0') || 0
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
   const controlSummaryText = controlSummary(controlMessage)
   const sourceControlSummaryText = controlSummary(sourceControlMessage)
