@@ -21,6 +21,11 @@ type ExtractedOffer = {
 }
 type JsonRecord = Record<string, unknown>
 type FetchMode = 'HTTP' | 'BROWSER'
+export type PriceExtractionTarget = {
+  ean?: string | null
+  sku?: string | null
+  productName?: string | null
+}
 
 const robotsCache = new Map<string, { checkedAt: number; disallow: string[] }>()
 const MAX_FETCH_ATTEMPTS = 3
@@ -69,6 +74,40 @@ function walkJson(value: unknown, records: JsonRecord[] = []): JsonRecord[] {
   return records
 }
 
+
+function normalizedIdentifier(value: unknown) {
+  return String(value ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
+}
+
+function productIdentityScore(product: JsonRecord, target?: PriceExtractionTarget) {
+  if (!target) return 0
+
+  const targetEan = normalizedIdentifier(target.ean)
+  const targetSku = normalizedIdentifier(target.sku)
+  const productEan = normalizedIdentifier(product.gtin13 ?? product.gtin14 ?? product.gtin ?? product.ean)
+  const productSku = normalizedIdentifier(product.sku ?? product.mpn)
+
+  let score = 0
+  if (targetEan && productEan) score += targetEan === productEan ? 100 : -40
+  if (targetSku && productSku) score += targetSku === productSku ? 80 : -25
+
+  const expectedWords = new Set(String(target.productName ?? '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/gi, ' ').split(/\s+/).filter((word) => word.length >= 3))
+  const actualWords = new Set(String(product.name ?? '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/gi, ' ').split(/\s+/).filter((word) => word.length >= 3))
+  if (expectedWords.size && actualWords.size) {
+    const overlap = [...expectedWords].filter((word) => actualWords.has(word)).length / expectedWords.size
+    score += Math.round(overlap * 30)
+  }
+
+  return score
+}
+
+function nestedOfferCandidates(product: JsonRecord) {
+  if (!product.offers || typeof product.offers !== 'object') return [] as JsonRecord[]
+  return walkJson(product.offers).filter((record) =>
+    typeNames(record['@type']).some((item) => ['offer', 'aggregateoffer'].includes(item.toLowerCase())),
+  )
+}
+
 function availabilityLabel(value: unknown) {
   const normalized = String(value ?? '').toLowerCase()
   if (!normalized) return null
@@ -113,40 +152,51 @@ function packagingQuantity(...values: unknown[]) {
   return null
 }
 
-function extractJsonLd(html: string): ExtractedOffer | null {
+function extractJsonLd(html: string, target?: PriceExtractionTarget): ExtractedOffer | null {
   const scripts = [...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
+  const candidates: Array<{ product: JsonRecord; offer: JsonRecord; score: number; order: number }> = []
+  let order = 0
+
   for (const script of scripts) {
     const raw = script[1]?.trim()
     if (!raw) continue
     try {
       const parsed = JSON.parse(raw.replace(/<!--|-->/g, ''))
       const records = walkJson(parsed)
-      const product = records.find((record) => typeNames(record['@type']).some((item) => item.toLowerCase() === 'product'))
-      const offer = records.find((record) => typeNames(record['@type']).some((item) => ['offer', 'aggregateoffer'].includes(item.toLowerCase())))
-      const candidate = offer ?? (product?.offers && typeof product.offers === 'object' ? product.offers as JsonRecord : null)
-      if (!candidate) continue
-      const price = parseLocalizedPrice(candidate.price ?? candidate.lowPrice ?? candidate.highPrice)
-      if (!price) continue
-      return {
-        price,
-        currency: text(candidate.priceCurrency),
-        stockStatus: availabilityLabel(candidate.availability),
-        productTitle: text(product?.name),
-        sku: text(product?.sku ?? candidate.sku),
-        ean: text(product?.gtin13 ?? product?.gtin14 ?? product?.gtin ?? product?.ean),
-        packagingQty: packagingQuantity(
-          candidate.eligibleQuantity,
-          candidate.quantity,
-          product?.size,
-          product?.description,
-          product?.name,
-        ),
-        method: 'JSON_LD',
+      const products = records.filter((record) => typeNames(record['@type']).some((item) => item.toLowerCase() === 'product'))
+
+      for (const product of products) {
+        for (const offer of nestedOfferCandidates(product)) {
+          candidates.push({ product, offer, score: productIdentityScore(product, target), order: order++ })
+        }
       }
     } catch {
       continue
     }
   }
+
+  candidates.sort((a, b) => b.score - a.score || a.order - b.order)
+  for (const { product, offer } of candidates) {
+    const price = parseLocalizedPrice(offer.price ?? offer.lowPrice ?? offer.highPrice)
+    if (!price) continue
+    return {
+      price,
+      currency: text(offer.priceCurrency),
+      stockStatus: availabilityLabel(offer.availability),
+      productTitle: text(product.name),
+      sku: text(product.sku ?? product.mpn ?? offer.sku),
+      ean: text(product.gtin13 ?? product.gtin14 ?? product.gtin ?? product.ean),
+      packagingQty: packagingQuantity(
+        offer.eligibleQuantity,
+        offer.quantity,
+        product.size,
+        product.description,
+        product.name,
+      ),
+      method: 'JSON_LD',
+    }
+  }
+
   return null
 }
 
@@ -205,8 +255,8 @@ function extractHtmlFallback(html: string): ExtractedOffer | null {
   return null
 }
 
-export function extractOfferSnapshot(html: string): ExtractedOffer {
-  return extractJsonLd(html) ?? extractMeta(html) ?? extractHtmlFallback(html) ?? {
+export function extractOfferSnapshot(html: string, target?: PriceExtractionTarget): ExtractedOffer {
+  return extractJsonLd(html, target) ?? extractMeta(html) ?? extractHtmlFallback(html) ?? {
     price: null,
     currency: null,
     stockStatus: null,
@@ -359,15 +409,29 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
   const checkedAt = new Date()
   const previousPrice = offer.normalizedPrice
   const previousStockStatus = offer.stockStatus
+  const product = offer.productMatch?.product
+  const extractionTarget: PriceExtractionTarget = {
+    ean: product?.ean ?? product?.gtin,
+    sku: product?.articleNumber,
+    productName: product?.name,
+  }
+  let diagnosticSnapshot: {
+    foundPrice: number | null
+    currency: string
+    stockStatus: string | null
+    productTitle: string | null
+    checkMethod: string
+    statusCode: number | null
+  } | null = null
 
   try {
     let fetchMode: FetchMode = 'HTTP'
     let page = await fetchOfferPage(offer.url)
-    let extracted = extractOfferSnapshot(page.html)
+    let extracted = extractOfferSnapshot(page.html, extractionTarget)
 
     if (!extracted.price && browserRendererConfigured()) {
       page = await fetchRenderedOfferPage(offer.url)
-      extracted = extractOfferSnapshot(page.html)
+      extracted = extractOfferSnapshot(page.html, extractionTarget)
       fetchMode = 'BROWSER'
     }
 
@@ -396,7 +460,16 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       'EUR',
     ).amount
 
-    const product = offer.productMatch?.product
+    const checkMethod = methodLabel(extracted.method, fetchMode, fxSource, fxAsOf)
+    diagnosticSnapshot = {
+      foundPrice: extracted.price,
+      currency,
+      stockStatus: extracted.stockStatus ?? offer.stockStatus,
+      productTitle: extracted.productTitle ?? product?.name ?? null,
+      checkMethod,
+      statusCode: page.statusCode,
+    }
+
     const quality = assessPriceQuality({
       extractedPrice: extracted.price,
       normalizedPrice: normalized.toNumber(),
@@ -411,14 +484,9 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     })
 
     if (!quality.accepted) {
-      await prisma.competitorOffer.update({
-        where: { id: offer.id },
-        data: { rawPrice: null, normalizedPrice: null, lastCheckedAt: checkedAt },
-      })
       throw new Error(`Prijsvalidatie afgekeurd: ${quality.reasons.join(' ')}`)
     }
 
-    const checkMethod = methodLabel(extracted.method, fetchMode, fxSource, fxAsOf)
     await prisma.$transaction([
       prisma.priceCheck.create({
         data: {
@@ -459,6 +527,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           lastCheckedAt: checkedAt,
         },
       }),
+      prisma.competitorOffer.update({ where: { id: offer.id }, data: { lastCheckedAt: checkedAt } }),
       prisma.competitor.update({ where: { id: offer.competitorId }, data: { lastCheckedAt: checkedAt } }),
     ])
 
@@ -499,13 +568,13 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           companyId: offer.companyId,
           competitorOfferId: offer.id,
           checkedAt,
-          foundPrice: null,
-          currency: offer.currency,
-          stockStatus: offer.stockStatus,
-          productTitle: offer.productMatch?.product.name ?? null,
+          foundPrice: diagnosticSnapshot?.foundPrice ? new Prisma.Decimal(diagnosticSnapshot.foundPrice) : null,
+          currency: diagnosticSnapshot?.currency ?? offer.currency,
+          stockStatus: diagnosticSnapshot?.stockStatus ?? offer.stockStatus,
+          productTitle: diagnosticSnapshot?.productTitle ?? offer.productMatch?.product.name ?? null,
           packagingUnit: offer.packagingUnit,
-          checkMethod: 'HTTP_FAILED',
-          statusCode: null,
+          checkMethod: diagnosticSnapshot ? `${diagnosticSnapshot.checkMethod}|REJECTED` : 'HTTP_FAILED',
+          statusCode: diagnosticSnapshot?.statusCode ?? null,
           errorMessage: message,
           sourceUrl: offer.url,
           isSuccess: false,
