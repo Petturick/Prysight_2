@@ -103,9 +103,12 @@ function productIdentityScore(product: JsonRecord, target?: PriceExtractionTarge
 
 function nestedOfferCandidates(product: JsonRecord) {
   if (!product.offers || typeof product.offers !== 'object') return [] as JsonRecord[]
-  return walkJson(product.offers).filter((record) =>
+  const records = walkJson(product.offers)
+  const typed = records.filter((record) =>
     typeNames(record['@type']).some((item) => ['offer', 'aggregateoffer'].includes(item.toLowerCase())),
   )
+  if (typed.length) return typed
+  return records.filter((record) => record.price !== undefined || record.lowPrice !== undefined || record.highPrice !== undefined)
 }
 
 function availabilityLabel(value: unknown) {
