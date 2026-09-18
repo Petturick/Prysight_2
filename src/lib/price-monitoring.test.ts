@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { extractOfferSnapshot } from '@/lib/price-monitoring'
+import { extractOfferSnapshot, publicPriceCheckErrorMessage } from '@/lib/price-monitoring'
 
 test('JSON LD extractie leest prijs, valuta, EAN en verpakking', () => {
   const html = `<html><head><script type="application/ld+json">${JSON.stringify({
@@ -99,4 +99,29 @@ test('JSON LD extractie houdt aanbod en product uit hetzelfde Product object bij
   const result = extractOfferSnapshot(html, { ean: '2222222222222' })
   assert.equal(result.ean, '2222222222222')
   assert.equal(result.price, 20)
+})
+
+
+test('Magento prijsdata wordt uit data price amount gelezen', () => {
+  const html = `<html><head><title>Afvalcontainer MGB 240 liter</title></head><body>
+    <span class="price-wrapper" data-price-amount="81.82" data-price-currency="EUR">
+      <span class="price">€ 81,82</span>
+    </span>
+    <script>window.productConfig = {"sku":"MGB 240.700","finalPrice":{"amount":81.82}}</script>
+  </body></html>`
+  const result = extractOfferSnapshot(html)
+  assert.equal(result.price, 81.82)
+  assert.equal(result.currency, 'EUR')
+  assert.equal(result.method, 'MAGENTO')
+})
+
+test('technische scrape fouten worden als korte bronstatus opgeslagen', () => {
+  assert.equal(
+    publicPriceCheckErrorMessage(new Error('No result returned by the scraping service. Empty response.')),
+    'Bron leverde geen leesbare productpagina terug.',
+  )
+  assert.equal(
+    publicPriceCheckErrorMessage(new Error('Bron gaf HTTP 403.')),
+    'Bron blokkeert automatische prijscontrole.',
+  )
 })
