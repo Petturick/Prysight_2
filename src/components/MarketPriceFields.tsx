@@ -90,9 +90,16 @@ export function MarketPriceFields({
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ price?: number | null; vatIncluded?: boolean | null }>).detail
       if (!detail || detail.price === null || detail.price === undefined || !Number.isFinite(Number(detail.price))) return
-      const value = formatInput(Number(detail.price))
-      if (detail.vatIncluded === false) onExVat(value)
-      else onIncVat(value)
+      const numeric = Number(detail.price)
+      if (detail.vatIncluded === false) {
+        setSource('ex')
+        setExVat(formatInput(numeric))
+        setIncVat(formatInput(numeric * multiplier))
+      } else {
+        setSource('inc')
+        setIncVat(formatInput(numeric))
+        setExVat(formatInput(numeric / multiplier))
+      }
     }
     window.addEventListener('prysight:set-market-price', handler)
     return () => window.removeEventListener('prysight:set-market-price', handler)
