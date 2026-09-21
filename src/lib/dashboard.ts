@@ -125,13 +125,17 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
   const selectedMarket = filters.countryId ? product.productMarkets.find((market) => market.countryId === filters.countryId && market.isActive) : null
   const ownPrice = decimalToNumber(selectedMarket?.ownPrice ?? product.ownPrice)
   const ownCurrency = selectedMarket?.currency ?? product.currency
-  const pricedOffers = relevantMatches.filter((match) => hasVerifiedMeasurement(match, ownPrice))
+  const vatRate = decimalToNumber(selectedMarket?.country.vatRate ?? product.productMarkets.find((market) => market.isActive)?.country.vatRate)
+  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
+    ? ownPrice * (1 + vatRate / 100)
+    : ownPrice
+  const pricedOffers = relevantMatches.filter((match) => hasVerifiedMeasurement(match, comparisonOwnPrice))
   const prices = pricedOffers.map((match) => decimalToNumber(match.competitorOffer.normalizedPrice)).filter((value): value is number => value !== null)
   const lowestPrice = prices.length ? Math.min(...prices) : null
   const averagePrice = prices.length ? prices.reduce((sum, value) => sum + value, 0) / prices.length : null
   const lastCheckedDates = pricedOffers.map((match) => match.competitorOffer.lastCheckedAt).filter((value): value is Date => Boolean(value))
   const lastCheckedAt = lastCheckedDates.length ? new Date(Math.max(...lastCheckedDates.map((value) => value.getTime()))) : null
-  const difference = calculatePriceDifference(ownPrice, lowestPrice)
+  const difference = calculatePriceDifference(comparisonOwnPrice, lowestPrice)
   const trendSource = pricedOffers
     .flatMap((match) => match.competitorOffer.priceHistory)
     .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())
@@ -147,7 +151,9 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
     product,
     selectedMarket,
     ownPrice,
+    comparisonOwnPrice,
     ownCurrency,
+    vatIncluded: product.vatIncluded,
     lowestPrice,
     averagePrice,
     difference,
