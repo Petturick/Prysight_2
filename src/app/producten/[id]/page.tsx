@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { addCompetitorOfferAction, discoverCompetitorUrlsAction, runCompetitorOfferResearchAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
+import { addCompetitorOfferAction, discoverCompetitorUrlsAction, runCompetitorOfferResearchAction, updateCompetitorOfferAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
@@ -65,6 +65,7 @@ function sourceIssueLabel(value: string | null | undefined) {
   if (/\b403\b|forbidden|access denied|captcha|robots\.txt|bot protection/.test(normalized)) return 'Bron blokkeert controle'
   if (/timeout|timed out|abort/.test(normalized)) return 'Bron reageert niet'
   if (/geen betrouwbare prijs|prijs niet gevonden|price not found/.test(normalized)) return 'Prijs niet gevonden'
+  if (normalized.startsWith('prijs gevonden')) return value
   if (/browser renderer|scraping service|renderer/.test(normalized)) return 'Dynamische pagina niet leesbaar'
   return 'Controle mislukt'
 }
@@ -105,6 +106,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const defaultCountry = countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id)) ?? countries.find((country) => country.code === 'NL') ?? countries[0]
   const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
+  const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const confirmedMatches = product.matches.filter((match) => match.matchStatus === 'CERTAIN' && match.competitorOffer.isActive)
   const reviewMatches = product.matches.filter((match) => match.matchStatus === 'REVIEW' && match.competitorOffer.isActive)
   const crawlableMatches = product.matches.filter((match) => (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW') && match.competitorOffer.isActive)
@@ -117,6 +119,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
     if (bPrice === null) return -1
     return aPrice - bPrice
   })
+  const selectedOfferId = readParam(query.concurrent)
+  const selectedCompetitorMatch = selectedOfferId
+    ? comparisonMatches.find((match) => match.competitorOffer.id === selectedOfferId) ?? null
+    : null
 
   const prices = pricedMatches.map((match) => Number(match.competitorOffer.normalizedPrice))
   const lowestPrice = prices.length ? Math.min(...prices) : null
@@ -162,12 +168,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const crawlStatus = readParam(query.crawlstatus)
   const discovered = Number(readParam(query.suggesties) ?? '0') || 0
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
+  const sourceUpdated = readParam(query.bron) === 'bijgewerkt'
   const controlSummaryText = controlSummary(controlMessage)
   const sourceControlSummaryText = controlSummary(sourceControlMessage)
 
   return (
     <div className="space-y-4">
       {priceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Verkoopprijs bijgewerkt.</div> : null}
+      {sourceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrentiebron bijgewerkt. Als de product URL is gewijzigd, is de oude prijs gewist en kan de bron opnieuw worden gecontroleerd.</div> : null}
       {crawlStatus === 'geen-bron' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">Koppel eerst een concurrentbron.</div> : null}
       {crawlStatus === 'mislukt' ? <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff2f3] px-4 py-3 text-[12px] font-semibold text-[#9c3442]">Prijscontrole mislukt. Controleer de bron en probeer opnieuw.</div> : null}
       {(readParam(query.toegevoegd) || readParam(query.bron) || controlMessage || sourceControlMessage || readParam(query.suggesties)) ? (
@@ -301,7 +309,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
                   return (
                     <tr key={match.id} className={`border-t border-[#edf1f5] ${price !== null && index === 0 ? 'bg-[#f1f8f4]' : 'bg-white'}`}>
-                      <td className="px-4 py-3"><p className="font-semibold text-[#2d4057]">{offer.competitor.name}</p><p className="mt-0.5 text-[10px] text-[#8a98a9]">{offer.competitor.country.name} · <a href={offer.url} target="_blank" rel="noreferrer" className="font-semibold text-[#2f6edb]">Bron</a></p></td>
+                      <td className="px-4 py-3"><p className="font-semibold text-[#2d4057]">{canEditCompetitors ? <Link href={`/producten/${product.id}?concurrent=${offer.id}#concurrentieprijzen`} className="underline-offset-2 hover:text-[#2f6edb] hover:underline">{offer.competitor.name}</Link> : offer.competitor.name}</p><p className="mt-0.5 text-[10px] text-[#8a98a9]">{offer.competitor.country.name} · <a href={offer.url} target="_blank" rel="noreferrer" className="font-semibold text-[#2f6edb]">Bron</a>{canEditCompetitors ? <> · <Link href={`/producten/${product.id}?concurrent=${offer.id}#concurrentieprijzen`} className="font-semibold text-[#60758d] hover:text-[#2f6edb]">Wijzigen</Link></> : null}</p></td>
                       <td className="px-4 py-3 font-semibold text-[#24384f]">{price === null ? <span className="text-[#a36816]">Nog geen prijs</span> : formatCurrency(price)}</td>
                       <td className={`px-4 py-3 font-semibold ${ownDeltaPct !== null && ownDeltaPct < 0 ? 'text-[#b6414d]' : ownDeltaPct !== null && ownDeltaPct > 0 ? 'text-[#20814d]' : 'text-[#708095]'}`}>{ownDeltaPct === null ? '—' : `${ownDeltaPct > 0 ? '+' : ''}${formatNumber(ownDeltaPct, 1)}%`}</td>
                       <td className="px-4 py-3"><span className="ps-chip">{offer.stockStatus ?? 'Onbekend'}</span></td>
@@ -318,6 +326,56 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
 
         <aside className="space-y-3">
+          {selectedCompetitorMatch && canEditCompetitors ? (() => {
+            const selectedOffer = selectedCompetitorMatch.competitorOffer
+            return (
+              <div className="ps-panel p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#74869a]">Bron wijzigen</p>
+                    <h3 className="mt-1 text-[13px] font-semibold text-[#2b4057]">{selectedOffer.competitor.name}</h3>
+                  </div>
+                  <Link href={`/producten/${product.id}#concurrentieprijzen`} className="text-[11px] font-semibold text-[#6f8093] hover:text-[#2f6edb]">Sluiten</Link>
+                </div>
+                <p className="mt-2 text-[10px] leading-4 text-[#8290a1]">Pas de bron direct aan zonder het product te verlaten.</p>
+                <form action={updateCompetitorOfferAction} className="mt-4 space-y-3">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input type="hidden" name="competitorOfferId" value={selectedOffer.id} />
+                  <label className="block text-[10px] font-semibold text-[#5f7084]">Concurrent
+                    <input required name="competitorName" defaultValue={selectedOffer.competitor.name} className="toolbar-control mt-1.5 w-full" />
+                  </label>
+                  <label className="block text-[10px] font-semibold text-[#5f7084]">Product URL
+                    <input required type="url" name="offerUrl" defaultValue={selectedOffer.url} className="toolbar-control mt-1.5 w-full" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-[10px] font-semibold text-[#5f7084]">Eenheid
+                      <input name="packagingUnit" defaultValue={selectedOffer.packagingUnit ?? product.packagingUnit ?? 'stuks'} className="toolbar-control mt-1.5 w-full" />
+                    </label>
+                    <label className="block text-[10px] font-semibold text-[#5f7084]">Aantal
+                      <input name="packagingQty" type="number" min="1" step="1" defaultValue={selectedOffer.packagingQty ?? product.packagingQty ?? 1} className="toolbar-control mt-1.5 w-full" />
+                    </label>
+                  </div>
+                  <label className="block text-[10px] font-semibold text-[#5f7084]">Controlefrequentie
+                    <select name="checkFrequencyHours" defaultValue={selectedOffer.competitor.checkFrequencyHours} className="toolbar-control mt-1.5 w-full">
+                      <option value="6">Elke 6 uur</option>
+                      <option value="12">Elke 12 uur</option>
+                      <option value="24">Dagelijks</option>
+                      <option value="48">Elke 2 dagen</option>
+                      <option value="168">Wekelijks</option>
+                      <option value="876000">Alleen handmatig</option>
+                    </select>
+                  </label>
+                  <label className="block text-[10px] font-semibold text-[#5f7084]">Prijs bevat btw
+                    <select name="vatIncluded" defaultValue={selectedOffer.vatIncluded ? 'true' : 'false'} className="toolbar-control mt-1.5 w-full">
+                      <option value="true">Ja</option>
+                      <option value="false">Nee</option>
+                    </select>
+                  </label>
+                  <button type="submit" className="primary-action min-h-[40px] w-full">Wijzigingen opslaan</button>
+                </form>
+              </div>
+            )
+          })() : null}
           <div className="ps-panel p-4">
             <h3 className="text-[12px] font-semibold text-[#34495f]">Marktbeeld</h3>
             <div className="mt-3 space-y-3 text-[11px]">
