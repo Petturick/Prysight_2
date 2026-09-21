@@ -302,7 +302,9 @@ async function markRequestApplied(input: {
   context: Awaited<ReturnType<typeof pricingContext>>
 }) {
   const vatRate = input.context.country ? Number(input.context.country.vatRate) : null
-  const verifiedLocalPrice = await syncLocalPrice(input.request, input.context.product, vatRate, input.verifiedExternal, getMagentoPricingConfig(input.request.company_id)!.pricesIncludeTax)
+  const magentoConfig = await getMagentoPricingConfig(input.request.company_id)
+  if (!magentoConfig) throw new Error('Magento writeback is niet geconfigureerd voor deze organisatie.')
+  const verifiedLocalPrice = await syncLocalPrice(input.request, input.context.product, vatRate, input.verifiedExternal, magentoConfig.pricesIncludeTax)
   const updated = await prisma.$executeRaw(Prisma.sql`
     update price_change_requests
     set status = 'APPLIED', applied_at = now(), previous_external_price = ${input.previousExternal}, verified_external_price = ${input.verifiedExternal},
@@ -329,7 +331,7 @@ async function compensateExternalWrite(request: RequestRow, previousExternal: nu
 }
 
 export async function applyApprovedPriceChange(input: { companyId: string; userId: string; requestId: string }) {
-  const config = getMagentoPricingConfig(input.companyId)
+  const config = await getMagentoPricingConfig(input.companyId)
   if (!config) throw new Error('Magento writeback is nog niet volledig geconfigureerd.')
   const request = await findRequest(input.companyId, input.requestId)
   if (!request) throw new Error('Prijswijziging niet gevonden.')
@@ -396,7 +398,7 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
 }
 
 export async function rollbackAppliedPriceChange(input: { companyId: string; userId: string; requestId: string }) {
-  const config = getMagentoPricingConfig(input.companyId)
+  const config = await getMagentoPricingConfig(input.companyId)
   if (!config) throw new Error('Magento writeback is nog niet volledig geconfigureerd.')
   const request = await findRequest(input.companyId, input.requestId)
   if (!request) throw new Error('Prijswijziging niet gevonden.')
