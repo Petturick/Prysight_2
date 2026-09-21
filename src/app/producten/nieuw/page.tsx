@@ -48,7 +48,7 @@ export default async function NewProductPage() {
         </Link>
       </section>
 
-      <ProductUrlQuickStart formId="new-product-form" />
+      <ProductUrlQuickStart formId="new-product-form" markets={countries.map((country) => ({ id: country.id, code: country.code, name: country.name, currency: country.currency }))} />
 
       <form id="new-product-form" action={createSmartProductAction} className="space-y-4">
         <section className="ps-panel overflow-hidden">
