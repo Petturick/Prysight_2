@@ -449,7 +449,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-[#34495f]">Historie en controles</summary>
         <div className="space-y-4 border-t border-[#e7edf3] p-4">
           <Suspense fallback={<AnalyticsFallback label="Prijsverloop" />}>
-            <ProductPriceHistoryPanel companyId={user.companyId} productId={product.id} />
+            <ProductPriceHistoryPanel companyId={user.companyId} productId={product.id} countryId={defaultCountry?.id} />
           </Suspense>
           <Suspense fallback={<AnalyticsFallback label="Controlehistorie" />}>
             <ProductCheckHistoryPanel companyId={user.companyId} productId={product.id} />
