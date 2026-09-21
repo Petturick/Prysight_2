@@ -377,7 +377,7 @@ export function pricesEqual(left: number, right: number, tolerance = 0.01) {
 
 export function convertPriceTaxMode(price: number, fromIncludesTax: boolean, toIncludesTax: boolean, vatRate: number | null) {
   if (fromIncludesTax === toIncludesTax) return Math.round(price * 100) / 100
-  if (vatRate === null || !Number.isFinite(vatRate) || vatRate < 0) throw new Error('Btw percentage ontbreekt voor veilige Magento prijsconversie.')
+  if (vatRate === null || !Number.isFinite(vatRate) || vatRate < 0) throw new Error('Btw-percentage ontbreekt voor veilige Magento prijsconversie.')
   const factor = 1 + vatRate / 100
   const converted = fromIncludesTax ? price / factor : price * factor
   return Math.round(converted * 100) / 100
