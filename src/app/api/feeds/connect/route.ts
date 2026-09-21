@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { FeedSourceType } from '@/generated/prisma/client'
 import { requirePermission } from '@/lib/authz'
-import { syncFeedSource } from '@/lib/feed-ingestion'
+import { dispatchFeedSync } from '@/lib/feed-sync-dispatch'
 import { validateFeedUrl } from '@/lib/feed-parser'
 import { prisma } from '@/lib/prisma'
 
@@ -25,10 +25,10 @@ export async function POST(request: Request) {
       create: { companyId: actor.companyId, sourceKey: sourceKey(normalized.toString()), name, sourceType: FeedSourceType.URL, url: normalized.toString(), countryCode, isActive: true },
     })
     try {
-      const result = await syncFeedSource(source.id)
-      return NextResponse.json({ feedSourceId: source.id, ...result })
+      await dispatchFeedSync(request, source.id)
+      return NextResponse.json({ feedSourceId: source.id, queued: true }, { status: 202 })
     } catch (error) {
-      return NextResponse.json({ feedSourceId: source.id, error: error instanceof Error ? error.message : 'Feed synchroniseren mislukt.' }, { status: 422 })
+      return NextResponse.json({ feedSourceId: source.id, error: error instanceof Error ? error.message : 'Feedverwerking kon niet worden gestart.' }, { status: 503 })
     }
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Geen toegang.' }, { status: 403 })
