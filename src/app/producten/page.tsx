@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
-import { ProductSelectionControls } from '@/components/ProductSelectionControls'
+import { ProductOverviewGrid, type ProductGridRow } from '@/components/ProductOverviewGrid'
 import { requirePermission } from '@/lib/authz'
 import { deriveProductMetrics, getFilterOptions } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -14,46 +14,33 @@ import { safeDatabaseQuery } from '@/lib/safe-database'
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
-
-function isOutOfStock(value: string | null | undefined) {
-  const normalized = (value ?? '').trim().toLowerCase()
-  if (!normalized) return false
-  return normalized.includes('out of stock') || normalized.includes('niet op voorraad') || normalized.includes('uitverkocht') || normalized.includes('unavailable') || normalized.includes('sold out')
+function price(value: number | null | undefined, currency = 'EUR') {
+  return value === null || value === undefined || !Number.isFinite(value) ? '—' : formatCurrency(value, currency)
 }
-
-function stockLabel(value: string | null | undefined) {
-  if (!value) return 'Voorraad onbekend'
-  return isOutOfStock(value) ? 'Uit voorraad' : 'Op voorraad'
+function percent(value: number | null) {
+  return value === null ? '—' : (value > 0 ? '+' : '') + formatNumber(value, 1) + '%'
 }
 
 export default async function ProductenPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await requirePermission('products.read')
   const params = await searchParams
-  const deletedCount = Math.max(Number(readParam(params.verwijderd) ?? '0') || 0, 0)
-  const selectionState = readParam(params.selectie)
-  const crawlStatus = readParam(params.crawlstatus)
-  const crawlResult = readParam(params.crawl)
-  const crawlSources = Math.max(Number(readParam(params.bronnen) ?? '0') || 0, 0)
-  const crawlProduct = readParam(params.crawlproduct)
-  const openProduct = readParam(params.openproduct)
-  const crawlLimited = readParam(params.limiet) === '1'
   const canCrawl = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
-  const canFindCompetitors = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
-  const canEditProducts = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
+  const canDelete = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
   const filters = {
-    q: readParam(params.q),
-    productGroupId: readParam(params.productgroep),
-    countryId: readParam(params.land),
-    competitorId: readParam(params.concurrent),
-    identifierStatus: readParam(params.identificatie),
+    q: readParam(params.q)?.trim() || undefined,
+    productGroupId: readParam(params.productgroep) || undefined,
+    countryId: readParam(params.land) || undefined,
+    competitorId: readParam(params.concurrent) || undefined,
+    identifierStatus: readParam(params.identificatie) || undefined,
   }
-  const page = Math.max(Number(readParam(params.pagina) ?? '1') || 1, 1)
-  const pageSize = 12
-
+  const requestedPageSize = Number(readParam(params.aantal) || '25')
+  const pageSize = requestedPageSize === 50 ? 50 : 25
+  const requestedPage = Number(readParam(params.pagina) || '1')
+  const page = Number.isInteger(requestedPage) ? Math.max(1, Math.min(requestedPage, 100000)) : 1
   const where = {
     companyId: actor.companyId,
     isActive: true,
-    productGroupId: filters.productGroupId || undefined,
+    productGroupId: filters.productGroupId,
     AND: [
       filters.q ? { OR: [
         { articleNumber: { contains: filters.q, mode: 'insensitive' as const } },
@@ -70,6 +57,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         : filters.identifierStatus === 'aanwezig'
           ? { OR: [{ ean: { not: null } }, { gtin: { not: null } }] }
           : {},
+      filters.competitorId ? { matches: { some: { companyId: actor.companyId, competitorOffer: { competitorId: filters.competitorId, isActive: true } } } } : {},
     ],
   }
 
@@ -80,24 +68,28 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         where,
         include: {
           productGroup: true,
-          productMarkets: { where: { companyId: actor.companyId }, include: { country: true } },
+          productMarkets: { where: { companyId: actor.companyId, isActive: true }, include: { country: true } },
           matches: {
             where: {
               companyId: actor.companyId,
               competitorOffer: {
                 isActive: true,
-                competitorId: filters.competitorId || undefined,
+                competitorId: filters.competitorId,
                 competitor: filters.countryId ? { companyId: actor.companyId, countryId: filters.countryId } : undefined,
               },
             },
-            include: { competitorOffer: { include: {
-              competitor: { include: { country: true } },
-              priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
-              priceChecks: { where: { companyId: actor.companyId }, orderBy: { checkedAt: 'desc' }, take: 2 },
-            } } },
+            include: {
+              competitorOffer: {
+                include: {
+                  competitor: { include: { country: true } },
+                  priceHistory: { where: { companyId: actor.companyId }, orderBy: { recordedAt: 'desc' }, take: 2 },
+                  priceChecks: { where: { companyId: actor.companyId }, orderBy: { checkedAt: 'desc' }, take: 2 },
+                },
+              },
+            },
           },
         },
-        orderBy: [{ productGroup: { name: 'asc' } }, { articleNumber: 'asc' }],
+        orderBy: [{ articleNumber: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -108,156 +100,154 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } })
 
   const { products, totalCount, filterOptions } = result.data
-  const rows = products.map((product) => deriveProductMetrics(product, filters))
-  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1)
   const selectedCountry = filterOptions.countries.find((country) => country.id === filters.countryId)
-  const comparableCount = rows.filter((item) => item.lowestPrice !== null && item.ownPrice !== null).length
-  const coverage = rows.length ? Math.round((comparableCount / rows.length) * 100) : 0
-  const attentionCount = rows.filter((item) => item.reviewMatches > 0 || item.stale || item.lowestPrice === null).length
-  const monitoredOffers = rows.reduce((sum, item) => sum + item.sourceCount, 0)
+  const rows: ProductGridRow[] = products.map((product) => {
+    const metrics = deriveProductMetrics(product, filters)
+    const ownVatRate = selectedCountry
+      ? Number(selectedCountry.vatRate)
+      : metrics.selectedMarket
+        ? Number(metrics.selectedMarket.country.vatRate)
+        : product.productMarkets.length === 1
+          ? Number(product.productMarkets[0].country.vatRate)
+          : null
+    const validOwnRate = ownVatRate !== null && Number.isFinite(ownVatRate)
+    const ownPrice = metrics.ownPrice
+    const ownEx = ownPrice === null || !validOwnRate
+      ? null : metrics.vatIncluded ? ownPrice / (1 + ownVatRate / 100) : ownPrice
+    const ownInc = ownPrice === null || !validOwnRate
+      ? null : metrics.vatIncluded ? ownPrice : ownPrice * (1 + ownVatRate / 100)
+    const lowestOffer = metrics.lowestOffer?.competitorOffer
+    const lowestRate = lowestOffer ? Number(lowestOffer.competitor.country.vatRate) : null
+    const marketEx = metrics.lowestPrice !== null && lowestRate !== null && Number.isFinite(lowestRate)
+      ? metrics.lowestPrice / (1 + lowestRate / 100) : null
+    const delta = metrics.difference.pctDiff === null || metrics.difference.pctDiff === undefined
+      ? null : Number(metrics.difference.pctDiff)
+    const checked = metrics.lastCheckedAt ? formatDate(metrics.lastCheckedAt) : 'Nog niet'
+    const lastCheckFailed = metrics.lowestOffer?.competitorOffer.priceChecks[0]?.isSuccess === false
+    const stock = metrics.selectedMarket?.stockStatus ?? product.stockStatus
+    const status = lastCheckFailed ? 'Controle mislukt'
+      : metrics.reviewMatches > 0 ? 'Beoordelen'
+        : metrics.stale ? 'Vernieuwen'
+          : metrics.sourceCount > 0 ? 'Actueel'
+            : stock && /niet op voorraad|uitverkocht|out of stock|sold out/i.test(stock) ? 'Niet op voorraad' : 'Geen bronnen'
+    return {
+      id: product.id,
+      articleNumber: product.articleNumber,
+      name: product.name,
+      ean: product.ean || product.gtin || '',
+      group: product.productGroup.name,
+      markets: product.productMarkets.map((market) => market.country.code).join(', ') || '—',
+      ownEx: price(ownEx, metrics.ownCurrency),
+      ownInc: price(ownInc, metrics.ownCurrency),
+      marketEx: price(marketEx),
+      marketInc: price(metrics.lowestPrice),
+      difference: percent(delta),
+      differencePct: delta,
+      sources: metrics.sourceCount,
+      lastChecked: checked,
+      status,
+      review: metrics.reviewMatches,
+      detailHref: '/producten/' + encodeURIComponent(product.id) + (filters.countryId ? '?markt=' + encodeURIComponent(filters.countryId) : ''),
+    }
+  })
 
-  const paginationParams = Object.fromEntries(Object.entries(filters).filter(([, value]) => Boolean(value)).map(([key, value]) => [key === 'productGroupId' ? 'productgroep' : key === 'countryId' ? 'land' : key === 'competitorId' ? 'concurrent' : key === 'identifierStatus' ? 'identificatie' : key, value as string]))
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const queryParams = new URLSearchParams()
+  if (filters.q) queryParams.set('q', filters.q)
+  if (filters.productGroupId) queryParams.set('productgroep', filters.productGroupId)
+  if (filters.countryId) queryParams.set('land', filters.countryId)
+  if (filters.competitorId) queryParams.set('concurrent', filters.competitorId)
+  if (filters.identifierStatus) queryParams.set('identificatie', filters.identifierStatus)
+  queryParams.set('aantal', String(pageSize))
+  function pageHref(nextPage: number) {
+    const copy = new URLSearchParams(queryParams)
+    copy.set('pagina', String(nextPage))
+    return '/producten?' + copy.toString()
+  }
+  const resultMessage = readParam(params.crawlstatus)
+  const selectionMessage = readParam(params.selectie)
+  const deleted = Number(readParam(params.verwijderd) || '0')
 
   return (
-    <div className="space-y-4">
-      {!result.available && <DatabaseNotice />}
+    <div className="space-y-3">
+      {!result.available ? <DatabaseNotice /> : null}
+      {deleted > 0 ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] font-semibold text-[#20814d]">{deleted} producten verwijderd.</p> : null}
+      {selectionMessage === 'leeg' || selectionMessage === 'ongeldig' ? <p role="alert" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Selecteer één of meerdere geldige producten.</p> : null}
+      {resultMessage === 'klaar' ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] text-[#20814d]">Prijscontrole afgerond. {readParam(params.bronnen) || '0'} bronnen gecontroleerd, resultaat {readParam(params.crawl) || 'onbekend'}.{readParam(params.limiet) === '1' ? ' De maximale batchgrootte is bereikt.' : ''}</p> : null}
+      {resultMessage === 'mislukt' ? <p role="alert" className="rounded-lg bg-[#fff0f1] px-4 py-2.5 text-[11px] text-[#a93442]">Prijscontrole mislukt. Controleer de gekoppelde bronnen.</p> : null}
+      {resultMessage === 'geen-bron' || resultMessage === 'geen-bronnen-selectie' ? <p role="status" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Voor de selectie zijn nog geen concurrentbronnen gekoppeld. Open een product om een bron toe te voegen.</p> : null}
 
-      {deletedCount > 0 ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#20814d]">{formatNumber(deletedCount)} product{deletedCount === 1 ? '' : 'en'} verwijderd.</div> : null}
-      {selectionState === 'leeg' ? <div className="rounded-[12px] bg-[#fff4df] px-4 py-3 text-[12px] font-semibold text-[#8b611d]">Selecteer eerst één of meerdere producten.</div> : null}
-      {selectionState === 'ongeldig' ? <div className="rounded-[12px] bg-[#fff0f1] px-4 py-3 text-[12px] font-semibold text-[#a93442]">De geselecteerde producten konden niet worden verwerkt.</div> : null}
-      {crawlStatus === 'geen-bron' ? (
-        <div className="flex flex-col gap-3 rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[12px] font-semibold text-[#7b5a1b]">{crawlProduct ? `Artikel ${crawlProduct} heeft` : 'Dit product heeft'} nog geen gekoppelde concurrentbron. Koppel één product URL, daarna werkt Nu crawlen met één klik.</p>
-          {openProduct ? <Link href={`/producten/${openProduct}#concurrent-bron-toevoegen`} className="secondary-action min-h-0 shrink-0 px-3 py-2 text-[11px]">Concurrent koppelen</Link> : null}
+      <section className="strong-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
+        <div>
+          <h1>Producten</h1>
+          <p className="mt-1 text-[11px] text-[#748296]">{formatNumber(totalCount)} producten, overzicht en prijsvergelijking per markt</p>
         </div>
-      ) : null}
-      {crawlStatus === 'geen-bronnen-selectie' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">De geselecteerde producten hebben nog geen gekoppelde concurrentbronnen. Koppel eerst product URLs en haal daarna de prijzen op.</div> : null}
-      {crawlStatus === 'mislukt' ? <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff2f3] px-4 py-3 text-[12px] font-semibold text-[#9c3442]">De prijscontrole kon niet worden afgerond{crawlProduct ? ` voor artikel ${crawlProduct}` : ''}. Er is niets aangepast. Probeer opnieuw, blijft dit terugkomen, controleer dan de gekoppelde bron URL op het product.</div> : null}
-      {crawlStatus === 'klaar' && crawlResult ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#1e7448]">Prijscontrole klaar{crawlProduct ? ` voor artikel ${crawlProduct}` : ''}, {formatNumber(crawlSources)} bron{crawlSources === 1 ? '' : 'nen'} gecontroleerd, resultaat {crawlResult}.{crawlLimited ? ' De batchlimiet is bereikt, voer de resterende selectie nogmaals uit.' : ''}</div> : null}
-
-      <section className="strong-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
-          <div>
-            <h1>Producten</h1>
-            <p className="mt-1 text-[12px] text-[#6f7d90]">Monitor, vergelijk en ververs prijzen per product.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
-          </div>
-        </div>
-        <div className="grid border-t border-[#e7edf3] sm:grid-cols-2 xl:grid-cols-4">
-          <div className="px-5 py-3.5 sm:px-6"><p className="text-[11px] font-medium text-[#7a8798]">Producten</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(totalCount)}</p></div>
-          <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Prijsdekking</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{coverage}%</p></div>
-          <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Bronnen op deze pagina</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(monitoredOffers)}</p></div>
-          <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Aandacht nodig</p><p className={`mt-1 text-[22px] font-semibold ${attentionCount ? 'text-[#a36816]' : 'text-[#20814d]'}`}>{formatNumber(attentionCount)}</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/import/bulk" className="secondary-action">Importeren</Link>
+          <Link href="/feeds" className="secondary-action">Feed koppelen</Link>
+          <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3" aria-label="Producten toevoegen">
-        <Link href="/producten/nieuw" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
-          <div className="flex items-center justify-between gap-3">
-            <div><p className="text-[10px] font-semibold text-[#4f86e8]">Eén product</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Via URL of handmatig</p></div>
-            <span className="text-[18px] text-[#8aa7d6] transition group-hover:translate-x-0.5">→</span>
-          </div>
-          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Plak een product URL of vul de kernvelden in. Met EAN zoekt Prysight automatisch concurrenten voor de gekozen markt.</p>
-        </Link>
-        <Link href="/import/bulk" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
-          <div className="flex items-center justify-between gap-3">
-            <div><p className="text-[10px] font-semibold text-[#7a8798]">Veel producten</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Excel of CSV importeren</p></div>
-            <span className="text-[18px] text-[#9ba8b8] transition group-hover:translate-x-0.5">→</span>
-          </div>
-          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Upload meerdere SKU’s tegelijk. Productvelden worden herkend en EAN’s starten automatisch marktgerichte concurrentherkenning.</p>
-        </Link>
-        <Link href="/feeds" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
-          <div className="flex items-center justify-between gap-3">
-            <div><p className="text-[10px] font-semibold text-[#7a8798]">Automatisch bijhouden</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Productfeed koppelen</p></div>
-            <span className="text-[18px] text-[#9ba8b8] transition group-hover:translate-x-0.5">→</span>
-          </div>
-          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Voor structureel beheer vanuit ERP, PIM of webshop zonder handmatig onderhoud.</p>
-        </Link>
+      <section className="ps-panel px-3 py-3 sm:px-4">
+        <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
+          <input name="q" defaultValue={filters.q || ''} placeholder="Zoek op artikelnummer, productnaam of EAN" aria-label="Zoek producten" className="toolbar-control min-w-[210px] flex-[2_1_240px]" />
+          <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[125px] flex-1">
+            <option value="">Alle markten</option>
+            {filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
+          </select>
+          <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
+            <option value="">Alle productgroepen</option>
+            {filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+          <details className="relative">
+            <summary className="secondary-action cursor-pointer list-none">Filters</summary>
+            <div className="absolute right-0 top-full z-30 mt-2 grid w-[250px] gap-3 rounded-xl border border-[#dce3ea] bg-white p-3 shadow-xl">
+              <label className="text-[10px] font-semibold text-[#64758a]">Concurrent
+                <select name="concurrent" defaultValue={filters.competitorId || ''} className="toolbar-control mt-1 w-full">
+                  <option value="">Alle concurrenten</option>
+                  {filterOptions.competitors.filter((competitor) => !filters.countryId || competitor.countryId === filters.countryId).map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}
+                </select>
+              </label>
+              <label className="text-[10px] font-semibold text-[#64758a]">EAN
+                <select name="identificatie" defaultValue={filters.identifierStatus || ''} className="toolbar-control mt-1 w-full">
+                  <option value="">Alle EAN statussen</option>
+                  <option value="aanwezig">EAN aanwezig</option>
+                  <option value="ontbreekt">EAN ontbreekt</option>
+                </select>
+              </label>
+              <p className="text-[10px] text-[#8492a1]">Gebruik Toepassen om de filters bij te werken.</p>
+            </div>
+          </details>
+          <label className="flex items-center gap-1.5 text-[10px] font-semibold text-[#66788d]">
+            Tonen
+            <select name="aantal" defaultValue={String(pageSize)} className="toolbar-control min-w-[75px]">
+              <option value="25">25</option><option value="50">50</option>
+            </select>
+          </label>
+          <button type="submit" className="primary-action">Toepassen</button>
+          <Link href="/producten" className="secondary-action">Wissen</Link>
+        </form>
+        {selectedCountry ? <p className="mt-2 text-[10px] text-[#748296]">Marktprofiel, {selectedCountry.name}. Prijzen en concurrenten worden voor dit land weergegeven.</p> : <p className="mt-2 text-[10px] text-[#748296]">Alle markten, selecteer een land voor een landspecifieke prijsvergelijking.</p>}
       </section>
 
-      <form className="ps-panel p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-[14px] font-semibold text-[#23364d]">Filter</h2>
-          {(filters.q || filters.productGroupId || filters.countryId || filters.competitorId || filters.identifierStatus) ? <Link href="/producten" className="text-[11px] font-semibold text-[#2f6edb]">Wissen</Link> : null}
+      <ProductOverviewGrid
+        rows={rows}
+        totalCount={totalCount}
+        canCrawl={canCrawl}
+        canDelete={canDelete}
+        deleteAction={deleteSelectedProductsAction}
+        refreshPricesAction={refreshSelectedProductPricesAction}
+        refreshSinglePriceAction={refreshSingleProductPriceAction}
+      />
+
+      <nav aria-label="Pagina's" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-4 py-3 text-[11px] text-[#66788d]">
+        <span>Pagina {page} van {totalPages}, {formatNumber(totalCount)} producten</span>
+        <div className="flex gap-2">
+          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={'secondary-action min-h-[32px] px-3 py-1.5 ' + (page <= 1 ? 'pointer-events-none opacity-40' : '')}>Vorige</Link>
+          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={'primary-action min-h-[32px] px-3 py-1.5 ' + (page >= totalPages ? 'pointer-events-none opacity-40' : '')}>Volgende</Link>
         </div>
-        <div className="grid gap-2.5 xl:grid-cols-[1.6fr_1fr_1fr_1fr_1fr_auto]">
-          <input name="q" defaultValue={filters.q} placeholder="Zoek artikel, EAN of productnaam" className="toolbar-control w-full" />
-          <select name="productgroep" defaultValue={filters.productGroupId} className="toolbar-control w-full"><option value="">Alle productgroepen</option>{filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
-          <select name="land" defaultValue={filters.countryId} className="toolbar-control w-full"><option value="">Alle landen</option>{filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
-          <select name="concurrent" defaultValue={filters.competitorId} className="toolbar-control w-full"><option value="">Alle concurrenten</option>{filterOptions.competitors.map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}</select>
-          <select name="identificatie" defaultValue={filters.identifierStatus} className="toolbar-control w-full"><option value="">Alle EAN statussen</option><option value="aanwezig">EAN aanwezig</option><option value="ontbreekt">EAN ontbreekt</option></select>
-          <button className="primary-action min-w-[96px]">Filter</button>
-        </div>
-        {selectedCountry ? <p className="mt-2 text-[10px] text-[#8793a3]">Markt, {selectedCountry.name}</p> : null}
-      </form>
-
-      <form id="product-bulk-form" action={deleteSelectedProductsAction} className="space-y-3">
-        <div className="ps-panel flex flex-col gap-3 p-3.5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] font-semibold text-[#33465c]">Bulk</span>
-            <ProductSelectionControls formId="product-bulk-form" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {canCrawl ? <button type="submit" formAction={refreshSelectedProductPricesAction} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Prijzen ophalen</button> : null}
-            <button type="submit" className="ps-button-danger min-h-[36px] px-3.5 py-2 text-[11px]">Verwijderen</button>
-          </div>
-        </div>
-
-        <div className="space-y-2.5">
-          {rows.length === 0 ? <div className="ps-panel px-6 py-14 text-center"><p className="text-[14px] font-semibold text-[#34495f]">Geen producten gevonden</p><p className="mt-1 text-[11px] text-[#7b8999]">Pas je filters aan of voeg een product toe.</p></div> : null}
-
-          {rows.map((item) => {
-            const pctDiff = item.difference.pctDiff !== null && item.difference.pctDiff !== undefined ? Number(item.difference.pctDiff) : null
-            const cheapestCompetitor = item.lowestOffer?.competitorOffer.competitor.name ?? null
-            const identifier = item.product.ean ?? item.product.gtin
-
-            return (
-              <article key={item.product.id} className="ps-panel overflow-hidden">
-                <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <input type="checkbox" name="productIds" value={item.product.id} aria-label={`Selecteer ${item.product.name}`} className="mt-1 h-[17px] w-[17px] shrink-0 cursor-pointer rounded" />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link href={`/producten/${item.product.id}`} className="text-[15px] font-semibold text-[#20344b] hover:text-[#2f6edb]">{item.product.name}</Link>
-                        {item.stale ? <span className="ps-chip ps-chip-amber">Vernieuwen</span> : item.sourceCount > 0 ? <span className="ps-chip ps-chip-green">Actueel</span> : null}
-                        {item.reviewMatches > 0 ? <span className="ps-chip ps-chip-amber">{item.reviewMatches} AI suggestie{item.reviewMatches === 1 ? '' : 's'}</span> : null}
-                      </div>
-                      <p className="mt-1.5 truncate text-[11px] text-[#788698]">Artikel {item.product.articleNumber}{identifier ? ` · EAN ${identifier}` : ' · EAN ontbreekt'} · {item.product.productGroup.name}</p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 pl-7 lg:pl-0">
-                    <span className={`text-[10px] font-medium ${isOutOfStock(item.product.stockStatus) ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{stockLabel(item.product.stockStatus)}</span>
-                    {item.sourceCount > 0 && canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Prijzen ophalen</button> : null}
-                    {item.sourceCount === 0 && identifier && canFindCompetitors ? <Link href={`/producten/${item.product.id}#concurrenten-vinden`} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Concurrenten zoeken</Link> : null}
-                    {item.sourceCount === 0 && !identifier && canEditProducts ? <Link href={`/producten/${item.product.id}#product-identiteit`} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">EAN toevoegen</Link> : null}
-                    <Link href={`/producten/${item.product.id}`} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Analyse</Link>
-                  </div>
-                </div>
-
-                <div className="grid border-t border-[#edf1f5] sm:grid-cols-2 lg:grid-cols-5">
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-medium text-[#8591a0]">Eigen prijs</p>
-                    {item.ownPrice !== null && item.ownPrice !== undefined
-                      ? <><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.ownPrice, item.ownCurrency)}</p><p className="mt-0.5 text-[9px] text-[#8793a3]">{item.vatIncluded ? 'Incl. btw' : `Excl. btw · vergelijking ${formatCurrency(item.comparisonOwnPrice, item.ownCurrency)} incl.`}</p></>
-                      : <Link href={`/producten/${item.product.id}#eigen-prijs`} className="mt-1 inline-flex text-[11px] font-semibold text-[#2f6edb]">Prijs toevoegen →</Link>}
-                  </div>
-                  <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Laagste markt</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.lowestPrice)}</p>{cheapestCompetitor ? <p className="mt-0.5 truncate text-[10px] text-[#8793a3]">{cheapestCompetitor}</p> : null}</div>
-                  <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Verschil</p><p className={`mt-1 text-[16px] font-semibold ${pctDiff !== null && pctDiff > 0 ? 'text-[#b6414d]' : pctDiff !== null && pctDiff < 0 ? 'text-[#20814d]' : 'text-[#24384f]'}`}>{pctDiff !== null ? `${pctDiff > 0 ? '+' : ''}${formatNumber(pctDiff, 1)}%` : '—'}</p></div>
-                  <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Bronnen</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatNumber(item.sourceCount)}</p></div>
-                  <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Laatste meting</p><p className="mt-1 text-[12px] font-semibold text-[#24384f]">{item.lastCheckedAt ? formatDate(item.lastCheckedAt) : 'Nog niet gemeten'}</p></div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      </form>
-
-      <div className="flex items-center justify-between rounded-[14px] bg-white px-4 py-3 text-[11px] font-medium text-[#607187] shadow-[0_8px_20px_rgba(31,48,70,.06)]">
-        <p>Pagina {page} van {totalPages}</p>
-        <div className="flex gap-2"><Link href={`?${new URLSearchParams({ ...paginationParams, pagina: String(Math.max(page - 1, 1)) }).toString()}`} className="secondary-action min-h-0 px-3 py-2">Vorige</Link><Link href={`?${new URLSearchParams({ ...paginationParams, pagina: String(Math.min(page + 1, totalPages)) }).toString()}`} className="primary-action min-h-0 px-3 py-2">Volgende</Link></div>
-      </div>
+      </nav>
     </div>
   )
 }
