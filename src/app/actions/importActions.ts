@@ -240,10 +240,12 @@ export async function processImportRowsAction(payload: unknown) {
           : previousOwnPrice
 
         if (country && marketIsActive) {
+          const marketVatIncluded = importedVatIncluded(row.vatIncluded, product.vatIncluded)
           await prisma.productMarket.upsert({
             where: { companyId_productId_countryId: { companyId, productId: product.id, countryId: country.id } },
             update: {
               ownPrice: ownPrice ?? undefined,
+              vatIncluded: marketVatIncluded,
               currency,
               ownUrl: row.engelsUrl || undefined,
               stockStatus: row.ownStock || undefined,
@@ -254,6 +256,7 @@ export async function processImportRowsAction(payload: unknown) {
               productId: product.id,
               countryId: country.id,
               ownPrice,
+              vatIncluded: marketVatIncluded,
               currency,
               ownUrl: row.engelsUrl || null,
               stockStatus: row.ownStock || 'Onbekend',
