@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 
 type SearchCandidate = { title: string; url: string; snippet?: string }
+type SearchResult = { candidates: SearchCandidate[]; provider: string }
 
 function hostnameLabel(url: string) {
   const host = new URL(url).hostname.replace(/^www\./, '')
@@ -11,13 +12,30 @@ function hostnameLabel(url: string) {
   return base.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function canonicalProductUrl(value: string) {
+  const url = new URL(value)
+  url.hash = ''
+  const trackingPrefixes = ['utm_', 'gad_', 'gclid', 'gbraid', 'wbraid', 'fbclid', 'msclkid', 'channable']
+  for (const key of [...url.searchParams.keys()]) {
+    if (trackingPrefixes.some((prefix) => key.toLowerCase().startsWith(prefix))) url.searchParams.delete(key)
+  }
+  const query = url.searchParams.toString()
+  return `${url.origin}${url.pathname.replace(/\/+$/, '') || '/'}${query ? `?${query}` : ''}`
+}
+
 function scoreCandidate(candidate: SearchCandidate, ean: string, productName: string) {
   const haystack = `${candidate.title} ${candidate.url} ${candidate.snippet ?? ''}`.toLowerCase()
-  const productTokens = productName.toLowerCase().split(/\s+/).filter((token) => token.length >= 4).slice(0, 6)
-  let score = haystack.includes(ean.toLowerCase()) ? 72 : 48
-  score += Math.min(18, productTokens.filter((token) => haystack.includes(token)).length * 4)
-  if (/product|artikel|item|shop|catalog|p\//i.test(candidate.url)) score += 6
-  return Math.min(96, score)
+  const productTokens = productName
+    .toLowerCase()
+    .replace(/[^0-9a-zà-ÿ]+/gi, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4)
+    .slice(0, 10)
+
+  let score = haystack.includes(ean.toLowerCase()) ? 76 : 44
+  score += Math.min(24, productTokens.filter((token) => haystack.includes(token)).length * 4)
+  if (/product|artikel|item|shop|catalog|assortiment|p\//i.test(candidate.url)) score += 6
+  return Math.min(98, score)
 }
 
 async function searchWithSerper(query: string): Promise<SearchCandidate[]> {
@@ -46,90 +64,206 @@ async function searchWithBrave(query: string): Promise<SearchCandidate[]> {
   return (data.web?.results ?? []).flatMap((item) => item.url ? [{ title: item.title ?? item.url, url: item.url, snippet: item.description }] : [])
 }
 
-async function searchFallback(query: string): Promise<SearchCandidate[]> {
-  const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-    headers: { 'user-agent': 'Mozilla/5.0 (compatible; PrysightBot/1.0)' },
-    cache: 'no-store',
-  })
-  if (!response.ok) return []
-  const html = await response.text()
-  const candidates: SearchCandidate[] = []
-  const pattern = /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
-  for (const match of html.matchAll(pattern)) {
-    const rawUrl = match[1]
-    const title = match[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim()
-    try {
-      const parsed = new URL(rawUrl, 'https://duckduckgo.com')
-      const redirected = parsed.searchParams.get('uddg')
-      const url = redirected ? decodeURIComponent(redirected) : rawUrl
-      candidates.push({ title, url })
-    } catch {}
-    if (candidates.length >= 10) break
+function decodeHtml(value: string) {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+async function searchDuckDuckGo(query: string): Promise<SearchCandidate[]> {
+  try {
+    const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; PrysightBot/2.0)' },
+      cache: 'no-store',
+    })
+    if (!response.ok) return []
+    const html = await response.text()
+    const candidates: SearchCandidate[] = []
+    const pattern = /<a[^>]+class=["'][^"']*result__a[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
+    for (const match of html.matchAll(pattern)) {
+      const rawUrl = decodeHtml(match[1])
+      const title = decodeHtml(match[2].replace(/<[^>]+>/g, '')).trim()
+      try {
+        const parsed = new URL(rawUrl, 'https://duckduckgo.com')
+        const redirected = parsed.searchParams.get('uddg')
+        const url = redirected ? decodeURIComponent(redirected) : rawUrl
+        candidates.push({ title, url })
+      } catch {}
+      if (candidates.length >= 10) break
+    }
+    return candidates
+  } catch {
+    return []
   }
-  return candidates
 }
 
-async function webSearch(query: string) {
+async function searchBing(query: string): Promise<SearchCandidate[]> {
+  try {
+    const response = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (compatible; PrysightBot/2.0)',
+        'accept-language': 'nl-NL,nl;q=0.9,en;q=0.7',
+      },
+      cache: 'no-store',
+    })
+    if (!response.ok) return []
+    const html = await response.text()
+    const candidates: SearchCandidate[] = []
+    const pattern = /<li class=["'][^"']*b_algo[^"']*["'][\s\S]*?<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/li>/gi
+    for (const match of html.matchAll(pattern)) {
+      const url = decodeHtml(match[1])
+      const title = decodeHtml(match[2].replace(/<[^>]+>/g, '')).trim()
+      candidates.push({ title, url })
+      if (candidates.length >= 10) break
+    }
+    return candidates
+  } catch {
+    return []
+  }
+}
+
+async function webSearch(query: string): Promise<SearchResult> {
   const serper = await searchWithSerper(query)
-  if (serper.length) return serper
+  if (serper.length) return { candidates: serper, provider: 'Serper' }
+
   const brave = await searchWithBrave(query)
-  if (brave.length) return brave
-  return searchFallback(query)
+  if (brave.length) return { candidates: brave, provider: 'Brave Search' }
+
+  const duck = await searchDuckDuckGo(query)
+  if (duck.length) return { candidates: duck, provider: 'DuckDuckGo' }
+
+  const bing = await searchBing(query)
+  if (bing.length) return { candidates: bing, provider: 'Bing' }
+
+  return { candidates: [], provider: 'Geen zoekprovider met resultaten' }
 }
 
-export async function discoverCompetitorUrlsByEan({ companyId, productId, countryId }: { companyId: string; productId: string; countryId: string }) {
-  const product = await prisma.product.findFirst({ where: { id: productId, companyId, isActive: true } })
-  if (!product?.ean) return { found: 0, created: 0, reason: 'EAN ontbreekt' }
-
-  const companyWebshops = await prisma.webshop.findMany({ where: { companyId, isActive: true }, select: { url: true } })
-  const ownHosts = new Set(companyWebshops.flatMap((shop) => { try { return [new URL(shop.url).hostname.replace(/^www\./, '')] } catch { return [] } }))
-  const results = await webSearch(`"${product.ean}" ${product.name}`)
+function rankCandidates(results: SearchCandidate[], product: { ean: string; name: string }) {
   const unique = new Map<string, SearchCandidate>()
 
   for (const result of results) {
     try {
-      const safe = (await assertSafeRemoteHttpUrl(result.url)).toString()
-      const parsed = new URL(safe)
-      const host = parsed.hostname.replace(/^www\./, '')
-      if (ownHosts.has(host)) continue
-      if (/google\.|bing\.|duckduckgo\.|youtube\.|facebook\.|instagram\.|amazon\./i.test(host)) continue
-      const normalized = `${parsed.origin}${parsed.pathname}`
-      if (!unique.has(normalized)) unique.set(normalized, { ...result, url: safe })
+      const canonical = canonicalProductUrl(result.url)
+      if (!unique.has(canonical)) unique.set(canonical, { ...result, url: canonical })
     } catch {}
   }
 
-  const ranked = [...unique.values()]
-    .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, product.ean!, product.name) }))
+  return [...unique.values()]
+    .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, product.ean, product.name) }))
     .filter((candidate) => candidate.score >= 55)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 6)
+    .slice(0, 8)
+}
+
+export async function discoverCompetitorUrlsByEan({ companyId, productId, countryId }: { companyId: string; productId: string; countryId: string }) {
+  const product = await prisma.product.findFirst({ where: { id: productId, companyId, isActive: true } })
+  if (!product?.ean) return { found: 0, created: 0, alreadyLinked: 0, reason: 'EAN ontbreekt', provider: null, queryMode: null }
+
+  const companyWebshops = await prisma.webshop.findMany({ where: { companyId, isActive: true }, select: { url: true } })
+  const ownHosts = new Set(companyWebshops.flatMap((shop) => {
+    try { return [new URL(shop.url).hostname.replace(/^www\./, '')] } catch { return [] }
+  }))
+
+  const exactSearch = await webSearch(`"${product.ean}" ${product.name}`)
+  let ranked = rankCandidates(exactSearch.candidates, { ean: product.ean, name: product.name })
+  let provider = exactSearch.provider
+  let queryMode: 'EAN' | 'PRODUCT' = 'EAN'
+
+  if (ranked.length === 0) {
+    const cleanName = product.name.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    const fallbackSearch = await webSearch(`"${cleanName}"`)
+    ranked = rankCandidates(fallbackSearch.candidates, { ean: product.ean, name: product.name })
+    provider = fallbackSearch.provider
+    queryMode = 'PRODUCT'
+  }
+
+  const safeRanked = []
+  for (const candidate of ranked) {
+    try {
+      const safe = (await assertSafeRemoteHttpUrl(candidate.url)).toString()
+      const parsed = new URL(safe)
+      const host = parsed.hostname.replace(/^www\./, '')
+      if (ownHosts.has(host)) continue
+      if (/engels(logistiek|group)?\.|google\.|bing\.|duckduckgo\.|youtube\.|facebook\.|instagram\.|amazon\./i.test(host)) continue
+      safeRanked.push({ ...candidate, url: canonicalProductUrl(safe) })
+    } catch {}
+  }
 
   let created = 0
-  for (const candidate of ranked) {
+  let alreadyLinked = 0
+
+  for (const candidate of safeRanked) {
     const website = new URL(candidate.url).origin
     const competitorName = hostnameLabel(candidate.url)
     const where = { companyId_name_countryId: { companyId, name: competitorName, countryId } }
     let competitor = await prisma.competitor.findUnique({ where })
+
     if (!competitor) {
       await assertCompanyCapacity(companyId, 'competitors')
-      competitor = await prisma.competitor.create({ data: { companyId, name: competitorName, website, countryId, isActive: true, checkFrequencyHours: 24 } })
+      competitor = await prisma.competitor.create({
+        data: { companyId, name: competitorName, website, countryId, isActive: true, checkFrequencyHours: 24 },
+      })
     }
 
-    const existingOffer = await prisma.competitorOffer.findUnique({ where: { companyId_competitorId_url: { companyId, competitorId: competitor.id, url: candidate.url } }, include: { productMatch: true } })
-    if (existingOffer?.productMatch) continue
-    const offer = existingOffer ?? await prisma.competitorOffer.create({ data: { companyId, competitorId: competitor.id, url: candidate.url, currency: product.currency, vatIncluded: true, packagingUnit: product.packagingUnit, packagingQty: product.packagingQty, isActive: true } })
+    const existingOffers = await prisma.competitorOffer.findMany({
+      where: { companyId, competitorId: competitor.id },
+      include: { productMatch: true },
+      take: 50,
+    })
+    const existingOffer = existingOffers.find((offer) => {
+      try { return canonicalProductUrl(offer.url) === candidate.url } catch { return false }
+    })
+
+    if (existingOffer?.productMatch) {
+      alreadyLinked += 1
+      continue
+    }
+
+    const offer = existingOffer ?? await prisma.competitorOffer.create({
+      data: {
+        companyId,
+        competitorId: competitor.id,
+        url: candidate.url,
+        currency: product.currency,
+        vatIncluded: true,
+        packagingUnit: product.packagingUnit,
+        packagingQty: product.packagingQty,
+        isActive: true,
+      },
+    })
+
     await prisma.productMatch.create({
       data: {
         companyId,
         productId,
         competitorOfferId: offer.id,
-        confidenceScore: candidate.score,
+        confidenceScore: queryMode === 'EAN' ? candidate.score : Math.min(candidate.score, 82),
         matchStatus: MatchStatus.REVIEW,
-        matchEvidence: { source: 'ean-web-discovery', ean: product.ean, title: candidate.title, snippet: candidate.snippet ?? null, reason: 'Webresultaat gevonden op exacte EAN en gerangschikt als concurrentsuggestie' },
+        matchEvidence: {
+          source: queryMode === 'EAN' ? 'ean-web-discovery' : 'product-name-fallback',
+          ean: product.ean,
+          title: candidate.title,
+          snippet: candidate.snippet ?? null,
+          reason: queryMode === 'EAN'
+            ? 'Webresultaat gevonden op EAN en productcontext'
+            : 'EAN leverde geen bruikbare resultaten op, kandidaat gevonden op productnaam en kenmerken',
+        },
       },
     })
     created += 1
   }
 
-  return { found: ranked.length, created, reason: ranked.length ? null : 'Geen betrouwbare URL suggesties gevonden' }
+  const found = safeRanked.length
+  const reason = found
+    ? created
+      ? null
+      : alreadyLinked
+        ? 'De gevonden kandidaten waren al gekoppeld.'
+        : 'Er zijn kandidaten gevonden, maar geen nieuwe koppelingen aangemaakt.'
+    : 'Geen betrouwbare concurrentkandidaten gevonden.'
+
+  return { found, created, alreadyLinked, reason, provider, queryMode }
 }
