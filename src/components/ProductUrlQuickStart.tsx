@@ -74,8 +74,10 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
       apply('name', payload.name)
       apply('ean', payload.ean)
       if (payload.ownPrice !== null) {
-        if (payload.vatIncluded === false) apply('ownPriceExVat', payload.ownPrice, true)
-        else apply('ownPriceIncVat', payload.ownPrice, true)
+        window.dispatchEvent(new CustomEvent('prysight:set-market-price', {
+          detail: { price: payload.ownPrice, vatIncluded: payload.vatIncluded },
+        }))
+        applied += 2
       }
       apply('currency', payload.currency, true)
       apply('stockStatus', payload.stockStatus)
