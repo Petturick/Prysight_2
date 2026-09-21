@@ -7,6 +7,7 @@ import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetito
 import { approveMatchAction } from '@/app/actions/matchActions'
 import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
+import { EanPriceSuggestions } from '@/components/EanPriceSuggestions'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
@@ -322,6 +323,15 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           {!product.ean ? <p className="mt-3 rounded-[10px] bg-[#fff7e8] px-3 py-2 text-[10px] leading-5 text-[#815d1d]">Zonder EAN kan Prysight nog zoeken op GTIN, artikelnummer en productcontext, maar de kans op een exacte match is lager.</p> : null}
         </div>
       </details>
+
+      <EanPriceSuggestions
+        productId={product.id}
+        ean={product.ean}
+        countryId={defaultCountry?.id ?? null}
+        currency={ownCurrency}
+        sourceKey={marketMatches.map((match) => match.competitorOffer.id).join(',')}
+        canEditProduct={canEditProduct}
+      />
 
       <section id="eigen-prijs" className="ps-panel scroll-mt-24 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
