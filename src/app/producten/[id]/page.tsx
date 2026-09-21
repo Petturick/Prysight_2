@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateCompetitorOfferAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
+import { approveMatchAction } from '@/app/actions/matchActions'
 import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
@@ -424,13 +425,13 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-[#253149]">Concurrenten vinden</h2>
-            <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Prysight zoekt eerst op EAN. Als die online niet voorkomt, zoekt het gecontroleerd verder op productnaam, kenmerken en de gekozen markt. Kandidaten worden altijd eerst ter beoordeling klaargezet.</p>
+            <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Bij het opvoeren van een product zoekt Prysight automatisch op EAN binnen de gekozen markt. Hier kun je opnieuw zoeken, een suggestie direct gebruiken of met het kruis verwijderen.</p>
           </div>
           {product.ean && defaultCountry ? (
             <form action={discoverCompetitorUrlsAction} className="flex shrink-0 flex-wrap items-center gap-2">
               <input type="hidden" name="productId" value={product.id} />
               <select name="countryId" defaultValue={defaultCountry.id} className="toolbar-control min-w-[150px]">{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
-              <PriceFetchSubmitButton idleLabel="Automatisch EAN zoeken" pendingLabel="Concurrenten zoeken…" />
+              <PriceFetchSubmitButton idleLabel="Opnieuw concurrenten zoeken" pendingLabel="Concurrenten zoeken…" />
             </form>
           ) : <span className="text-[11px] font-medium text-[#8a6a2a]">{product.ean ? 'Geen actieve markt beschikbaar.' : 'EAN ontbreekt.'}</span>}
         </div>
@@ -450,7 +451,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
         ) : null}
 
-        {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <div key={match.id} className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><a href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1"><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></a><div className="flex items-center gap-2"><span className="ps-chip ps-chip-blue">AI {formatNumber(match.confidenceScore)}%</span>{canEditCompetitors ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={match.competitorOffer.id} /><RemoveCompetitorButton label={match.competitorOffer.competitor.name} /></form> : null}</div></div></div>)}</div> : null}
+        {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <div key={match.id} className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><a href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1"><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 text-[9px] font-medium text-[#7d8b9a]">{match.competitorOffer.competitor.country.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></a><div className="flex items-center gap-2"><span className="ps-chip ps-chip-blue">AI {formatNumber(match.confidenceScore)}%</span>{canEditCompetitors ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={match.competitorOffer.id} /><RemoveCompetitorButton label={match.competitorOffer.competitor.name} /></form> : null}</div></div>{canEditCompetitors ? <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#edf1f5] pt-3"><a href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-[#60758d] hover:text-[#2f6edb]">Bron bekijken</a><form action={approveMatchAction.bind(null, match.id)}><button type="submit" className="primary-action min-h-[34px] px-3 py-1.5 text-[10px]">Gebruiken en prijs ophalen</button></form></div> : null}</div>)}</div> : null}
         {reviewMatches.length ? <div className="mt-3 flex justify-end"><Link href="/productmatches" className="text-[11px] font-semibold text-[#2f6edb]">Suggesties beoordelen</Link></div> : null}
       </section>
 
