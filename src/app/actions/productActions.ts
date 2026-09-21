@@ -89,7 +89,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   const product = await prisma.product.findFirst({
     where: { id: productId, companyId: user.companyId, isActive: true },
-    select: { id: true, ownPrice: true, currency: true },
+    select: { id: true, ownPrice: true, currency: true, vatIncluded: true },
   })
   if (!product) throw new Error('Product niet gevonden.')
 
@@ -104,11 +104,11 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     if (country) {
-      await tx.product.update({ where: { id: productId }, data: { vatIncluded } })
       await tx.productMarket.upsert({
         where: { companyId_productId_countryId: { companyId: user.companyId, productId, countryId: country.id } },
         update: {
           ownPrice,
+          vatIncluded,
           currency,
           stockStatus,
           ownUrl: ownUrl || null,
@@ -119,6 +119,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
           productId,
           countryId: country.id,
           ownPrice,
+          vatIncluded,
           currency,
           stockStatus,
           ownUrl: ownUrl || null,
@@ -131,7 +132,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
       if (companyCountry?.isDefault || product.ownPrice === null) {
         await tx.product.update({
           where: { id: productId },
-          data: { ownPrice, currency, stockStatus },
+          data: { ownPrice, vatIncluded, currency, stockStatus },
         })
       }
     } else {
