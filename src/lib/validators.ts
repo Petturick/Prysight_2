@@ -31,7 +31,7 @@ export const reportSchema = z.object({ title: z.string().min(1), weekStart: z.co
 export const importColumnMappingSchema = z.object({
   articleNumber: z.string().optional(), ean: z.string().optional(), gtin: z.string().optional(), mpn: z.string().optional(), brand: z.string().optional(), model: z.string().optional(),
   productName: z.string().optional(), productGroup: z.string().optional(), country: z.string().optional(), webshop: z.string().optional(), engelsUrl: z.string().optional(),
-  ownPrice: z.string().optional(), costPrice: z.string().optional(), minimumMarginPct: z.string().optional(), targetMarginPct: z.string().optional(), minimumPrice: z.string().optional(), maximumPrice: z.string().optional(), pricingMode: z.string().optional(), pricingCooldownHours: z.string().optional(),
+  ownPrice: z.string().optional(), vatIncluded: z.string().optional(), costPrice: z.string().optional(), minimumMarginPct: z.string().optional(), targetMarginPct: z.string().optional(), minimumPrice: z.string().optional(), maximumPrice: z.string().optional(), pricingMode: z.string().optional(), pricingCooldownHours: z.string().optional(),
   ownStock: z.string().optional(), competitorName: z.string().optional(), competitorUrl: z.string().optional(), competitorPrice: z.string().optional(), currency: z.string().optional(), competitorStock: z.string().optional(), lastChecked: z.string().optional(), packagingUnit: z.string().optional(), packagingQty: z.string().optional(),
 })
 export const importRowSchema = z.record(z.string(), z.string())
