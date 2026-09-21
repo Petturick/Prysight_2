@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
-import { discoverCompetitorUrlsAction } from '@/app/actions/productActions'
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { ProductSelectionControls } from '@/components/ProductSelectionControls'
@@ -231,7 +230,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   <div className="flex shrink-0 flex-wrap items-center gap-2 pl-7 lg:pl-0">
                     <span className={`text-[10px] font-medium ${isOutOfStock(item.product.stockStatus) ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{stockLabel(item.product.stockStatus)}</span>
                     {item.sourceCount > 0 && canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Prijzen ophalen</button> : null}
-                    {item.sourceCount === 0 && canFindCompetitors && discoveryCountryId ? <form action={discoverCompetitorUrlsAction}><input type="hidden" name="productId" value={item.product.id} /><input type="hidden" name="countryId" value={discoveryCountryId} /><button type="submit" className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Concurrenten zoeken</button></form> : null}
+                    {item.sourceCount === 0 && canFindCompetitors && discoveryCountryId ? <Link href={`/producten/${item.product.id}#concurrenten-vinden`} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Concurrenten zoeken</Link> : null}
                     <Link href={`/producten/${item.product.id}`} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Analyse</Link>
                   </div>
                 </div>
