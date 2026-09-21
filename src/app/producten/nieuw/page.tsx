@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createSmartProductAction } from '@/app/actions/smartProductActions'
+import { ProductUrlQuickStart } from '@/components/ProductUrlQuickStart'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
@@ -22,7 +23,7 @@ export default async function NewProductPage() {
           <div className="max-w-3xl">
             <p className="eyebrow">Product toevoegen</p>
             <h1 className="mt-2">Eén product invoeren</h1>
-            <p className="mt-2 text-[12px] leading-6 text-[#6f7d90]">Vul alleen in wat je nodig hebt om te starten. Product, jouw verkoopprijs en markt staan voorop. Prysight helpt daarna met concurrenten en prijsmonitoring.</p>
+            <p className="mt-2 text-[12px] leading-6 text-[#6f7d90]">Start met een product URL voor automatische herkenning, of voer een product handmatig in. Prysight neemt waar mogelijk prijs, btw status en belangrijke productkenmerken over.</p>
           </div>
           <Link href="/producten" className="secondary-action">Terug naar producten</Link>
         </div>
@@ -46,7 +47,9 @@ export default async function NewProductPage() {
         </Link>
       </section>
 
-      <form action={createSmartProductAction} className="space-y-4">
+      <ProductUrlQuickStart formId="new-product-form" />
+
+      <form id="new-product-form" action={createSmartProductAction} className="space-y-4">
         <section className="ps-panel overflow-hidden">
           <div className="border-b border-[#e7edf3] px-5 py-4 sm:px-6">
             <div className="flex items-center gap-3">
@@ -84,10 +87,11 @@ export default async function NewProductPage() {
               </div>
             </div>
           </div>
-          <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[1.1fr_.7fr_.55fr]">
+          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[1.15fr_.7fr_.55fr_.75fr]">
             <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *<div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white shadow-[0_1px_2px_rgba(31,49,77,.02)] focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]"><span className="px-3 text-[13px] font-semibold text-[#64748b]">{defaultCountry?.currency ?? 'EUR'}</span><input name="ownPrice" required inputMode="decimal" className="min-h-[46px] flex-1 border-0 bg-transparent px-0 pr-3 text-[16px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" /></div></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Markt<select name="countryId" defaultValue={defaultCountry?.id} className="toolbar-control mt-1.5 w-full"><option value="">Algemeen</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Valuta<select name="currency" defaultValue={defaultCountry?.currency ?? 'EUR'} className="toolbar-control mt-1.5 w-full"><option>EUR</option><option>GBP</option><option>DKK</option><option>USD</option></select></label>
+            <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue="true" className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select><span className="mt-1 block text-[9px] font-normal leading-4 text-[#8793a3]">Bij URL herkenning wordt dit automatisch aangepast wanneer de pagina dit betrouwbaar vermeldt.</span></label>
           </div>
         </section>
 
