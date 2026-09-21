@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { addCompetitorOfferAction, discoverCompetitorUrlsAction, runCompetitorOfferResearchAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
+import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
+import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -312,7 +313,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                       <td className="px-4 py-3"><span className="ps-chip">{offer.stockStatus ?? 'Onbekend'}</span></td>
                       <td className="px-4 py-3"><p className="font-medium text-[#44576d]">{offer.lastCheckedAt ? formatDate(offer.lastCheckedAt) : 'Nog niet'}</p></td>
                       <td className="px-4 py-3">{latestSourceCheck ? <span className={`ps-chip ${latestSourceCheck.isSuccess ? 'ps-chip-green' : 'ps-chip-red'}`}>{latestSourceCheck.isSuccess ? 'Actueel' : 'Probleem'}</span> : <span className="ps-chip">Niet gemeten</span>}{sourceIssue ? <p className="mt-1 max-w-[150px] text-[9px] text-[#a93442]">{sourceIssue}</p> : null}</td>
-                      <td className="px-4 py-3"><form action={runCompetitorOfferResearchAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><PriceFetchSubmitButton compact idleLabel={latestSourceCheck ? 'Opnieuw' : 'Prijs ophalen'} pendingLabel="Ophalen…" /></form></td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-2"><form action={runCompetitorOfferResearchAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><PriceFetchSubmitButton compact idleLabel={latestSourceCheck ? 'Opnieuw' : 'Prijs ophalen'} pendingLabel="Ophalen…" /></form>{canEditProduct ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><RemoveCompetitorButton label={offer.competitor.name} /></form> : null}</div></td>
                     </tr>
                   )
                 })}
@@ -370,7 +371,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             </form>
           ) : <span className="text-[11px] font-medium text-[#8a6a2a]">{product.ean ? 'Geen actieve markt beschikbaar.' : 'EAN ontbreekt.'}</span>}
         </div>
-        {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <a key={match.id} href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></div><span className="ps-chip ps-chip-blue">{formatNumber(match.confidenceScore)}%</span></div></a>)}</div> : null}
+        {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <div key={match.id} className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><a href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1"><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></a><div className="flex items-center gap-2"><span className="ps-chip ps-chip-blue">AI {formatNumber(match.confidenceScore)}%</span>{canEditProduct ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={match.competitorOffer.id} /><RemoveCompetitorButton label={match.competitorOffer.competitor.name} /></form> : null}</div></div></div>)}</div> : null}
         {reviewMatches.length ? <div className="mt-3 flex justify-end"><Link href="/productmatches" className="text-[11px] font-semibold text-[#2f6edb]">Suggesties beoordelen</Link></div> : null}
       </section>
 
