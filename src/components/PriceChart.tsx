@@ -28,12 +28,15 @@ function euro(value: unknown) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(numeric)
 }
 
-export function PriceChart({ data, series }: { data: PricePoint[]; series: PriceChartSeries[] }) {
+export function PriceChart({ data, series, highlightedCompetitorId }: { data: PricePoint[]; series: PriceChartSeries[]; highlightedCompetitorId?: string | null }) {
   const hasData = (key: string) => data.some((point) => point[key] !== null && point[key] !== undefined)
   const ownSeries = series.find((item) => item.kind === 'own')
   const ownSeriesHasData = ownSeries ? hasData(ownSeries.key) : false
   const allCompetitorSeries = series.filter((item) => item.kind === 'competitor')
   const competitorSeries = allCompetitorSeries.filter((item) => hasData(item.key))
+  const highlightedSeries = highlightedCompetitorId
+    ? allCompetitorSeries.find((item) => item.competitorId === highlightedCompetitorId) ?? null
+    : null
 
   return (
     <section className="surface-card overflow-hidden">
@@ -41,7 +44,7 @@ export function PriceChart({ data, series }: { data: PricePoint[]; series: Price
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-[#0b1f35]">Prijsverloop</h2>
-            <p className="mt-1 text-[11px] text-[#7d8b9a]">Alle betrouwbare concurrentmetingen van de afgelopen 90 dagen.</p>
+            <p className="mt-1 text-[11px] text-[#7d8b9a]">{highlightedSeries ? `Focus op ${highlightedSeries.name}, de overige lijnen blijven als context zichtbaar.` : 'Alle betrouwbare concurrentmetingen van de afgelopen 90 dagen.'}</p>
           </div>
           <div className="flex max-w-3xl flex-wrap gap-x-4 gap-y-2 text-[10px] font-medium text-[#5f7084]">
             {ownSeries ? (
@@ -53,7 +56,7 @@ export function PriceChart({ data, series }: { data: PricePoint[]; series: Price
             {allCompetitorSeries.map((item, index) => {
               const itemHasData = hasData(item.key)
               return (
-                <span key={item.key} className={`inline-flex items-center gap-1.5 ${itemHasData ? '' : 'opacity-45'}`} title={itemHasData ? item.name : `${item.name}, nog geen geldige historische meting`}>
+                <span key={item.key} className={`inline-flex items-center gap-1.5 ${itemHasData ? '' : 'opacity-45'} ${highlightedSeries?.key === item.key ? 'font-semibold text-[#24384f]' : ''}`} title={itemHasData ? item.name : `${item.name}, nog geen geldige historische meting`}>
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: competitorColors[index % competitorColors.length] }} />
                   {item.name}
                 </span>
@@ -95,17 +98,19 @@ export function PriceChart({ data, series }: { data: PricePoint[]; series: Price
             {competitorSeries.map((item) => {
               const fullIndex = allCompetitorSeries.findIndex((candidate) => candidate.key === item.key)
               const color = competitorColors[Math.max(fullIndex, 0) % competitorColors.length]
+              const isFocused = !highlightedSeries || highlightedSeries.key === item.key
               return (
                 <Line
                   key={item.key}
                   type="monotone"
                   dataKey={item.key}
                   stroke={color}
-                  strokeWidth={2}
+                  strokeWidth={highlightedSeries && isFocused ? 3 : 2}
+                  strokeOpacity={highlightedSeries && !isFocused ? 0.22 : 1}
                   name={item.name}
                   connectNulls
-                  dot={{ r: 4, strokeWidth: 2, fill: '#ffffff' }}
-                  activeDot={{ r: 6 }}
+                  dot={{ r: highlightedSeries && isFocused ? 5 : 3.5, strokeWidth: 2, fill: '#ffffff' }}
+                  activeDot={{ r: highlightedSeries && isFocused ? 7 : 6 }}
                 />
               )
             })}
