@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createSmartProductAction } from '@/app/actions/smartProductActions'
 import { ProductUrlQuickStart } from '@/components/ProductUrlQuickStart'
+import { MarketPriceFields } from '@/components/MarketPriceFields'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
@@ -23,7 +24,7 @@ export default async function NewProductPage() {
           <div className="max-w-3xl">
             <p className="eyebrow">Product toevoegen</p>
             <h1 className="mt-2">Eén product invoeren</h1>
-            <p className="mt-2 text-[12px] leading-6 text-[#6f7d90]">Start met een product URL voor automatische herkenning, of voer een product handmatig in. Prysight neemt waar mogelijk prijs, btw status en belangrijke productkenmerken over.</p>
+            <p className="mt-2 text-[12px] leading-6 text-[#6f7d90]">Start met een product URL voor automatische herkenning, of voer een product handmatig in. Kies altijd eerst het marktprofiel. Prysight toont en bewaakt daarna zowel de prijs exclusief als inclusief btw voor dat land.</p>
           </div>
           <Link href="/producten" className="secondary-action">Terug naar producten</Link>
         </div>
@@ -87,11 +88,11 @@ export default async function NewProductPage() {
               </div>
             </div>
           </div>
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[1.15fr_.7fr_.55fr_.75fr]">
-            <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *<div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white shadow-[0_1px_2px_rgba(31,49,77,.02)] focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]"><span className="px-3 text-[13px] font-semibold text-[#64748b]">{defaultCountry?.currency ?? 'EUR'}</span><input name="ownPrice" required inputMode="decimal" className="min-h-[46px] flex-1 border-0 bg-transparent px-0 pr-3 text-[16px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" /></div></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Markt<select name="countryId" defaultValue={defaultCountry?.id} className="toolbar-control mt-1.5 w-full"><option value="">Algemeen</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Valuta<select name="currency" defaultValue={defaultCountry?.currency ?? 'EUR'} className="toolbar-control mt-1.5 w-full"><option>EUR</option><option>GBP</option><option>DKK</option><option>USD</option></select></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue="true" className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select><span className="mt-1 block text-[9px] font-normal leading-4 text-[#8793a3]">Bij URL herkenning wordt dit automatisch aangepast wanneer de pagina dit betrouwbaar vermeldt.</span></label>
+          <div className="p-5 sm:p-6">
+            <MarketPriceFields
+              countries={countries.map((country) => ({ id: country.id, name: country.name, currency: country.currency, vatRate: Number(country.vatRate) }))}
+              defaultCountryId={defaultCountry?.id}
+            />
           </div>
         </section>
 
@@ -136,7 +137,7 @@ export default async function NewProductPage() {
         <section className="ps-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <p className="text-[12px] font-semibold text-[#2d4058]">Na toevoegen</p>
-            <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#7b8999]">Prysight opent direct het productdetail. Met EAN, GTIN of MPN kan het systeem vervolgens concurrentkandidaten zoeken. Je eigen prijs blijft altijd zichtbaar en aanpasbaar.</p>
+            <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#7b8999]">Prysight opent direct het gekozen marktprofiel. Dezelfde SKU kan later ook voor andere landen worden toegevoegd, met een eigen prijs, URL en voorraad per markt.</p>
           </div>
           <div className="flex shrink-0 gap-2">
             <Link href="/producten" className="secondary-action">Annuleren</Link>
