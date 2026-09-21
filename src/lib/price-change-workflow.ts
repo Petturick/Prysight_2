@@ -120,7 +120,7 @@ async function pricingContext(companyId: string, productId: string, countryId: s
       vatIncluded: true,
       productMarkets: countryId ? {
         where: { companyId, countryId, isActive: true },
-        select: { countryId: true, ownPrice: true, currency: true },
+        select: { countryId: true, ownPrice: true, vatIncluded: true, currency: true },
       } : false,
       matches: {
         where: { companyId, matchStatus: 'CERTAIN' },
@@ -135,12 +135,13 @@ async function pricingContext(companyId: string, productId: string, countryId: s
   const currentPrice = num(market?.ownPrice) ?? num(product.ownPrice)
   if (currentPrice === null || currentPrice <= 0) throw new Error('Eigen verkoopprijs ontbreekt voor deze markt.')
   const currency = market?.currency ?? product.currency
+  const vatIncluded = market?.vatIncluded ?? product.vatIncluded
   const guardrails = (await getProductPricingGuardrails(companyId, [productId])).get(productId) ?? null
   const rules = await getPersistedPricingRules(companyId)
   const rule = resolvePricingRule(rules, { productId, productGroupId: product.productGroupId, countryId })
   const costPrice = guardrails?.costPrice ?? null
   const minimumMarginPct = highest([guardrails?.minimumMarginPct, rule?.minimumMarginPct])
-  const floorFromMargin = marginFloor(costPrice, minimumMarginPct, product.vatIncluded, country ? Number(country.vatRate) : null)
+  const floorFromMargin = marginFloor(costPrice, minimumMarginPct, vatIncluded, country ? Number(country.vatRate) : null)
   const minimumAllowedPrice = highest([guardrails?.minimumPrice, rule?.minimumPrice, floorFromMargin])
   const maximumAllowedPrice = lowest([guardrails?.maximumPrice, rule?.maximumPrice])
 
@@ -162,11 +163,12 @@ async function pricingContext(companyId: string, productId: string, countryId: s
     country,
     currentPrice,
     currency,
+    vatIncluded,
     costPrice,
     minimumMarginPct,
     minimumAllowedPrice,
     maximumAllowedPrice,
-    marginBeforePct: grossMarginPct(currentPrice, costPrice, product.vatIncluded, country ? Number(country.vatRate) : null),
+    marginBeforePct: grossMarginPct(currentPrice, costPrice, vatIncluded, country ? Number(country.vatRate) : null),
     rule,
     competitorCount: competitorPrices.length,
     marketLowest: competitorPrices[0] ?? null,
@@ -182,7 +184,7 @@ function assertPriceWithinGuardrails(targetPrice: number, context: Awaited<Retur
   if (context.maximumAllowedPrice !== null && targetPrice - 0.001 > context.maximumAllowedPrice) {
     throw new Error(`Prijs is hoger dan de commerciële bovengrens van € ${context.maximumAllowedPrice.toFixed(2)}.`)
   }
-  const margin = grossMarginPct(targetPrice, context.costPrice, context.product.vatIncluded, context.country ? Number(context.country.vatRate) : null)
+  const margin = grossMarginPct(targetPrice, context.costPrice, context.vatIncluded, context.country ? Number(context.country.vatRate) : null)
   if (context.minimumMarginPct !== null && margin !== null && margin + 0.001 < context.minimumMarginPct) {
     throw new Error(`Prijs zou de minimale brutomarge van ${context.minimumMarginPct.toFixed(1)}% doorbreken.`)
   }
@@ -277,13 +279,13 @@ export async function rejectPriceChangeRequest(input: { companyId: string; userI
   await createAuditLog({ companyId: input.companyId, userId: input.userId, action: 'PRICE_CHANGE_REJECTED', entityType: 'PriceChangeRequest', entityId: input.requestId, newValue: { reason: input.reason?.trim() || null } })
 }
 
-async function syncLocalPrice(request: RequestRow, product: { vatIncluded: boolean }, vatRate: number | null, magentoPrice: number, magentoIncludesTax: boolean) {
-  const localPrice = convertPriceTaxMode(magentoPrice, magentoIncludesTax, product.vatIncluded, vatRate)
+async function syncLocalPrice(request: RequestRow, vatIncluded: boolean, vatRate: number | null, magentoPrice: number, magentoIncludesTax: boolean) {
+  const localPrice = convertPriceTaxMode(magentoPrice, magentoIncludesTax, vatIncluded, vatRate)
   if (request.country_id) {
     await prisma.productMarket.upsert({
       where: { companyId_productId_countryId: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id } },
-      update: { ownPrice: new Prisma.Decimal(localPrice), currency: request.currency, isActive: true },
-      create: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id, ownPrice: new Prisma.Decimal(localPrice), currency: request.currency, isActive: true },
+      update: { ownPrice: new Prisma.Decimal(localPrice), vatIncluded, currency: request.currency, isActive: true },
+      create: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id, ownPrice: new Prisma.Decimal(localPrice), vatIncluded, currency: request.currency, isActive: true },
     })
   } else {
     await prisma.product.updateMany({ where: { companyId: request.company_id, id: request.product_id }, data: { ownPrice: new Prisma.Decimal(localPrice) } })
@@ -302,7 +304,7 @@ async function markRequestApplied(input: {
   context: Awaited<ReturnType<typeof pricingContext>>
 }) {
   const vatRate = input.context.country ? Number(input.context.country.vatRate) : null
-  const verifiedLocalPrice = await syncLocalPrice(input.request, input.context.product, vatRate, input.verifiedExternal, getMagentoPricingConfig(input.request.company_id)!.pricesIncludeTax)
+  const verifiedLocalPrice = await syncLocalPrice(input.request, input.context.vatIncluded, vatRate, input.verifiedExternal, getMagentoPricingConfig(input.request.company_id)!.pricesIncludeTax)
   const updated = await prisma.$executeRaw(Prisma.sql`
     update price_change_requests
     set status = 'APPLIED', applied_at = now(), previous_external_price = ${input.previousExternal}, verified_external_price = ${input.verifiedExternal},
@@ -314,14 +316,14 @@ async function markRequestApplied(input: {
   return verifiedLocalPrice
 }
 
-async function compensateExternalWrite(request: RequestRow, previousExternal: number, expectedWrittenPrice: number, product: { vatIncluded: boolean }, vatRate: number | null) {
+async function compensateExternalWrite(request: RequestRow, previousExternal: number, expectedWrittenPrice: number, vatIncluded: boolean, vatRate: number | null) {
   try {
     const current = await readMagentoBasePrice(request.external_sku_snapshot, request.company_id)
     if (pricesEqual(current.price, previousExternal)) return 'already_restored' as const
     if (!pricesEqual(current.price, expectedWrittenPrice)) return 'external_changed' as const
     const restored = await writeMagentoBasePrice(request.external_sku_snapshot, previousExternal, request.company_id)
     if (!pricesEqual(restored.price, previousExternal)) return 'restore_unverified' as const
-    try { await syncLocalPrice(request, product, vatRate, restored.price, restored.pricesIncludeTax) } catch { /* externe rollback is leidend, lokale status blijft FAILED voor herstel */ }
+    try { await syncLocalPrice(request, vatIncluded, vatRate, restored.price, restored.pricesIncludeTax) } catch { /* externe rollback is leidend, lokale status blijft FAILED voor herstel */ }
     return 'restored' as const
   } catch {
     return 'unknown' as const
@@ -354,11 +356,11 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
     const before = await readMagentoBasePrice(request.external_sku_snapshot, input.companyId)
     const vatRate = context.country ? Number(context.country.vatRate) : null
     const expectedCurrent = num(request.current_price) ?? context.currentPrice
-    targetForMagento = convertPriceTaxMode(target, context.product.vatIncluded, before.pricesIncludeTax, vatRate)
-    const currentAsPrysight = convertPriceTaxMode(before.price, before.pricesIncludeTax, context.product.vatIncluded, vatRate)
+    targetForMagento = convertPriceTaxMode(target, context.vatIncluded, before.pricesIncludeTax, vatRate)
+    const currentAsPrysight = convertPriceTaxMode(before.price, before.pricesIncludeTax, context.vatIncluded, vatRate)
 
     if (originalStatus === 'FAILED' && pricesEqual(before.price, targetForMagento)) {
-      const recoverablePrevious = previousExternal ?? convertPriceTaxMode(expectedCurrent, context.product.vatIncluded, before.pricesIncludeTax, vatRate)
+      const recoverablePrevious = previousExternal ?? convertPriceTaxMode(expectedCurrent, context.vatIncluded, before.pricesIncludeTax, vatRate)
       await markRequestApplied({ request, userId: input.userId, targetPrice: target, previousExternal: recoverablePrevious, verifiedExternal: before.price, storeId: before.storeId, context })
       return
     }
@@ -375,7 +377,7 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
       await markRequestApplied({ request, userId: input.userId, targetPrice: target, previousExternal, verifiedExternal: after.price, storeId: after.storeId, context })
       return
     } catch (localError) {
-      const compensation = await compensateExternalWrite(request, previousExternal, targetForMagento, context.product, vatRate)
+      const compensation = await compensateExternalWrite(request, previousExternal, targetForMagento, context.vatIncluded, vatRate)
       const localMessage = localError instanceof Error ? localError.message : 'Lokale synchronisatie mislukt.'
       throw new Error(`${localMessage} Externe compensatie: ${compensation}.`)
     }
@@ -383,7 +385,7 @@ export async function applyApprovedPriceChange(input: { companyId: string; userI
     let message = error instanceof Error ? error.message : 'Onbekende fout bij Magento writeback.'
     if (writeAttempted && previousExternal !== null && targetForMagento !== null && !message.includes('Externe compensatie:')) {
       const vatRate = context.country ? Number(context.country.vatRate) : null
-      const compensation = await compensateExternalWrite(request, previousExternal, targetForMagento, context.product, vatRate)
+      const compensation = await compensateExternalWrite(request, previousExternal, targetForMagento, context.vatIncluded, vatRate)
       message = `${message} Externe compensatie: ${compensation}.`
     }
     await prisma.$executeRaw(Prisma.sql`
