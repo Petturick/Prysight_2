@@ -193,7 +193,7 @@ export async function processBulkProductImportAction(payload: unknown) {
 
     if (user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')) {
       const uniqueTargets = [...new Map(discoveryTargets.map((target) => [`${target.productId}:${target.countryId}`, target])).values()]
-      const immediateTargets = uniqueTargets.slice(0, 8)
+      const immediateTargets = uniqueTargets.slice(0, 12)
 
       await inChunks(immediateTargets, 2, async (target) => {
         try {
