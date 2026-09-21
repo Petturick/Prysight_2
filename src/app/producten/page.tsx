@@ -282,8 +282,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                     </div>
 
                     <div>
-                      <p className="text-[12px] font-semibold text-[#24384f]">{formatCurrency(item.lowestPrice)}</p>
-                      {cheapestCompetitor ? <p className="mt-0.5 truncate text-[9px] text-[#8793a3]">{cheapestCompetitor}</p> : null}
+                      <p className="text-[12px] font-semibold text-[#24384f]">{formatCurrency(item.lowestPriceExVat)} <span className="text-[8px] font-medium text-[#8a98a9]">excl.</span></p>
+                      <p className="mt-0.5 text-[10px] font-semibold text-[#53677f]">{formatCurrency(item.lowestPriceIncVat)} <span className="text-[8px] font-medium text-[#8a98a9]">incl.</span></p>
+                      {cheapestCompetitor ? <p className="mt-0.5 truncate text-[8px] text-[#8793a3]">{cheapestCompetitor}</p> : null}
                     </div>
 
                     <div>
