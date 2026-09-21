@@ -198,6 +198,38 @@ export async function addCompetitorOfferAction(formData: FormData) {
   redirect(`/producten/${product.id}?bron=toegevoegd`)
 }
 
+export async function removeCompetitorOfferAction(formData: FormData) {
+  const user = await requirePermission('competitors.write')
+  const productId = text(formData, 'productId')
+  const competitorOfferId = text(formData, 'competitorOfferId')
+  if (!productId || !competitorOfferId) throw new Error('Product of concurrent ontbreekt.')
+
+  const match = await prisma.productMatch.findFirst({
+    where: {
+      companyId: user.companyId,
+      productId,
+      competitorOfferId,
+      competitorOffer: { companyId: user.companyId },
+    },
+    select: { id: true, competitorOfferId: true },
+  })
+  if (!match) throw new Error('Deze concurrent is niet meer aan het product gekoppeld.')
+
+  await prisma.$transaction([
+    prisma.productMatch.delete({ where: { id: match.id } }),
+    prisma.competitorOffer.update({
+      where: { id: match.competitorOfferId },
+      data: { isActive: false },
+    }),
+  ])
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/productmatches')
+  revalidatePath('/concurrenten')
+}
+
 export async function discoverCompetitorUrlsAction(formData: FormData) {
   const user = await requirePermission('competitors.write')
   const productId = text(formData, 'productId')
