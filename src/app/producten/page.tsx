@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
+import { discoverCompetitorUrlsAction } from '@/app/actions/productActions'
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { ProductSelectionControls } from '@/components/ProductSelectionControls'
@@ -37,7 +38,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const crawlProduct = readParam(params.crawlproduct)
   const openProduct = readParam(params.openproduct)
   const crawlLimited = readParam(params.limiet) === '1'
-  const canCrawl = actor.permissions.includes('pricing.manage')
+  const canCrawl = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
+  const canFindCompetitors = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
   const filters = {
     q: readParam(params.q),
     productGroupId: readParam(params.productgroep),
@@ -210,6 +212,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
             const pctDiff = item.difference.pctDiff !== null && item.difference.pctDiff !== undefined ? Number(item.difference.pctDiff) : null
             const cheapestCompetitor = item.lowestOffer?.competitorOffer.competitor.name ?? null
             const identifier = item.product.ean ?? item.product.gtin
+            const discoveryCountryId = filters.countryId ?? item.product.productMarkets[0]?.countryId
 
             return (
               <article key={item.product.id} className="ps-panel overflow-hidden">
@@ -227,7 +230,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 pl-7 lg:pl-0">
                     <span className={`text-[10px] font-medium ${isOutOfStock(item.product.stockStatus) ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{stockLabel(item.product.stockStatus)}</span>
-                    {canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Nu crawlen</button> : null}
+                    {item.sourceCount > 0 && canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Prijzen ophalen</button> : null}
+                    {item.sourceCount === 0 && canFindCompetitors && discoveryCountryId ? <form action={discoverCompetitorUrlsAction}><input type="hidden" name="productId" value={item.product.id} /><input type="hidden" name="countryId" value={discoveryCountryId} /><button type="submit" className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Concurrenten zoeken</button></form> : null}
                     <Link href={`/producten/${item.product.id}`} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Analyse</Link>
                   </div>
                 </div>
