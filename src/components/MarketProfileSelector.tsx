@@ -7,11 +7,13 @@ export function MarketProfileSelector({
   value,
   allowAll = false,
   compact = false,
+  paramName = 'land',
 }: {
   countries: Array<{ id: string; name: string }>
   value?: string | null
   allowAll?: boolean
   compact?: boolean
+  paramName?: 'land' | 'markt'
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -19,8 +21,8 @@ export function MarketProfileSelector({
 
   function changeMarket(countryId: string) {
     const params = new URLSearchParams(searchParams.toString())
-    if (countryId) params.set('land', countryId)
-    else params.delete('land')
+    if (countryId) params.set(paramName, countryId)
+    else params.delete(paramName)
     params.delete('pagina')
     for (const key of ['prijs', 'bron', 'controle', 'broncontrole', 'crawlstatus', 'suggesties', 'gevonden', 'algekoppeld', 'zoekbron', 'zoekmodus', 'reden', 'concurrent']) {
       params.delete(key)
