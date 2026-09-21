@@ -1,10 +1,15 @@
 import { unstable_cache } from 'next/cache'
 import { Prisma } from '@/generated/prisma/client'
-import { PriceChart } from '@/components/PriceChart'
+import { PriceChart, type PriceChartSeries } from '@/components/PriceChart'
 import { prisma } from '@/lib/prisma'
 
 type OwnDailyRow = { day: Date; ownPrice: number | null }
-type CompetitorDailyRow = { day: Date; competitorPrice: number | null }
+type CompetitorDailyRow = {
+  day: Date
+  competitorId: string
+  competitorName: string
+  competitorPrice: number | null
+}
 
 const getProductPriceHistory = unstable_cache(
   async (companyId: string, productId: string) => {
@@ -22,44 +27,86 @@ const getProductPriceHistory = unstable_cache(
       `),
       prisma.$queryRaw<CompetitorDailyRow[]>(Prisma.sql`
         select date_trunc('day', ph.recorded_at) as day,
-               min(coalesce(ph.normalized_price, ph.price))::float8 as "competitorPrice"
+               c.id as "competitorId",
+               c.name as "competitorName",
+               avg(coalesce(ph.normalized_price, ph.price))::float8 as "competitorPrice"
         from price_history ph
         inner join competitor_offers co on co.id = ph.competitor_offer_id
+        inner join competitors c on c.id = co.competitor_id
         inner join product_matches pm on pm.competitor_offer_id = co.id
         where ph.company_id = ${companyId}
           and co.company_id = ${companyId}
+          and c.company_id = ${companyId}
           and pm.company_id = ${companyId}
           and pm.product_id = ${productId}
           and pm.match_status = 'CERTAIN'
           and ph.recorded_at >= ${since}
-        group by 1
-        order by 1 asc
+        group by 1, c.id, c.name
+        order by 1 asc, c.name asc
       `),
     ])
 
-    const merged = new Map<string, { date: string; ownPrice: number | null; competitorPrice: number | null }>()
+    const competitors = [...new Map(
+      competitorRows.map((row) => [row.competitorId, row.competitorName]),
+    ).entries()]
+
+    const series: PriceChartSeries[] = [
+      { key: 'ownPrice', name: 'Eigen prijs', kind: 'own' },
+      ...competitors.map(([competitorId, competitorName], index) => ({
+        key: `competitor_${index}`,
+        name: competitorName,
+        kind: 'competitor' as const,
+        competitorId,
+      })),
+    ]
+    const keyByCompetitorId = new Map(
+      series
+        .filter((item) => item.kind === 'competitor' && item.competitorId)
+        .map((item) => [item.competitorId!, item.key]),
+    )
+
+    const merged = new Map<string, Record<string, string | number | null>>()
     const keyFor = (date: Date) => date.toISOString().slice(0, 10)
     const labelFor = (date: Date) => date.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
 
-    for (const row of ownRows) {
-      const key = keyFor(row.day)
-      merged.set(key, { date: labelFor(row.day), ownPrice: row.ownPrice === null ? null : Number(row.ownPrice), competitorPrice: null })
-    }
-    for (const row of competitorRows) {
-      const key = keyFor(row.day)
-      const current = merged.get(key) ?? { date: labelFor(row.day), ownPrice: null, competitorPrice: null }
-      current.competitorPrice = row.competitorPrice === null ? null : Number(row.competitorPrice)
-      merged.set(key, current)
+    const pointFor = (date: Date) => {
+      const key = keyFor(date)
+      const existing = merged.get(key)
+      if (existing) return existing
+      const point: Record<string, string | number | null> = { date: labelFor(date), sortKey: key, ownPrice: null }
+      for (const item of series) {
+        if (item.kind === 'competitor') point[item.key] = null
+      }
+      merged.set(key, point)
+      return point
     }
 
-    return [...merged.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, value]) => value)
+    for (const row of ownRows) {
+      const point = pointFor(row.day)
+      point.ownPrice = row.ownPrice === null ? null : Number(row.ownPrice)
+    }
+
+    for (const row of competitorRows) {
+      const point = pointFor(row.day)
+      const seriesKey = keyByCompetitorId.get(row.competitorId)
+      if (seriesKey) point[seriesKey] = row.competitorPrice === null ? null : Number(row.competitorPrice)
+    }
+
+    const data = [...merged.values()]
+      .sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey)))
+      .map(({ sortKey: _sortKey, ...point }) => point)
+
+    return {
+      data,
+      series: series.filter((item) => item.kind === 'own' || competitorRows.some((row) => row.competitorId === item.competitorId)),
+    }
   },
-  ['prysight-product-price-history-v1'],
+  ['prysight-product-price-history-v2'],
   { revalidate: 60 },
 )
 
 export async function ProductPriceHistoryPanel({ companyId, productId }: { companyId: string; productId: string }) {
-  const data = await getProductPriceHistory(companyId, productId)
+  const { data, series } = await getProductPriceHistory(companyId, productId)
 
   if (data.length === 0) {
     return (
@@ -70,5 +117,5 @@ export async function ProductPriceHistoryPanel({ companyId, productId }: { compa
     )
   }
 
-  return <PriceChart data={data} />
+  return <PriceChart data={data} series={series} />
 }
