@@ -43,7 +43,6 @@ const DEFAULT_COLUMNS: Column[] = [
   'articleNumber', 'name', 'ean', 'markets', 'ownEx', 'ownInc',
   'marketInc', 'difference', 'sources', 'lastChecked', 'status',
 ]
-const PREFERENCE_KEY = 'prysight:product-grid-columns:v1'
 
 export function ProductOverviewGrid({
   rows,
@@ -72,15 +71,6 @@ export function ProductOverviewGrid({
   const partlySelected = rowIds.some((id) => selectedSet.has(id)) && !allSelected
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(PREFERENCE_KEY) || 'null')
-      if (Array.isArray(saved) && saved.some((value) => value === 'name')) {
-        setVisible(COLUMNS.map((item) => item.key).filter((key) => saved.includes(key)))
-      }
-    } catch { /* Private browsing or invalid preference: use the defaults. */ }
-  }, [])
-
-  useEffect(() => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = partlySelected
   }, [partlySelected])
 
@@ -90,7 +80,6 @@ export function ProductOverviewGrid({
       : COLUMNS.map((item) => item.key).filter((value) => visible.includes(value) || value === key)
     if (!next.includes('name')) return
     setVisible(next)
-    try { localStorage.setItem(PREFERENCE_KEY, JSON.stringify(next)) } catch { /* Keep current choice in memory. */ }
   }
 
   function toggleRow(id: string, checked: boolean) {
@@ -137,7 +126,6 @@ export function ProductOverviewGrid({
                 </div>
                 <button type="button" onClick={() => {
                   setVisible(DEFAULT_COLUMNS)
-                  try { localStorage.removeItem(PREFERENCE_KEY) } catch { /* Ignore storage restrictions. */ }
                 }} className="mt-3 text-[10px] font-semibold text-[#346ed6]">Standaard herstellen</button>
               </div>
             </details>
