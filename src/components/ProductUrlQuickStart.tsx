@@ -130,7 +130,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       <div className="grid lg:grid-cols-[1.35fr_.65fr]">
         <div className="p-5 sm:p-6">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eaf2ff] text-[12px] font-bold text-[#326fd3]">1</span>
+            <span className="flex h-8 min-w-8 items-center justify-center rounded-[9px] bg-[#eaf2ff] px-2 text-[10px] font-bold text-[#326fd3]">URL</span>
             <div>
               <p className="text-[10px] font-semibold text-[#4f86e8]">Snelste invoer</p>
               <h2 className="mt-0.5 text-[17px] font-semibold text-[#20344b]">Plak je product URL</h2>
