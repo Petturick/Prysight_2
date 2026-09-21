@@ -455,7 +455,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             <ProductPriceHistoryPanel companyId={user.companyId} productId={product.id} countryId={defaultCountry?.id} />
           </Suspense>
           <Suspense fallback={<AnalyticsFallback label="Controlehistorie" />}>
-            <ProductCheckHistoryPanel companyId={user.companyId} productId={product.id} />
+            <ProductCheckHistoryPanel companyId={user.companyId} productId={product.id} countryId={defaultCountry?.id} />
           </Suspense>
         </div>
       </details>
