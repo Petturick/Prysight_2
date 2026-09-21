@@ -16,6 +16,7 @@ type Source = { id: string; matchId: string | null; kind: 'OWN' | 'COMPETITOR'; 
 type Suggestion = {
   id: string; matchId: string | null; kind: Source['kind']; name: string; url: string
   observedPrice: number | null; priceInclVat: number | null; priceExclVat: number | null
+  shippingCost: number | null; shippingCurrency: string | null; deliveredPriceInclVat: number | null; shippingLabel: string | null
   vatIncluded: boolean | null; vatRate: number; currency: string; confidence: 'HIGH' | 'REVIEW' | 'UNAVAILABLE'
   method: string | null; reason: string; checkedAt: string
 }
@@ -63,7 +64,7 @@ async function allowedByRobots(targetUrl: string, signal: AbortSignal) {
 }
 
 async function previewSource(source: Source, product: { ean: string; articleNumber: string; name: string; ownPrice: number | null }, vatRate: number, defaultCurrency: string): Promise<Suggestion> {
-  const base = { id: source.id, matchId: source.matchId, kind: source.kind, name: source.name, url: source.url, observedPrice: null, priceInclVat: null, priceExclVat: null, vatIncluded: null, vatRate, currency: defaultCurrency, confidence: 'UNAVAILABLE' as const, method: null, reason: '', checkedAt: new Date().toISOString() }
+  const base = { id: source.id, matchId: source.matchId, kind: source.kind, name: source.name, url: source.url, observedPrice: null, priceInclVat: null, priceExclVat: null, shippingCost: null, shippingCurrency: null, deliveredPriceInclVat: null, shippingLabel: null, vatIncluded: null, vatRate, currency: defaultCurrency, confidence: 'UNAVAILABLE' as const, method: null, reason: '', checkedAt: new Date().toISOString() }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 9_000)
   try {
@@ -76,7 +77,7 @@ async function previewSource(source: Source, product: { ean: string; articleNumb
     const contentType = response.headers.get('content-type') ?? ''
     if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return { ...base, reason: 'Geen leesbare productpagina.' }
     const html = await limitedHtml(response)
-    const extracted = extractOfferSnapshot(html, { ean: product.ean })
+    const extracted = extractOfferSnapshot(html, { ean: product.ean, productName: product.name })
     if (extracted.price === null || extracted.price <= 0) return { ...base, reason: 'Geen betrouwbare prijs gevonden.' }
     // Exact contradictory EAN is a hard rejection even for manually linked sources.
     if (extracted.ean && extracted.ean.replace(/\D/g, '') !== product.ean.replace(/\D/g, '')) {
@@ -97,13 +98,24 @@ async function previewSource(source: Source, product: { ean: string; articleNumb
     if (!quality.accepted) return { ...base, reason: quality.reasons.join(' ') }
     const vat = detectVatInclusion(html, extracted.price)
     const amounts = priceSuggestionAmounts(extracted.price, vat.vatIncluded, vatRate)
+    const resolvedCurrency = extracted.currency?.toUpperCase() || defaultCurrency
+    const shippingCurrency = extracted.shippingCost === null ? null : (extracted.shippingCurrency?.toUpperCase() || resolvedCurrency)
+    const deliveredPriceInclVat = extracted.shippingCost !== null && shippingCurrency === resolvedCurrency
+      ? priceSuggestionAmounts(extracted.price + extracted.shippingCost, vat.vatIncluded, vatRate).incl
+      : null
+    const shippingReason = extracted.shippingCost === null
+      ? 'Verzendkosten niet betrouwbaar zichtbaar op de productpagina.'
+      : extracted.shippingCost === 0
+        ? 'Gratis verzending herkend.'
+        : 'Verzendkosten op de productpagina herkend.'
     return {
       ...base, observedPrice: extracted.price, priceInclVat: amounts.incl, priceExclVat: amounts.excl,
-      vatIncluded: vat.vatIncluded, currency: extracted.currency?.toUpperCase() || defaultCurrency,
+      shippingCost: extracted.shippingCost, shippingCurrency, deliveredPriceInclVat,
+      shippingLabel: extracted.shippingLabel, vatIncluded: vat.vatIncluded, currency: resolvedCurrency,
       confidence: extracted.ean && quality.confidence === 'HIGH' && vat.confidence === 'HIGH' ? 'HIGH' : 'REVIEW',
       method: extracted.method, reason: vat.vatIncluded === null
-        ? 'Productprijs gevonden, maar de btw status is niet zeker. Kies de btw status op de bronpagina voordat je deze prijs gebruikt.'
-        : quality.confidence === 'HIGH' && vat.confidence === 'HIGH' ? 'EAN en btw herkend.' : 'Controleer productvariant, verpakking en btw bij de bron.',
+        ? `Productprijs gevonden, maar de btw status is niet zeker. ${shippingReason}`
+        : quality.confidence === 'HIGH' && vat.confidence === 'HIGH' ? `EAN en btw herkend. ${shippingReason}` : `Controleer productvariant, verpakking en btw bij de bron. ${shippingReason}`,
     }
   } catch (error) {
     return { ...base, reason: error instanceof Error && error.name === 'AbortError' ? 'Bron reageerde niet op tijd.' : 'Prijs kon niet veilig worden uitgelezen.' }
