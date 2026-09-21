@@ -5,6 +5,7 @@ import { createAuditLog } from '@/lib/audit'
 import { requireWritableUser } from '@/lib/authz'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
+import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { matchProducts } from '@/lib/product-matching'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
@@ -18,6 +19,16 @@ function toDecimal(value: string | number | null | undefined) {
   const numeric = Number(normalized)
   if (Number.isNaN(numeric)) return null
   return new Prisma.Decimal(numeric)
+}
+
+function importedVatIncluded(value: string | undefined, fallback = true) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return fallback
+  if (['false', '0', 'nee', 'no', 'excl', 'exclusive', 'excluding', 'excl. btw', 'excl btw', 'ex vat'].includes(normalized)) return false
+  if (['true', '1', 'ja', 'yes', 'incl', 'inclusive', 'including', 'incl. btw', 'incl btw', 'inc vat'].includes(normalized)) return true
+  if (/\b(?:excl|exclusive|excluding|ex\.?\s*(?:vat|btw)|zzgl)\b/i.test(normalized)) return false
+  if (/\b(?:incl|inclusive|including|inkl)\b/i.test(normalized)) return true
+  return fallback
 }
 
 function validDate(value: string | undefined) {
@@ -135,6 +146,8 @@ export async function processImportRowsAction(payload: unknown) {
   let marketRows = 0
   let competitorUrlRows = 0
   let monitoringReadyRows = 0
+  let suggestionCount = 0
+  const discoveryTargets: Array<{ productId: string; countryId: string; articleNumber: string }> = []
 
   for (const [index, row] of parsed.data.rows.entries()) {
     try {
@@ -178,6 +191,7 @@ export async function processImportRowsAction(payload: unknown) {
             name: row.productName || undefined,
             productGroupId: productGroup.id,
             ownPrice: ownPrice ?? undefined,
+            vatIncluded: importedVatIncluded(row.vatIncluded, product?.vatIncluded ?? true),
             packagingUnit: row.packagingUnit || undefined,
             packagingQty,
             stockStatus: row.ownStock || undefined,
@@ -192,7 +206,7 @@ export async function processImportRowsAction(payload: unknown) {
             name: row.productName || resolvedArticleNumber,
             productGroupId: productGroup.id,
             ownPrice,
-            vatIncluded: true,
+            vatIncluded: importedVatIncluded(row.vatIncluded, true),
             packagingUnit: row.packagingUnit || 'stuks',
             packagingQty,
             stockStatus: row.ownStock || 'Onbekend',
@@ -248,6 +262,7 @@ export async function processImportRowsAction(payload: unknown) {
           })
           if (ownPrice) marketPriceCache.set(productMarketKey(product.id, country.id), ownPrice)
           marketRows += 1
+          discoveryTargets.push({ productId: product.id, countryId: country.id, articleNumber: product.articleNumber })
         }
 
         if (ownPrice && (!previousHistoryPrice || !previousHistoryPrice.eq(ownPrice))) {
@@ -438,6 +453,31 @@ export async function processImportRowsAction(payload: unknown) {
     }
   }
 
+  if (importsProducts && (user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write'))) {
+    const uniqueTargets = [...new Map(discoveryTargets.map((target) => [`${target.productId}:${target.countryId}`, target])).values()]
+    const immediateTargets = uniqueTargets.slice(0, 8)
+
+    for (let index = 0; index < immediateTargets.length; index += 2) {
+      await Promise.all(immediateTargets.slice(index, index + 2).map(async (target) => {
+        try {
+          const discovery = await discoverProductCandidates({
+            companyId,
+            productId: target.productId,
+            countryId: target.countryId,
+          })
+          suggestionCount += discovery.created
+        } catch (error) {
+          warnings.push(`${target.articleNumber}: AI concurrentsuggesties konden niet direct worden opgebouwd en worden later opnieuw geprobeerd.`)
+          console.error('Import competitor discovery failed', { companyId, productId: target.productId, error })
+        }
+      }))
+    }
+
+    if (uniqueTargets.length > immediateTargets.length) {
+      warnings.push(`Voor ${uniqueTargets.length - immediateTargets.length} extra producten worden AI concurrentsuggesties automatisch via de achtergrondcontrole aangevuld.`)
+    }
+  }
+
   await prisma.importTask.update({
     where: { id: task.id },
     data: {
@@ -464,6 +504,7 @@ export async function processImportRowsAction(payload: unknown) {
       marketRows,
       competitorUrlRows,
       monitoringReadyRows,
+      suggestionCount,
     },
   })
 
@@ -488,6 +529,7 @@ export async function processImportRowsAction(payload: unknown) {
       markets: marketRows,
       competitorUrls: competitorUrlRows,
       readyForMonitoring: monitoringReadyRows,
+      suggestions: suggestionCount,
     },
   }
 }
