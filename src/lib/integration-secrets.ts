@@ -3,9 +3,9 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 const VERSION = 'v1'
 
 function encryptionKey() {
-  const material = process.env.INTEGRATION_ENCRYPTION_KEY?.trim() || process.env.NEXTAUTH_SECRET?.trim()
+  const material = process.env.INTEGRATION_ENCRYPTION_KEY?.trim() || process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim()
   if (!material || material.length < 16) {
-    throw new Error('Integratiebeveiliging ontbreekt. Stel INTEGRATION_ENCRYPTION_KEY of een geldige NEXTAUTH_SECRET in.')
+    throw new Error('Integratiebeveiliging ontbreekt. Stel INTEGRATION_ENCRYPTION_KEY, AUTH_SECRET of een geldige NEXTAUTH_SECRET in.')
   }
   return createHash('sha256').update(material).digest()
 }
