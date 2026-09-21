@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { FeedSourceType } from '@/generated/prisma/client'
 import { requirePermission } from '@/lib/authz'
 import { dispatchFeedSync } from '@/lib/feed-sync-dispatch'
-import { validateFeedUrl } from '@/lib/feed-parser'
+import { normalizeGoogleDriveUrl, validateFeedUrl } from '@/lib/feed-parser'
 import { prisma } from '@/lib/prisma'
 
 function sourceKey(url: string) { return `url:${createHash('sha256').update(url).digest('hex')}` }
@@ -17,6 +17,26 @@ export async function POST(request: Request) {
     if (!body?.url) return NextResponse.json({ error: 'Vul een productfeed URL in.' }, { status: 400 })
     let normalized: URL
     try { normalized = validateFeedUrl(body.url) } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Ongeldige feed URL.' }, { status: 400 }) }
+    const googleDriveSource = ['drive.google.com', 'docs.google.com'].includes(normalized.hostname.toLowerCase())
+    if (googleDriveSource) {
+      try {
+        const probe = await fetch(normalizeGoogleDriveUrl(normalized), {
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15_000),
+          headers: { 'User-Agent': 'Prysight Feed Access Check/1.0' },
+        })
+        const contentType = (probe.headers.get('content-type') ?? '').toLowerCase()
+        await probe.body?.cancel().catch(() => undefined)
+        if (!probe.ok) {
+          return NextResponse.json({ error: `Google Drive bestand kon niet worden geopend, HTTP ${probe.status}. Controleer de deelrechten van het bestand.` }, { status: 422 })
+        }
+        if (contentType.includes('text/html')) {
+          return NextResponse.json({ error: 'Google Drive gaf een webpagina terug in plaats van het spreadsheet. Deel het bestand als Iedereen met de link, met kijkrechten, zodat Prysight het zonder ingelogde Google sessie kan synchroniseren.' }, { status: 422 })
+        }
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? `Google Drive bron kon niet worden gecontroleerd, ${error.message}` : 'Google Drive bron kon niet worden gecontroleerd.' }, { status: 422 })
+      }
+    }
     const name = body.name?.trim() || normalized.pathname.split('/').filter(Boolean).pop()?.replace(/\.(xml|csv|json|xlsx|xls)$/i, '') || normalized.hostname
     const countryCode = (body.countryCode || 'GLOBAL').toUpperCase()
     const source = await prisma.feedSource.upsert({
