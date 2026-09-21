@@ -517,6 +517,7 @@ model ProductMarket {
   productId   String   @map("product_id")
   countryId   String   @map("country_id")
   ownPrice    Decimal? @map("own_price")
+  vatIncluded Boolean  @default(true) @map("vat_included")
   currency    String
   ownUrl      String?  @map("own_url")
   stockStatus String?  @map("stock_status")
