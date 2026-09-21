@@ -390,7 +390,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/concurrenten')
   revalidatePath('/monitoring')
-  redirect(`/producten/${productId}?concurrent=${existing.id}&bron=bijgewerkt#concurrentieprijzen`)
+  redirect(`/producten/${productId}?markt=${encodeURIComponent(existing.competitor.countryId)}&concurrent=${existing.id}&bron=bijgewerkt#concurrentieprijzen`)
 }
 
 export async function removeCompetitorOfferAction(formData: FormData) {
@@ -485,10 +485,10 @@ export async function runCompetitorOfferResearchAction(formData: FormData) {
   if (!productId || !competitorOfferId) throw new Error('Product of concurrentiebron ontbreekt.')
   const offer = await prisma.competitorOffer.findFirst({
     where: { id: competitorOfferId, companyId: user.companyId, isActive: true, productMatch: { companyId: user.companyId, productId } },
-    select: { id: true },
+    select: { id: true, competitor: { select: { countryId: true } } },
   })
   if (!offer) throw new Error('Concurrentiebron niet gevonden of niet actief.')
   const summary = await runDuePriceChecks({ companyId: user.companyId, competitorOfferId: offer.id, limit: 1, force: true })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`); revalidatePath('/monitoring')
-  redirect(`/producten/${productId}?broncontrole=${summary.successful}-${summary.failed}#concurrentieprijzen`)
+  redirect(`/producten/${productId}?markt=${encodeURIComponent(offer.competitor.countryId)}&broncontrole=${summary.successful}-${summary.failed}#concurrentieprijzen`)
 }
