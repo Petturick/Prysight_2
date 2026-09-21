@@ -10,11 +10,12 @@ type CompetitorDailyRow = {
   competitorName: string
   competitorPrice: number | null
 }
+type CompetitorSeriesRow = { competitorId: string; competitorName: string }
 
 const getProductPriceHistory = unstable_cache(
   async (companyId: string, productId: string) => {
     const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    const [ownRows, competitorRows] = await Promise.all([
+    const [ownRows, competitorRows, competitorSeriesRows] = await Promise.all([
       prisma.$queryRaw<OwnDailyRow[]>(Prisma.sql`
         select date_trunc('day', recorded_at) as day,
                avg(price)::float8 as "ownPrice"
@@ -44,11 +45,23 @@ const getProductPriceHistory = unstable_cache(
         group by 1, c.id, c.name
         order by 1 asc, c.name asc
       `),
+      prisma.$queryRaw<CompetitorSeriesRow[]>(Prisma.sql`
+        select distinct c.id as "competitorId", c.name as "competitorName"
+        from product_matches pm
+        inner join competitor_offers co on co.id = pm.competitor_offer_id
+        inner join competitors c on c.id = co.competitor_id
+        where pm.company_id = ${companyId}
+          and co.company_id = ${companyId}
+          and c.company_id = ${companyId}
+          and pm.product_id = ${productId}
+          and pm.match_status = 'CERTAIN'
+          and co.is_active = true
+          and c.is_active = true
+        order by c.name asc
+      `),
     ])
 
-    const competitors = [...new Map(
-      competitorRows.map((row) => [row.competitorId, row.competitorName]),
-    ).entries()]
+    const competitors = competitorSeriesRows.map((row) => [row.competitorId, row.competitorName] as const)
 
     const series: PriceChartSeries[] = [
       { key: 'ownPrice', name: 'Eigen prijs', kind: 'own' },
@@ -96,10 +109,7 @@ const getProductPriceHistory = unstable_cache(
       .sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey)))
       .map(({ sortKey: _sortKey, ...point }) => point)
 
-    return {
-      data,
-      series: series.filter((item) => item.kind === 'own' || competitorRows.some((row) => row.competitorId === item.competitorId)),
-    }
+    return { data, series }
   },
   ['prysight-product-price-history-v2'],
   { revalidate: 60 },
