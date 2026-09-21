@@ -67,8 +67,10 @@ function qty(value: unknown, fallback = 1) {
 function bool(value: unknown, fallback = true) {
   if (typeof value === 'boolean') return value
   const normalized = String(value ?? '').trim().toLowerCase()
-  if (['0', 'false', 'nee', 'no', 'inactive', 'disabled'].includes(normalized)) return false
-  if (['1', 'true', 'ja', 'yes', 'active', 'enabled'].includes(normalized)) return true
+  if (['0', 'false', 'nee', 'no', 'inactive', 'disabled', 'excl', 'exclusive', 'excluding', 'excl. btw', 'excl btw', 'ex vat'].includes(normalized)) return false
+  if (['1', 'true', 'ja', 'yes', 'active', 'enabled', 'incl', 'inclusive', 'including', 'incl. btw', 'incl btw', 'inc vat'].includes(normalized)) return true
+  if (/\b(?:excl|exclusive|excluding|ex\.?\s*(?:vat|btw)|zzgl)\b/i.test(normalized)) return false
+  if (/\b(?:incl|inclusive|including|inkl)\b/i.test(normalized)) return true
   return fallback
 }
 
