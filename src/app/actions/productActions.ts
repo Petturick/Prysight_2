@@ -283,7 +283,7 @@ export async function addCompetitorOfferAction(formData: FormData) {
   const offerUrl = text(formData, 'offerUrl')
   const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
   if (!productId || !competitorName || !countryId || !offerUrl) throw new Error('Product, concurrent, land en product URL zijn verplicht.')
-  const product = await prisma.product.findFirst({ where: { id: productId, companyId: user.companyId, isActive: true } })
+  const product = await prisma.product.findFirst({ where: { id: productId, companyId: user.companyId, isActive: true }, select: { id: true, ean: true, gtin: true, packagingUnit: true, packagingQty: true } })
   if (!product) throw new Error('Product niet gevonden.')
   const country = await requireLicensedCountry(user.companyId, countryId)
   const safeOfferUrl = (await assertSafeRemoteHttpUrl(offerUrl)).toString()
@@ -300,6 +300,15 @@ export async function addCompetitorOfferAction(formData: FormData) {
     update: { productId: product.id, confidenceScore: 100, matchStatus: MatchStatus.CERTAIN, matchEvidence: { source: 'manual', reason: 'Handmatig gekoppeld in Prysight' }, approvedBy: user.id, approvedAt: new Date() },
     create: { companyId: user.companyId, productId: product.id, competitorOfferId: offer.id, confidenceScore: 100, matchStatus: MatchStatus.CERTAIN, matchEvidence: { source: 'manual', reason: 'Handmatig gekoppeld in Prysight' }, approvedBy: user.id, approvedAt: new Date() },
   })
+  if (product.ean || product.gtin) {
+    try {
+      await runDuePriceChecks({ companyId: user.companyId, competitorOfferId: offer.id, limit: 1, force: true })
+    } catch (error) {
+      console.error('Automatic competitor price and shipping check failed after manual source link', {
+        companyId: user.companyId, productId: product.id, competitorOfferId: offer.id, error,
+      })
+    }
+  }
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${product.id}`); revalidatePath('/concurrenten')
   redirect(`/producten/${product.id}?markt=${encodeURIComponent(countryId)}&bron=toegevoegd`)
 }
@@ -325,7 +334,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
       companyId: user.companyId,
       productMatch: { companyId: user.companyId, productId },
     },
-    include: { competitor: true },
+    include: { competitor: true, productMatch: { include: { product: { select: { ean: true, gtin: true } } } } },
   })
   if (!existing) throw new Error('Concurrentiebron niet gevonden.')
 
@@ -376,6 +385,11 @@ export async function updateCompetitorOfferAction(formData: FormData) {
           ? {
               rawPrice: null,
               normalizedPrice: null,
+              shippingCost: null,
+              normalizedShippingCost: null,
+              deliveredPrice: null,
+              shippingCurrency: null,
+              shippingLabel: null,
               stockStatus: null,
               lastCheckedAt: null,
             }
@@ -383,6 +397,16 @@ export async function updateCompetitorOfferAction(formData: FormData) {
       },
     }),
   ])
+
+  if (urlChanged && (existing.productMatch?.product.ean || existing.productMatch?.product.gtin)) {
+    try {
+      await runDuePriceChecks({ companyId: user.companyId, competitorOfferId: existing.id, limit: 1, force: true })
+    } catch (error) {
+      console.error('Automatic competitor price and shipping check failed after source URL update', {
+        companyId: user.companyId, productId, competitorOfferId: existing.id, error,
+      })
+    }
+  }
 
   await createAuditLog({
     companyId: user.companyId,
