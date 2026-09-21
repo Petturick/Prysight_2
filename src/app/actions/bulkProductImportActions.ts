@@ -19,6 +19,8 @@ const rowSchema = z.object({
   productGroup: z.string().default('Onbekend'),
   productTags: z.string().default(''),
   ownPrice: z.string().default(''),
+  vatIncluded: z.string().default(''),
+  ownUrl: z.string().default(''),
   costPrice: z.string().default(''),
   country: z.string().default('NL'),
   currency: z.string().default('EUR'),
@@ -42,6 +44,13 @@ const payloadSchema = z.object({
 function decimal(value: string) {
   const numeric = Number(value.replace(',', '.'))
   return value && Number.isFinite(numeric) ? new Prisma.Decimal(numeric) : null
+}
+
+function vatIncluded(value: string, fallback = true) {
+  const normalized = value.trim().toLowerCase()
+  if (['false', '0', 'nee', 'no', 'excl', 'exclusive', 'excluding'].includes(normalized)) return false
+  if (['true', '1', 'ja', 'yes', 'incl', 'inclusive', 'including'].includes(normalized)) return true
+  return fallback
 }
 
 function positiveInteger(value: string) {
@@ -124,6 +133,7 @@ export async function processBulkProductImportAction(payload: unknown) {
         const ownPrice = decimal(row.ownPrice)
         const country = countryByCode.get((row.country || 'NL').toUpperCase())
         const note = reportNote(row)
+        const existing = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId, articleNumber: row.articleNumber.trim() } }, select: { vatIncluded: true } })
         const product = await prisma.product.upsert({
           where: { companyId_articleNumber: { companyId, articleNumber: row.articleNumber.trim() } },
           update: {
@@ -131,6 +141,7 @@ export async function processBulkProductImportAction(payload: unknown) {
             ean: row.ean || undefined,
             productGroupId: group.id,
             ownPrice: ownPrice ?? undefined,
+            vatIncluded: vatIncluded(row.vatIncluded, existing?.vatIncluded ?? true),
             packagingUnit: row.packagingUnit || 'stuks',
             packagingQty: positiveInteger(row.packagingQty),
             currency: row.currency || 'EUR',
@@ -144,6 +155,7 @@ export async function processBulkProductImportAction(payload: unknown) {
             name: row.productName.trim(),
             productGroupId: group.id,
             ownPrice,
+            vatIncluded: vatIncluded(row.vatIncluded, true),
             packagingUnit: row.packagingUnit || 'stuks',
             packagingQty: positiveInteger(row.packagingQty),
             currency: row.currency || 'EUR',
@@ -162,8 +174,8 @@ export async function processBulkProductImportAction(payload: unknown) {
         if (country && activeCountryIds.has(country.id)) {
           await prisma.productMarket.upsert({
             where: { companyId_productId_countryId: { companyId, productId: product.id, countryId: country.id } },
-            update: { ownPrice: ownPrice ?? undefined, currency: row.currency || country.currency, isActive: true },
-            create: { companyId, productId: product.id, countryId: country.id, ownPrice, currency: row.currency || country.currency, stockStatus: 'Onbekend', isActive: true },
+            update: { ownPrice: ownPrice ?? undefined, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, isActive: true },
+            create: { companyId, productId: product.id, countryId: country.id, ownPrice, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, stockStatus: 'Onbekend', isActive: true },
           })
           marketCount += 1
         } else {
