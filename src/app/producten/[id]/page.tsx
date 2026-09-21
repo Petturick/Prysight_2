@@ -345,19 +345,22 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse text-[11px]">
-              <thead className="bg-[#f6f8fb] text-left text-[10px] font-semibold text-[#758396]"><tr><th className="px-4 py-3">Concurrent</th><th className="px-4 py-3">Prijs</th><th className="px-4 py-3">Vs. eigen</th><th className="px-4 py-3">Voorraad</th><th className="px-4 py-3">Gemeten</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actie</th></tr></thead>
+              <thead className="bg-[#f6f8fb] text-left text-[10px] font-semibold text-[#758396]"><tr><th className="px-4 py-3">Concurrent</th><th className="px-4 py-3">Prijs excl. / incl.</th><th className="px-4 py-3">Vs. eigen</th><th className="px-4 py-3">Voorraad</th><th className="px-4 py-3">Gemeten</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actie</th></tr></thead>
               <tbody>
                 {comparisonMatches.map((match, index) => {
                   const offer = match.competitorOffer
                   const price = numberValue(offer.normalizedPrice)
-                  const ownDeltaPct = comparisonOwnPrice !== null && price !== null && comparisonOwnPrice > 0 ? ((price - comparisonOwnPrice) / comparisonOwnPrice) * 100 : null
+                  const competitorVatRate = numberValue(offer.competitor.country.vatRate)
+                  const priceIncVat = price
+                  const priceExVat = price !== null && competitorVatRate !== null ? price / (1 + competitorVatRate / 100) : price
+                  const ownDeltaPct = comparisonOwnPrice !== null && priceIncVat !== null && comparisonOwnPrice > 0 ? ((priceIncVat - comparisonOwnPrice) / comparisonOwnPrice) * 100 : null
                   const latestSourceCheck = offer.priceChecks[0]
                   const sourceIssue = sourceIssueLabel(latestSourceCheck?.errorMessage)
 
                   return (
                     <tr key={match.id} className={`border-t border-[#edf1f5] ${price !== null && index === 0 ? 'bg-[#f1f8f4]' : 'bg-white'}`}>
                       <td className="px-4 py-3"><p className="font-semibold text-[#2d4057]">{canEditCompetitors ? <Link href={`/producten/${product.id}?concurrent=${offer.id}#concurrentieprijzen`} className="underline-offset-2 hover:text-[#2f6edb] hover:underline">{offer.competitor.name}</Link> : offer.competitor.name}</p><p className="mt-0.5 text-[10px] text-[#8a98a9]">{offer.competitor.country.name} · <a href={offer.url} target="_blank" rel="noreferrer" className="font-semibold text-[#2f6edb]">Bron</a>{canEditCompetitors ? <> · <Link href={`/producten/${product.id}?concurrent=${offer.id}#concurrentieprijzen`} className="font-semibold text-[#60758d] hover:text-[#2f6edb]">Wijzigen</Link></> : null}</p></td>
-                      <td className="px-4 py-3 font-semibold text-[#24384f]">{price === null ? <span className="text-[#a36816]">Nog geen prijs</span> : formatCurrency(price)}</td>
+                      <td className="px-4 py-3">{price === null ? <span className="font-semibold text-[#a36816]">Nog geen prijs</span> : <><p className="font-semibold text-[#24384f]">{formatCurrency(priceExVat)} <span className="text-[8px] font-medium text-[#8a98a9]">excl.</span></p><p className="mt-0.5 text-[10px] font-semibold text-[#53677f]">{formatCurrency(priceIncVat)} <span className="text-[8px] font-medium text-[#8a98a9]">incl.</span></p></>}</td>
                       <td className={`px-4 py-3 font-semibold ${ownDeltaPct !== null && ownDeltaPct < 0 ? 'text-[#b6414d]' : ownDeltaPct !== null && ownDeltaPct > 0 ? 'text-[#20814d]' : 'text-[#708095]'}`}>{ownDeltaPct === null ? '—' : `${ownDeltaPct > 0 ? '+' : ''}${formatNumber(ownDeltaPct, 1)}%`}</td>
                       <td className="px-4 py-3"><span className="ps-chip">{offer.stockStatus ?? 'Onbekend'}</span></td>
                       <td className="px-4 py-3"><p className="font-medium text-[#44576d]">{offer.lastCheckedAt ? formatDate(offer.lastCheckedAt) : 'Nog niet'}</p></td>
