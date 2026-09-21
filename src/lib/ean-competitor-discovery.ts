@@ -174,7 +174,7 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
 
   if (ranked.length === 0) {
     const cleanName = product.name.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
-    const fallbackSearch = await webSearch(`"${cleanName}"`)
+    const fallbackSearch = await webSearch(cleanName)
     ranked = rankCandidates(fallbackSearch.candidates, { ean: product.ean, name: product.name })
     provider = fallbackSearch.provider
     queryMode = 'PRODUCT'
