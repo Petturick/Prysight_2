@@ -40,7 +40,7 @@ async function discoverFeedProductCompetitors(feedSourceId: string) {
             productMarkets: {
               where: { companyId: source.companyId, isActive: true },
               select: { countryId: true },
-              take: 1,
+              take: 8,
             },
             matches: {
               where: {
@@ -71,7 +71,9 @@ async function discoverFeedProductCompetitors(feedSourceId: string) {
     const product = link.product
     if (product.matches.length >= 2) continue
     if (!(product.ean || product.gtin || product.articleNumber)) continue
-    const countryId = product.productMarkets[0]?.countryId ?? defaultMarket?.countryId
+    const countryId = defaultMarket?.countryId && product.productMarkets.some((market) => market.countryId === defaultMarket.countryId)
+      ? defaultMarket.countryId
+      : product.productMarkets[0]?.countryId ?? defaultMarket?.countryId
     if (!countryId) continue
     unique.set(`${product.id}:${countryId}`, {
       productId: product.id,
