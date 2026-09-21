@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateCompetitorOfferAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
+import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateCompetitorOfferAction, updateProductIdentifiersAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { approveMatchAction } from '@/app/actions/matchActions'
 import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
@@ -180,6 +180,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const discoveryReason = readParam(query.reden)
   const discoveryAttempted = query.suggesties !== undefined
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
+  const identifiersUpdated = readParam(query.identiteit) === 'bijgewerkt'
   const sourceUpdated = readParam(query.bron) === 'bijgewerkt'
   const controlSummaryText = controlSummary(controlMessage)
   const sourceControlSummaryText = controlSummary(sourceControlMessage)
@@ -187,6 +188,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   return (
     <div className="space-y-4">
       {priceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Verkoopprijs bijgewerkt.</div> : null}
+      {identifiersUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Productherkenning bijgewerkt. Prysight heeft de concurrentzoekactie opnieuw uitgevoerd.</div> : null}
       {sourceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrentiebron bijgewerkt. Als de product URL is gewijzigd, is de oude prijs gewist en kan de bron opnieuw worden gecontroleerd.</div> : null}
       {crawlStatus === 'geen-bron' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">Koppel eerst een concurrentbron.</div> : null}
       {crawlStatus === 'mislukt' ? <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff2f3] px-4 py-3 text-[12px] font-semibold text-[#9c3442]">Prijscontrole mislukt. Controleer de bron en probeer opnieuw.</div> : null}
@@ -227,6 +229,34 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
         </div>
       </section>
+
+      <details id="product-identiteit" open={!product.ean} className="ps-panel scroll-mt-24 overflow-hidden">
+        <summary className="cursor-pointer px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-semibold text-[#30465d]">Productherkenning</p>
+              <p className="mt-1 text-[10px] text-[#7d8b9a]">EAN is de sterkste sleutel voor automatische concurrentherkenning.</p>
+            </div>
+            <span className={`ps-chip ${product.ean ? 'ps-chip-green' : 'ps-chip-amber'}`}>{product.ean ? 'EAN aanwezig' : 'EAN ontbreekt'}</span>
+          </div>
+        </summary>
+        <div className="border-t border-[#e7edf3] p-5 sm:p-6">
+          {canEditProduct ? (
+            <form action={updateProductIdentifiersAction} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <input type="hidden" name="productId" value={product.id} />
+              {defaultCountry ? <input type="hidden" name="countryId" value={defaultCountry.id} /> : null}
+              <label className="text-[11px] font-semibold text-[#4f5869]">EAN
+                <input name="ean" inputMode="numeric" defaultValue={product.ean ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld 8712345678901" />
+              </label>
+              <label className="text-[11px] font-semibold text-[#4f5869]">GTIN
+                <input name="gtin" inputMode="numeric" defaultValue={product.gtin ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Optioneel" />
+              </label>
+              <button type="submit" className="primary-action min-h-[44px] whitespace-nowrap">{defaultCountry && canEditCompetitors ? 'Opslaan en concurrenten zoeken' : 'Opslaan'}</button>
+            </form>
+          ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen-lezen toegang tot productidentificatie.</p>}
+          {!product.ean ? <p className="mt-3 rounded-[10px] bg-[#fff7e8] px-3 py-2 text-[10px] leading-5 text-[#815d1d]">Zonder EAN kan Prysight nog zoeken op GTIN, artikelnummer en productcontext, maar de kans op een exacte match is lager.</p> : null}
+        </div>
+      </details>
 
       <section id="eigen-prijs" className="ps-panel scroll-mt-24 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
