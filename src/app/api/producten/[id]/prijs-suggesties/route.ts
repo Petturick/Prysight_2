@@ -63,7 +63,7 @@ async function allowedByRobots(targetUrl: string, signal: AbortSignal) {
   return true
 }
 
-async function previewSource(source: Source, product: { ean: string; articleNumber: string; name: string; ownPrice: number | null }, vatRate: number, defaultCurrency: string): Promise<Suggestion> {
+async function previewSource(source: Source, product: { ean: string; articleNumber: string; name: string; ownPrice: number | null }, vatRate: number, defaultCurrency: string, countryCode: string): Promise<Suggestion> {
   const base = { id: source.id, matchId: source.matchId, kind: source.kind, name: source.name, url: source.url, observedPrice: null, priceInclVat: null, priceExclVat: null, shippingCost: null, shippingCurrency: null, deliveredPriceInclVat: null, shippingLabel: null, vatIncluded: null, vatRate, currency: defaultCurrency, confidence: 'UNAVAILABLE' as const, method: null, reason: '', checkedAt: new Date().toISOString() }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 9_000)
@@ -77,7 +77,7 @@ async function previewSource(source: Source, product: { ean: string; articleNumb
     const contentType = response.headers.get('content-type') ?? ''
     if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return { ...base, reason: 'Geen leesbare productpagina.' }
     const html = await limitedHtml(response)
-    const extracted = extractOfferSnapshot(html, { ean: product.ean, productName: product.name })
+    const extracted = extractOfferSnapshot(html, { ean: product.ean, productName: product.name, countryCode })
     if (extracted.price === null || extracted.price <= 0) return { ...base, reason: 'Geen betrouwbare prijs gevonden.' }
     // Exact contradictory EAN is a hard rejection even for manually linked sources.
     if (extracted.ean && extracted.ean.replace(/\D/g, '') !== product.ean.replace(/\D/g, '')) {
@@ -176,7 +176,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     for (const match of competitors) sources.push({ id: match.competitorOffer.id, matchId: match.id, kind: 'COMPETITOR', name: match.competitorOffer.competitor.name, url: match.competitorOffer.url, trusted: match.matchStatus === 'CERTAIN' })
     const ownPrice = product.productMarkets[0]?.ownPrice ?? product.ownPrice
     const info = { ean: product.ean, articleNumber: product.articleNumber, name: product.name, ownPrice: ownPrice === null ? null : Number(ownPrice) }
-    const results = await Promise.all(sources.map((source) => previewSource(source, info, Number(country.vatRate), country.currency)))
+    const results = await Promise.all(sources.map((source) => previewSource(source, info, Number(country.vatRate), country.currency, country.code)))
     return NextResponse.json({ ean: product.ean, market: country.code, countryId: country.id, suggestions: results, hasOwnUrl: Boolean(ownUrl), hasCompetitors: competitors.length > 0 })
   } catch (error) {
     console.error('EAN price suggestion preview failed', error)
