@@ -13,8 +13,10 @@ type CompetitorDailyRow = {
 type CompetitorSeriesRow = { competitorId: string; competitorName: string }
 
 const getProductPriceHistory = unstable_cache(
-  async (companyId: string, productId: string) => {
+  async (companyId: string, productId: string, countryId?: string) => {
     const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    const ownCountryFilter = countryId ? Prisma.sql`and country_id = ${countryId}` : Prisma.empty
+    const competitorCountryFilter = countryId ? Prisma.sql`and c.country_id = ${countryId}` : Prisma.empty
     const [ownRows, competitorRows, competitorSeriesRows] = await Promise.all([
       prisma.$queryRaw<OwnDailyRow[]>(Prisma.sql`
         select date_trunc('day', recorded_at) as day,
@@ -22,6 +24,7 @@ const getProductPriceHistory = unstable_cache(
         from own_price_history
         where company_id = ${companyId}
           and product_id = ${productId}
+          ${ownCountryFilter}
           and recorded_at >= ${since}
         group by 1
         order by 1 asc
@@ -40,6 +43,7 @@ const getProductPriceHistory = unstable_cache(
           and c.company_id = ${companyId}
           and pm.company_id = ${companyId}
           and pm.product_id = ${productId}
+          ${competitorCountryFilter}
           and pm.match_status = 'CERTAIN'
           and ph.recorded_at >= ${since}
         group by 1, c.id, c.name
@@ -54,6 +58,7 @@ const getProductPriceHistory = unstable_cache(
           and co.company_id = ${companyId}
           and c.company_id = ${companyId}
           and pm.product_id = ${productId}
+          ${competitorCountryFilter}
           and pm.match_status = 'CERTAIN'
           and co.is_active = true
           and c.is_active = true
@@ -111,12 +116,12 @@ const getProductPriceHistory = unstable_cache(
 
     return { data, series }
   },
-  ['prysight-product-price-history-v2'],
+  ['prysight-product-price-history-v3'],
   { revalidate: 60 },
 )
 
-export async function ProductPriceHistoryPanel({ companyId, productId }: { companyId: string; productId: string }) {
-  const { data, series } = await getProductPriceHistory(companyId, productId)
+export async function ProductPriceHistoryPanel({ companyId, productId, countryId }: { companyId: string; productId: string; countryId?: string }) {
+  const { data, series } = await getProductPriceHistory(companyId, productId, countryId)
 
   if (data.length === 0) {
     return (
