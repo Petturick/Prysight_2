@@ -454,6 +454,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <Link href={`/producten/${product.id}?markt=${defaultCountry?.id ?? ''}&historie=${offer.id}#historie`} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px]">Historie</Link>
+                          {canEditCompetitors ? <Link href={`/producten/${product.id}?markt=${defaultCountry?.id ?? ''}&concurrent=${offer.id}#concurrentieprijzen`} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px]">Wijzigen</Link> : null}
                           <form action={runCompetitorOfferResearchAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><PriceFetchSubmitButton compact idleLabel={latestSourceCheck ? 'Nu crawlen' : 'Prijs ophalen'} pendingLabel="Ophalen…" /></form>
                           {canEditCompetitors ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><RemoveCompetitorButton label={offer.competitor.name} /></form> : null}
                         </div>
@@ -563,7 +564,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
         ) : null}
         <Suspense fallback={<AnalyticsFallback label="Prijsverloop" />}>
-          <ProductPriceHistoryPanel companyId={user.companyId} productId={product.id} highlightedCompetitorId={highlightedHistoryMatch?.competitorOffer.competitorId ?? null} />
+          <ProductPriceHistoryPanel companyId={user.companyId} productId={product.id} countryId={defaultCountry?.id ?? null} highlightedCompetitorId={highlightedHistoryMatch?.competitorOffer.competitorId ?? null} />
         </Suspense>
         <details className="ps-panel overflow-hidden">
           <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-[#34495f]">Technische controlehistorie</summary>
