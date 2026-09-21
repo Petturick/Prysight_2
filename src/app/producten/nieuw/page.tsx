@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createSmartProductAction } from '@/app/actions/smartProductActions'
 import { ProductUrlQuickStart } from '@/components/ProductUrlQuickStart'
+import { EanDiscoveryField } from '@/components/EanDiscoveryField'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
@@ -23,7 +24,7 @@ export default async function NewProductPage() {
           <div className="max-w-3xl">
             <p className="eyebrow">Product toevoegen</p>
             <h1 className="mt-2">Eén product invoeren</h1>
-            <p className="mt-2 text-[12px] leading-6 text-[#6f7d90]">Start met een product URL voor automatische herkenning, of voer een product handmatig in. Prysight neemt waar mogelijk prijs, btw status en belangrijke productkenmerken over.</p>
+            <p className="mt-2 text-[12px] leading-6 text-[#6f7d90]">Plak bij voorkeur eerst de product URL. Prysight vult de productdata in en gebruikt het EAN daarna automatisch om concurrenten voor de gekozen markt te vinden.</p>
           </div>
           <Link href="/producten" className="secondary-action">Terug naar producten</Link>
         </div>
@@ -33,7 +34,7 @@ export default async function NewProductPage() {
         <div className="ps-panel border-[#cfe0fb] bg-[#f7faff] p-4">
           <p className="text-[10px] font-semibold text-[#4f86e8]">Huidige keuze</p>
           <p className="mt-1 text-[14px] font-semibold text-[#20344b]">Eén product</p>
-          <p className="mt-1 text-[11px] leading-5 text-[#748296]">Snel handmatig toevoegen en direct een eigen prijs instellen.</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#748296]">Start via product URL of vul alleen de belangrijkste velden handmatig in.</p>
         </div>
         <Link href="/import/bulk" className="ps-panel p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
           <p className="text-[10px] font-semibold text-[#7a8798]">Veel producten</p>
@@ -56,14 +57,14 @@ export default async function NewProductPage() {
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf4ff] text-[11px] font-bold text-[#3d73d4]">1</span>
               <div>
                 <h2 className="text-[15px] font-semibold text-[#21364d]">Welk product wil je volgen?</h2>
-                <p className="mt-0.5 text-[11px] text-[#7b8999]">Artikelnummer en productnaam zijn verplicht. Een EAN maakt automatische matching veel sterker.</p>
+                <p className="mt-0.5 text-[11px] text-[#7b8999]">Artikelnummer en productnaam zijn verplicht. Met een geldig EAN zoekt Prysight automatisch concurrenten zodra je opslaat.</p>
               </div>
             </div>
           </div>
           <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-            <label className="text-[11px] font-semibold text-[#4f5869]">Artikelnummer *<input name="articleNumber" required autoFocus className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld PB-121076" /></label>
+            <label className="text-[11px] font-semibold text-[#4f5869]">Artikelnummer *<input name="articleNumber" required className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld PB-121076" /></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Productnaam *<input name="name" required className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld Palletbox 1200 x 1000" /></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">EAN<input name="ean" inputMode="numeric" className="toolbar-control mt-1.5 w-full" placeholder="871..." /></label>
+            <EanDiscoveryField />
             <label className="text-[11px] font-semibold text-[#4f5869]">Productgroep<input name="productGroup" list="product-groups" className="toolbar-control mt-1.5 w-full" placeholder="Kies of typ een productgroep" /><datalist id="product-groups">{productGroups.map((group) => <option key={group.id} value={group.name} />)}</datalist></label>
             <details className="sm:col-span-2">
               <summary className="cursor-pointer px-4 py-3 text-[11px] font-semibold text-[#40556e]">Meer productkenmerken toevoegen</summary>
@@ -95,17 +96,11 @@ export default async function NewProductPage() {
           </div>
         </section>
 
-        <section className="ps-panel overflow-hidden">
-          <div className="border-b border-[#e7edf3] px-5 py-4 sm:px-6">
-            <div className="flex items-center gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf4ff] text-[11px] font-bold text-[#3d73d4]">3</span>
-              <div>
-                <h2 className="text-[15px] font-semibold text-[#21364d]">Maak monitoring compleet</h2>
-                <p className="mt-0.5 text-[11px] text-[#7b8999]">Deze gegevens zijn nuttig, maar niet nodig om te kunnen starten.</p>
-              </div>
-            </div>
-          </div>
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+        <details className="ps-panel overflow-hidden">
+          <summary className="cursor-pointer px-5 py-4 text-[12px] font-semibold text-[#40556e] sm:px-6">
+            Extra productgegevens, voorraad en verpakking
+          </summary>
+          <div className="grid gap-4 border-t border-[#e7edf3] p-5 sm:grid-cols-2 sm:p-6">
             <label className="text-[11px] font-semibold text-[#4f5869] sm:col-span-2">Jouw product URL<input name="ownUrl" type="url" className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
             <div className="grid grid-cols-[1fr_.7fr] gap-3">
@@ -113,7 +108,7 @@ export default async function NewProductPage() {
               <label className="text-[11px] font-semibold text-[#4f5869]">Aantal<input name="packagingQty" type="number" min="1" defaultValue="1" className="toolbar-control mt-1.5 w-full" /></label>
             </div>
           </div>
-        </section>
+        </details>
 
         {canManagePricing ? (
           <details className="ps-panel">
@@ -136,11 +131,11 @@ export default async function NewProductPage() {
         <section className="ps-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <p className="text-[12px] font-semibold text-[#2d4058]">Na toevoegen</p>
-            <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#7b8999]">Prysight opent direct het productdetail. Met EAN, GTIN of MPN kan het systeem vervolgens concurrentkandidaten zoeken. Je eigen prijs blijft altijd zichtbaar en aanpasbaar.</p>
+            <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#7b8999]">Prysight slaat het product op, zoekt automatisch concurrenten op basis van EAN en gekozen markt en zet alleen betrouwbare kandidaten klaar voor beoordeling.</p>
           </div>
           <div className="flex shrink-0 gap-2">
             <Link href="/producten" className="secondary-action">Annuleren</Link>
-            <button type="submit" className="primary-action min-w-[150px]">Product toevoegen</button>
+            <button type="submit" className="primary-action min-w-[210px]">Opslaan en concurrenten zoeken</button>
           </div>
         </section>
       </form>
