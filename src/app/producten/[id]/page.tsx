@@ -167,6 +167,12 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const sourceControlMessage = readParam(query.broncontrole)
   const crawlStatus = readParam(query.crawlstatus)
   const discovered = Number(readParam(query.suggesties) ?? '0') || 0
+  const discoveryFound = Number(readParam(query.gevonden) ?? '0') || 0
+  const discoveryAlreadyLinked = Number(readParam(query.algekoppeld) ?? '0') || 0
+  const discoveryProvider = readParam(query.zoekbron)
+  const discoveryMode = readParam(query.zoekmodus)
+  const discoveryReason = readParam(query.reden)
+  const discoveryAttempted = query.suggesties !== undefined
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
   const sourceUpdated = readParam(query.bron) === 'bijgewerkt'
   const controlSummaryText = controlSummary(controlMessage)
@@ -178,7 +184,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       {sourceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrentiebron bijgewerkt. Als de product URL is gewijzigd, is de oude prijs gewist en kan de bron opnieuw worden gecontroleerd.</div> : null}
       {crawlStatus === 'geen-bron' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">Koppel eerst een concurrentbron.</div> : null}
       {crawlStatus === 'mislukt' ? <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff2f3] px-4 py-3 text-[12px] font-semibold text-[#9c3442]">Prijscontrole mislukt. Controleer de bron en probeer opnieuw.</div> : null}
-      {(readParam(query.toegevoegd) || readParam(query.bron) || controlMessage || sourceControlMessage || readParam(query.suggesties)) ? (
+      {(readParam(query.toegevoegd) || readParam(query.bron) || controlMessage || sourceControlMessage) ? (
         <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">
           {readParam(query.toegevoegd)
             ? `Product toegevoegd${discovered > 0 ? `, ${discovered} concurrent suggesties gevonden.` : '.'}`
@@ -186,9 +192,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               ? 'Concurrentbron gekoppeld. Je kunt nu direct crawlen.'
               : sourceControlMessage
                 ? sourceControlSummaryText
-                : controlMessage
-                  ? controlSummaryText
-                  : `${discovered} suggesties gevonden.`}
+                : controlSummaryText}
         </div>
       ) : null}
 
@@ -410,19 +414,36 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       </details>
 
-      <section className={`rounded-[16px] border p-5 shadow-[0_8px_20px_rgba(20,31,55,.06)] ${reviewMatches.length ? 'border-[#c3b7f7] bg-[#f7f5ff]' : 'border-[#dce3ea] bg-white'}`}>
+      <section id="concurrenten-vinden" className={`scroll-mt-24 rounded-[16px] border p-5 shadow-[0_8px_20px_rgba(20,31,55,.06)] ${reviewMatches.length ? 'border-[#c3b7f7] bg-[#f7f5ff]' : 'border-[#dce3ea] bg-white'}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-[#253149]">Concurrenten vinden</h2>
+            <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Prysight zoekt eerst op EAN. Als die online niet voorkomt, zoekt het gecontroleerd verder op productnaam en kenmerken en zet kandidaten altijd eerst ter beoordeling klaar.</p>
           </div>
           {product.ean && defaultCountry ? (
             <form action={discoverCompetitorUrlsAction} className="flex shrink-0 flex-wrap items-center gap-2">
               <input type="hidden" name="productId" value={product.id} />
               <select name="countryId" defaultValue={defaultCountry.id} className="toolbar-control min-w-[150px]">{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
-              <button type="submit" className="secondary-action">EAN zoeken</button>
+              <PriceFetchSubmitButton idleLabel="Automatisch EAN zoeken" pendingLabel="Concurrenten zoeken…" />
             </form>
           ) : <span className="text-[11px] font-medium text-[#8a6a2a]">{product.ean ? 'Geen actieve markt beschikbaar.' : 'EAN ontbreekt.'}</span>}
         </div>
+
+        {discoveryAttempted ? (
+          <div className={`mt-4 rounded-[12px] border px-4 py-3 text-[11px] ${discovered > 0 ? 'border-[#9ed4b5] bg-[#eef9f2] text-[#246545]' : 'border-[#e8d3a2] bg-[#fff9eb] text-[#76591d]'}`}>
+            <p className="font-semibold">
+              {discovered > 0
+                ? `${discovered} nieuwe concurrent${discovered === 1 ? '' : 'en'} gevonden en klaargezet voor beoordeling.`
+                : discoveryAlreadyLinked > 0
+                  ? `Geen nieuwe suggesties, ${discoveryAlreadyLinked} gevonden kandidaat${discoveryAlreadyLinked === 1 ? ' was' : 'en waren'} al gekoppeld.`
+                  : discoveryReason || 'Geen nieuwe concurrentkandidaten gevonden.'}
+            </p>
+            <p className="mt-1 text-[10px] opacity-80">
+              {discoveryFound} bruikbare zoekresultaten{discoveryProvider ? ` via ${discoveryProvider}` : ''}{discoveryMode === 'PRODUCT' ? ', EAN gaf geen bruikbare resultaten dus productherkenning is als tweede stap gebruikt.' : discoveryMode === 'EAN' ? ', gevonden via EAN.' : '.'}
+            </p>
+          </div>
+        ) : null}
+
         {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <a key={match.id} href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></div><span className="ps-chip ps-chip-blue">{formatNumber(match.confidenceScore)}%</span></div></a>)}</div> : null}
         {reviewMatches.length ? <div className="mt-3 flex justify-end"><Link href="/productmatches" className="text-[11px] font-semibold text-[#2f6edb]">Suggesties beoordelen</Link></div> : null}
       </section>
