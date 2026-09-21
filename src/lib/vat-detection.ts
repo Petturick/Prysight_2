@@ -25,7 +25,8 @@ const EXCLUDED_PATTERNS = [
   /\bex\.?\s*vat\b/i,
   /\bex\.?\s*btw\b/i,
   /\bzzgl\.?\s*mwst\b/i,
-  /\bht\b/i,
+  /\bprix\s+ht\b/i,
+  /\bhtva\b/i,
   /\bhors\s+taxe\b/i,
   /\bhors\s+tva\b/i,
 ]
@@ -62,13 +63,15 @@ function priceVariants(price: number | null | undefined) {
 }
 
 function contextsAroundPrice(text: string, price: number | null | undefined) {
-  const contexts: string[] = []
+  const contexts: Array<{ text: string; priceOffset: number }> = []
   for (const variant of priceVariants(price)) {
     let startAt = 0
     while (true) {
       const index = text.indexOf(variant, startAt)
       if (index < 0) break
-      contexts.push(text.slice(Math.max(0, index - 140), Math.min(text.length, index + variant.length + 140)))
+      const start = Math.max(0, index - 140)
+      const end = Math.min(text.length, index + variant.length + 140)
+      contexts.push({ text: text.slice(start, end), priceOffset: index - start })
       startAt = index + variant.length
       if (contexts.length >= 12) return contexts
     }
@@ -76,15 +79,27 @@ function contextsAroundPrice(text: string, price: number | null | undefined) {
   return contexts
 }
 
+function nearestEvidence(value: string, priceOffset: number, patterns: RegExp[]) {
+  let nearest: { evidence: string; distance: number } | null = null
+  for (const pattern of patterns) {
+    const match = value.match(pattern)
+    if (!match?.[0] || match.index === undefined) continue
+    const center = match.index + match[0].length / 2
+    const distance = Math.abs(center - priceOffset)
+    if (!nearest || distance < nearest.distance) nearest = { evidence: match[0], distance }
+  }
+  return nearest
+}
+
 export function detectVatInclusion(html: string, extractedPrice?: number | null): VatDetection {
   const text = plainText(html)
   const priceContexts = contextsAroundPrice(text, extractedPrice)
 
   for (const context of priceContexts) {
-    const excluded = firstEvidence(context, EXCLUDED_PATTERNS)
-    const included = firstEvidence(context, INCLUDED_PATTERNS)
-    if (excluded && !included) return { vatIncluded: false, confidence: 'HIGH', evidence: excluded }
-    if (included && !excluded) return { vatIncluded: true, confidence: 'HIGH', evidence: included }
+    const excluded = nearestEvidence(context.text, context.priceOffset, EXCLUDED_PATTERNS)
+    const included = nearestEvidence(context.text, context.priceOffset, INCLUDED_PATTERNS)
+    if (excluded && (!included || excluded.distance < included.distance)) return { vatIncluded: false, confidence: 'HIGH', evidence: excluded.evidence }
+    if (included && (!excluded || included.distance < excluded.distance)) return { vatIncluded: true, confidence: 'HIGH', evidence: included.evidence }
   }
 
   const excluded = firstEvidence(text, EXCLUDED_PATTERNS)
