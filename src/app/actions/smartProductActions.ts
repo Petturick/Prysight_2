@@ -21,9 +21,17 @@ export async function createSmartProductAction(formData: FormData) {
   const currency=text(formData,'currency')||country?.currency||'EUR'
   const ean=text(formData,'ean'), gtin=text(formData,'gtin'), mpn=text(formData,'mpn')
   const ownPrice=text(formData,'ownPrice')
+  const ownPriceExVat=text(formData,'ownPriceExVat')
+  const ownPriceIncVat=text(formData,'ownPriceIncVat')
   const vatIncluded=text(formData,'vatIncluded') !== 'false'
   const parsedOwnPrice=Number(ownPrice.replace(',', '.'))
+  const parsedExVat=Number(ownPriceExVat.replace(',', '.'))
+  const parsedIncVat=Number(ownPriceIncVat.replace(',', '.'))
+  if(!country)throw new Error('Kies een marktprofiel voor dit product.')
   if(!ownPrice||!Number.isFinite(parsedOwnPrice)||parsedOwnPrice<=0)throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
+  if(!Number.isFinite(parsedExVat)||parsedExVat<=0||!Number.isFinite(parsedIncVat)||parsedIncVat<=0)throw new Error('Vul zowel de prijs exclusief als inclusief btw in.')
+  const expectedInc=parsedExVat*(1+Number(country.vatRate)/100)
+  if(Math.abs(expectedInc-parsedIncVat)>Math.max(0.03,expectedInc*0.001))throw new Error('De prijs inclusief en exclusief btw sluiten niet aan op het btw tarief van de gekozen markt.')
   const pricingFields=['costPrice','minimumMarginPct','targetMarginPct','minimumPrice','maximumPrice','pricingMode','pricingCooldownHours']
   const hasPricingInput=pricingFields.some((key)=>text(formData,key))
   if(hasPricingInput&&actor.role!=='SUPER_ADMIN'&&!actor.permissions.includes('pricing.manage'))throw new Error('Onvoldoende rechten om pricinginstellingen te wijzigen.')
@@ -70,5 +78,5 @@ export async function createSmartProductAction(formData: FormData) {
     try{const result=await discoverProductCandidates({companyId:actor.companyId,productId:product.id,countryId:country.id});suggestions=result.created}catch(error){console.error('Smart product discovery failed',error)}
   }
   revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')
-  redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestions}`)
+  redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestions}&land=${country.id}`)
 }
