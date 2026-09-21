@@ -11,7 +11,7 @@ import { extractShippingSnapshot } from '@/lib/shipping-extraction'
 import { detectVatInclusion } from '@/lib/vat-detection'
 
 type ExtractionMethod = 'JSON_LD' | 'META' | 'MAGENTO' | 'HTML_REGEX'
-type ExtractedOffer = {
+type ExtractedOfferCore = {
   price: number | null
   currency: string | null
   stockStatus: string | null
@@ -19,11 +19,13 @@ type ExtractedOffer = {
   sku: string | null
   ean: string | null
   packagingQty: number | null
+  method: ExtractionMethod | null
+}
+type ExtractedOffer = ExtractedOfferCore & {
   shippingCost: number | null
   shippingCurrency: string | null
   shippingLabel: string | null
   shippingMethod: string | null
-  method: ExtractionMethod | null
 }
 type JsonRecord = Record<string, unknown>
 type FetchMode = 'HTTP' | 'BROWSER'
@@ -162,7 +164,7 @@ function packagingQuantity(...values: unknown[]) {
   return null
 }
 
-function extractJsonLd(html: string, target?: PriceExtractionTarget): ExtractedOffer | null {
+function extractJsonLd(html: string, target?: PriceExtractionTarget): ExtractedOfferCore | null {
   const scripts = [...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
   const candidates: Array<{ product: JsonRecord; offer: JsonRecord; score: number; order: number }> = []
   let order = 0
@@ -217,7 +219,7 @@ function attribute(tag: string, name: string) {
   return bare?.[1] ?? null
 }
 
-function extractMeta(html: string): ExtractedOffer | null {
+function extractMeta(html: string): ExtractedOfferCore | null {
   const meta = [...html.matchAll(/<meta\b[^>]*>/gi)].map((match) => match[0])
   const values = new Map<string, string>()
   for (const tag of meta) {
@@ -242,7 +244,7 @@ function extractMeta(html: string): ExtractedOffer | null {
   }
 }
 
-function extractMagento(html: string): ExtractedOffer | null {
+function extractMagento(html: string): ExtractedOfferCore | null {
   const compact = html.replace(/\s+/g, ' ')
   const candidates = [
     compact.match(/data-price-amount=["']([0-9][0-9.,]*)["']/i)?.[1],
@@ -275,7 +277,7 @@ function extractMagento(html: string): ExtractedOffer | null {
   }
 }
 
-function extractHtmlFallback(html: string): ExtractedOffer | null {
+function extractHtmlFallback(html: string): ExtractedOfferCore | null {
   const compact = html.replace(/\s+/g, ' ')
   const patterns: Array<{ regex: RegExp; currency: string }> = [
     { regex: /€\s*([0-9][0-9.,\s]{0,14})/i, currency: 'EUR' },
