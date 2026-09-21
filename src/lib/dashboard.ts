@@ -137,6 +137,8 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
   const pricedOffers = relevantMatches.filter((match) => hasVerifiedMeasurement(match, comparisonOwnPrice))
   const prices = pricedOffers.map((match) => decimalToNumber(match.competitorOffer.normalizedPrice)).filter((value): value is number => value !== null)
   const lowestPrice = prices.length ? Math.min(...prices) : null
+  const lowestPriceIncVat = lowestPrice
+  const lowestPriceExVat = lowestPrice !== null && vatRate !== null ? lowestPrice / (1 + vatRate / 100) : lowestPrice
   const averagePrice = prices.length ? prices.reduce((sum, value) => sum + value, 0) / prices.length : null
   const lastCheckedDates = pricedOffers.map((match) => match.competitorOffer.lastCheckedAt).filter((value): value is Date => Boolean(value))
   const lastCheckedAt = lastCheckedDates.length ? new Date(Math.max(...lastCheckedDates.map((value) => value.getTime()))) : null
@@ -162,6 +164,8 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
     ownCurrency,
     vatIncluded: marketVatIncluded,
     lowestPrice,
+    lowestPriceExVat,
+    lowestPriceIncVat,
     averagePrice,
     difference,
     offerCount: pricedOffers.length,
