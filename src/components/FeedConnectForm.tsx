@@ -23,12 +23,26 @@ export function FeedConnectForm({ disabled = false }: { disabled?: boolean }) {
       const response = await fetch('/api/feeds/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ url, name, countryCode }),
       })
-      const result = await response.json() as { feedSourceId?: string; rows?: number; columns?: number; error?: string }
+      const raw = await response.text()
+      let result: { feedSourceId?: string; rows?: number; columns?: number; queued?: boolean; error?: string }
+      try {
+        result = raw ? JSON.parse(raw) as typeof result : {}
+      } catch {
+        const isHtml = raw.trimStart().startsWith('<')
+        throw new Error(isHtml
+          ? 'Prysight ontving een technische serverpagina in plaats van een geldige API reactie. De bron is niet verwerkt. Probeer opnieuw of controleer of de Drive link openbaar toegankelijk is.'
+          : 'Prysight ontving een onleesbare serverreactie. De bron is niet verwerkt.')
+      }
       if (!response.ok) throw new Error(result.error || 'Feed koppelen mislukt.')
-      setMessage({ type: 'success', text: `${result.rows ?? 0} productregels en ${result.columns ?? 0} kolommen geïmporteerd.` })
-      router.push(`/feeds/data?source=${encodeURIComponent(result.feedSourceId ?? '')}`)
+      if (result.queued) {
+        setMessage({ type: 'success', text: 'Bron gekoppeld. Prysight verwerkt de feed nu op de achtergrond.' })
+      } else {
+        setMessage({ type: 'success', text: `${result.rows ?? 0} productregels en ${result.columns ?? 0} kolommen geïmporteerd.` })
+      }
+      router.push(`/feeds/data?source=${encodeURIComponent(result.feedSourceId ?? '')}${result.queued ? '&sync=started' : ''}`)
       router.refresh()
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Feed koppelen mislukt.' })
