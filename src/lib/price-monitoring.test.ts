@@ -125,3 +125,30 @@ test('technische scrape fouten worden als korte bronstatus opgeslagen', () => {
     'Bron blokkeert automatische prijscontrole.',
   )
 })
+
+
+test('palletbox afmetingen worden niet als verpakkingsaantal gezien', () => {
+  const html = `<html><head><script type="application/ld+json">${JSON.stringify({
+    '@type': 'Product',
+    name: 'Euroformaat palletbox 1200 x 800 x 760 mm op 4 poten',
+    offers: {
+      '@type': 'Offer',
+      price: '185.00',
+      priceCurrency: 'EUR',
+    },
+  })}</script></head></html>`
+
+  const result = extractOfferSnapshot(html)
+  assert.equal(result.price, 185)
+  assert.equal(result.method, 'JSON_LD')
+  assert.equal(result.packagingQty, null)
+})
+
+test('afgekeurde prijsvalidatie geeft een bruikbare melding', () => {
+  assert.equal(
+    publicPriceCheckErrorMessage(
+      new Error('Prijsvalidatie afgekeurd: Prijs ligt buiten de professionele plausibiliteitsbandbreedte ten opzichte van de eigen prijs.'),
+    ),
+    'Prijs gevonden, maar de genormaliseerde prijs wijkt onwaarschijnlijk af van de eigen prijs.',
+  )
+})
