@@ -184,11 +184,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       {sourceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrentiebron bijgewerkt. Als de product URL is gewijzigd, is de oude prijs gewist en kan de bron opnieuw worden gecontroleerd.</div> : null}
       {crawlStatus === 'geen-bron' ? <div className="rounded-[12px] border border-[#edd9aa] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#7b5a1b]">Koppel eerst een concurrentbron.</div> : null}
       {crawlStatus === 'mislukt' ? <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff2f3] px-4 py-3 text-[12px] font-semibold text-[#9c3442]">Prijscontrole mislukt. Controleer de bron en probeer opnieuw.</div> : null}
-      {(readParam(query.toegevoegd) || readParam(query.bron) || controlMessage || sourceControlMessage) ? (
+      {(readParam(query.toegevoegd) || readParam(query.bron) === 'toegevoegd' || controlMessage || sourceControlMessage) ? (
         <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">
           {readParam(query.toegevoegd)
             ? `Product toegevoegd${discovered > 0 ? `, ${discovered} concurrent suggesties gevonden.` : '.'}`
-            : readParam(query.bron)
+            : readParam(query.bron) === 'toegevoegd'
               ? 'Concurrentbron gekoppeld. Je kunt nu direct crawlen.'
               : sourceControlMessage
                 ? sourceControlSummaryText
