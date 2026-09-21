@@ -105,6 +105,27 @@ export function MarketPriceFields({
     return () => window.removeEventListener('prysight:set-market-price', handler)
   }, [multiplier])
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ countryId?: string | null; currency?: string | null }>).detail
+      if (!detail?.countryId) return
+      const nextCountry = countries.find((country) => country.id === detail.countryId)
+      if (!nextCountry) return
+      const nextMultiplier = 1 + Number(nextCountry.vatRate ?? 0) / 100
+      setCountryId(nextCountry.id)
+      setCurrency(detail.currency || nextCountry.currency)
+      if (source === 'ex') {
+        const parsed = parsePrice(exVat)
+        setIncVat(parsed === null ? '' : formatInput(parsed * nextMultiplier))
+      } else {
+        const parsed = parsePrice(incVat)
+        setExVat(parsed === null ? '' : formatInput(parsed / nextMultiplier))
+      }
+    }
+    window.addEventListener('prysight:set-market-profile', handler)
+    return () => window.removeEventListener('prysight:set-market-profile', handler)
+  }, [countries, exVat, incVat, source])
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {showCountry ? (
