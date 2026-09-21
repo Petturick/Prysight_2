@@ -5,17 +5,21 @@ import { redirect } from 'next/navigation'
 import { createAuditLog } from '@/lib/audit'
 import { requirePermission } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
+import { resolveProductSelection } from '@/lib/product-selection'
 
 const MAX_BULK_DELETE = 250
 
 export async function deleteSelectedProductsAction(formData: FormData) {
   const actor = await requirePermission('products.write')
-  const productIds = [...new Set(formData.getAll('productIds').map((value) => String(value)).filter(Boolean))].slice(0, MAX_BULK_DELETE)
+  const selection = await resolveProductSelection({ companyId: actor.companyId, formData, limit: MAX_BULK_DELETE + 1 })
 
-  if (productIds.length === 0) redirect('/producten?selectie=leeg')
+  if (selection.ids.length === 0) redirect('/producten?selectie=leeg')
+  if (selection.mode === 'all' && selection.totalMatching > MAX_BULK_DELETE) {
+    redirect(`/producten?selectie=teveel-verwijderen&producten=${selection.totalMatching}`)
+  }
 
   const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, companyId: actor.companyId },
+    where: { id: { in: selection.ids.slice(0, MAX_BULK_DELETE) }, companyId: actor.companyId },
     select: { id: true, articleNumber: true, name: true },
   })
 
