@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
+import { updateProductGridFieldAction } from '@/app/actions/productGridActions'
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { ProductOverviewGrid, type ProductGridRow } from '@/components/ProductOverviewGrid'
@@ -26,6 +27,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const params = await searchParams
   const canCrawl = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
   const canDelete = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
+  const canEdit = canDelete
   const filters = {
     q: readParam(params.q)?.trim() || undefined,
     productGroupId: readParam(params.productgroep) || undefined,
@@ -173,7 +175,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       {!result.available ? <DatabaseNotice /> : null}
       {deleted > 0 ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] font-semibold text-[#20814d]">{deleted} producten verwijderd.</p> : null}
       {selectionMessage === 'leeg' || selectionMessage === 'ongeldig' ? <p role="alert" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Selecteer één of meerdere geldige producten.</p> : null}
-      {resultMessage === 'klaar' ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] text-[#20814d]">Prijscontrole afgerond. {readParam(params.bronnen) || '0'} bronnen gecontroleerd, resultaat {readParam(params.crawl) || 'onbekend'}.{readParam(params.limiet) === '1' ? ' De maximale batchgrootte is bereikt.' : ''}</p> : null}
+      {selectionMessage === 'teveel-verwijderen' ? <p role="alert" className="rounded-lg bg-[#fff0f1] px-4 py-2.5 text-[11px] text-[#a93442]">Je hebt {readParam(params.producten) || 'meer dan 250'} producten geselecteerd. Om een onbedoelde massaverwijdering te voorkomen kun je maximaal 250 producten tegelijk verwijderen.</p> : null}
+      {resultMessage === 'klaar' ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] text-[#20814d]">Prijscontrole gestart voor {readParam(params.producten) || 'de selectie'}. {readParam(params.bronnen) || '0'} bronnen zijn direct gecontroleerd, resultaat {readParam(params.crawl) || 'onbekend'}.{readParam(params.automatisch) === '1' ? ' Overige gekoppelde bronnen staan nu klaar voor de automatische monitoring.' : readParam(params.limiet) === '1' ? ' De maximale directe batchgrootte is bereikt.' : ''}</p> : null}
       {resultMessage === 'mislukt' ? <p role="alert" className="rounded-lg bg-[#fff0f1] px-4 py-2.5 text-[11px] text-[#a93442]">Prijscontrole mislukt. Controleer de gekoppelde bronnen.</p> : null}
       {resultMessage === 'geen-bron' || resultMessage === 'geen-bronnen-selectie' ? <p role="status" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Voor de selectie zijn nog geen concurrentbronnen gekoppeld. Open een product om een bron toe te voegen.</p> : null}
 
@@ -236,9 +239,12 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         totalCount={totalCount}
         canCrawl={canCrawl}
         canDelete={canDelete}
+        canEdit={canEdit}
+        selectionScope={filters}
         deleteAction={deleteSelectedProductsAction}
         refreshPricesAction={refreshSelectedProductPricesAction}
         refreshSinglePriceAction={refreshSingleProductPriceAction}
+        updateFieldAction={updateProductGridFieldAction}
       />
 
       <nav aria-label="Pagina's" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-4 py-3 text-[11px] text-[#66788d]">
