@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
+import { webSearch } from '@/lib/ean-competitor-discovery'
 import { extractOfferSnapshot } from '@/lib/price-monitoring'
 import { assessPriceQuality } from '@/lib/price-quality'
 import { prisma } from '@/lib/prisma'
@@ -130,9 +131,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
     if (!product) return NextResponse.json({ error: 'Product niet gevonden.' }, { status: 404 })
     if (!product.ean || !/^\d{8}(?:\d{4,6})?$/.test(product.ean)) return NextResponse.json({ error: 'Een geldige EAN of GTIN is vereist.' }, { status: 422 })
-    const ownUrl = product.productMarkets[0]?.ownUrl
+    let ownUrl = product.productMarkets[0]?.ownUrl ?? null
+    let ownUrlDiscovered = false
+    if (!ownUrl) {
+      // Search only the company's configured OWN webshop for this licensed market.
+      // A search hit is never treated as an identity match by itself.
+      const shops = await prisma.webshop.findMany({
+        where: { companyId: actor.companyId, countryId: country.id, competitorId: null, isActive: true },
+        select: { url: true }, take: 2,
+      })
+      for (const shop of shops) {
+        try {
+          const host = new URL(shop.url).hostname.toLowerCase().replace(/^www\\./, '')
+          const search = await webSearch(`"${product.ean}" site:${host}`)
+          const hit = search.candidates.find((candidate) => {
+            try {
+              const candidateHost = new URL(candidate.url).hostname.toLowerCase().replace(/^www\\./, '')
+              return candidateHost === host || candidateHost.endsWith(`.${host}`)
+            } catch { return false }
+          })
+          if (hit) {
+            ownUrl = hit.url
+            ownUrlDiscovered = true
+            break
+          }
+        } catch { /* An invalid shop URL must not interrupt competitor suggestions. */ }
+      }
+    }
     const sources: Source[] = []
-    if (ownUrl) sources.push({ id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: true })
+    if (ownUrl) sources.push({ id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: !ownUrlDiscovered })
     const competitors = product.matches.filter((match) => match.competitorOffer.isActive && match.competitorOffer.competitor.isActive && match.competitorOffer.competitor.countryId === country.id).slice(0, 4)
     for (const match of competitors) sources.push({ id: match.competitorOffer.id, matchId: match.id, kind: 'COMPETITOR', name: match.competitorOffer.competitor.name, url: match.competitorOffer.url, trusted: match.matchStatus === 'CERTAIN' })
     const ownPrice = product.productMarkets[0]?.ownPrice ?? product.ownPrice
