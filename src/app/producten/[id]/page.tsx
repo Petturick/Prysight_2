@@ -10,6 +10,8 @@ import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
+import { MarketPriceFields } from '@/components/MarketPriceFields'
+import { MarketProfileSelector } from '@/components/MarketProfileSelector'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -105,13 +107,20 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
   if (!product) notFound()
 
-  const defaultCountry = countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id)) ?? countries.find((country) => country.code === 'NL') ?? countries[0]
-  const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
+  const requestedCountryId = readParam(query.land)
+  const defaultCountry = countries.find((country) => country.id === requestedCountryId)
+    ?? countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id && market.isActive))
+    ?? countries.find((country) => country.code === 'NL')
+    ?? countries[0]
+  const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id && market.isActive) ?? null : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
-  const confirmedMatches = product.matches.filter((match) => match.matchStatus === 'CERTAIN' && match.competitorOffer.isActive)
-  const reviewMatches = product.matches.filter((match) => match.matchStatus === 'REVIEW' && match.competitorOffer.isActive)
-  const crawlableMatches = product.matches.filter((match) => (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW') && match.competitorOffer.isActive)
+  const marketMatches = defaultCountry
+    ? product.matches.filter((match) => match.competitorOffer.competitor.countryId === defaultCountry.id)
+    : product.matches
+  const confirmedMatches = marketMatches.filter((match) => match.matchStatus === 'CERTAIN' && match.competitorOffer.isActive)
+  const reviewMatches = marketMatches.filter((match) => match.matchStatus === 'REVIEW' && match.competitorOffer.isActive)
+  const crawlableMatches = marketMatches.filter((match) => (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW') && match.competitorOffer.isActive)
   const pricedMatches = confirmedMatches.filter((match) => numberValue(match.competitorOffer.normalizedPrice) !== null)
     .sort((a, b) => Number(a.competitorOffer.normalizedPrice) - Number(b.competitorOffer.normalizedPrice))
   const comparisonMatches = [...confirmedMatches].sort((a, b) => {
@@ -133,12 +142,17 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const spread = lowestPrice !== null && highestPrice !== null ? highestPrice - lowestPrice : null
   const spreadPct = lowestPrice !== null && lowestPrice > 0 && spread !== null ? (spread / lowestPrice) * 100 : null
   const latestCheck = crawlableMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
-  const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
-  const ownCurrency = selectedMarket?.currency ?? product.currency
+  const ownPrice = numberValue(selectedMarket?.ownPrice ?? (product.productMarkets.length === 0 ? product.ownPrice : null))
+  const ownCurrency = selectedMarket?.currency ?? defaultCountry?.currency ?? product.currency
+  const marketVatIncluded = selectedMarket?.vatIncluded ?? product.vatIncluded
   const vatRate = numberValue(defaultCountry?.vatRate)
-  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
-    ? ownPrice * (1 + vatRate / 100)
+  const ownPriceExVat = ownPrice !== null && vatRate !== null
+    ? marketVatIncluded ? ownPrice / (1 + vatRate / 100) : ownPrice
     : ownPrice
+  const ownPriceIncVat = ownPrice !== null && vatRate !== null
+    ? marketVatIncluded ? ownPrice : ownPrice * (1 + vatRate / 100)
+    : ownPrice
+  const comparisonOwnPrice = ownPriceIncVat
   const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
@@ -212,18 +226,21 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               <span className={`ps-chip ${measurementQuality === 'Sterk' ? 'ps-chip-green' : measurementQuality === 'Redelijk' ? 'ps-chip-amber' : 'ps-chip-red'}`}>Data {measurementQuality.toLowerCase()}</span>
             </div>
             <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.025em] text-[#18273a]">{product.name}</h1>
-            <p className="mt-1 text-[11px] text-[#788698]">{product.packagingQty} {product.packagingUnit ?? 'stuks'} · {product.stockStatus ?? 'Voorraad onbekend'}</p>
+            <p className="mt-1 text-[11px] text-[#788698]">{product.packagingQty} {product.packagingUnit ?? 'stuks'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/producten" className="secondary-action">Terug</Link>
-            <a href="#eigen-prijs" className="secondary-action">Prijs aanpassen</a>
-            {crawlableMatches.length > 0 ? (
-              <form action={refreshSingleProductPriceAction}>
-                <input type="hidden" name="singleProductId" value={product.id} />
-                <input type="hidden" name="returnTo" value="detail" />
-                <PriceFetchSubmitButton idleLabel="Prijzen ophalen" pendingLabel="Ophalen…" />
-              </form>
-            ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
+          <div className="flex flex-col gap-2 lg:items-end">
+            {defaultCountry ? <MarketProfileSelector countries={countries.map((country) => ({ id: country.id, name: country.name }))} value={defaultCountry.id} /> : null}
+            <div className="flex flex-wrap gap-2">
+              <Link href={defaultCountry ? `/producten?land=${defaultCountry.id}` : '/producten'} className="secondary-action">Terug</Link>
+              <a href="#eigen-prijs" className="secondary-action">Prijs aanpassen</a>
+              {crawlableMatches.length > 0 ? (
+                <form action={refreshSingleProductPriceAction}>
+                  <input type="hidden" name="singleProductId" value={product.id} />
+                  <input type="hidden" name="returnTo" value="detail" />
+                  <PriceFetchSubmitButton idleLabel="Prijzen ophalen" pendingLabel="Ophalen…" />
+                </form>
+              ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
+            </div>
           </div>
         </div>
       </section>
