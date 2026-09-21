@@ -10,6 +10,7 @@ import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
 
 function text(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim() }
+function identifier(value: string) { return value.replace(/[^0-9A-Za-z]/g, '') }
 function positiveInteger(value: string, fallback = 1) { const parsed=Number(value); return Number.isFinite(parsed)&&parsed>0?Math.round(parsed):fallback }
 
 export async function createSmartProductAction(formData: FormData) {
@@ -19,7 +20,7 @@ export async function createSmartProductAction(formData: FormData) {
   const countryId=text(formData,'countryId')
   const country=countryId?await requireLicensedCountry(actor.companyId,countryId):null
   const currency=text(formData,'currency')||country?.currency||'EUR'
-  const ean=text(formData,'ean'), gtin=text(formData,'gtin'), mpn=text(formData,'mpn')
+  const ean=identifier(text(formData,'ean')), gtin=identifier(text(formData,'gtin')), mpn=text(formData,'mpn')
   const ownPrice=text(formData,'ownPrice')
   const vatIncluded=text(formData,'vatIncluded') !== 'false'
   const parsedOwnPrice=Number(ownPrice.replace(',', '.'))
@@ -65,10 +66,33 @@ export async function createSmartProductAction(formData: FormData) {
   const product=await prisma.product.findUnique({where:{companyId_articleNumber:{companyId:actor.companyId,articleNumber}}})
   if(!product)throw new Error('Product is verwerkt maar kon niet worden geladen.')
 
-  let suggestions=0
+  let discovery: {
+    created: number
+    found: number
+    alreadyLinked?: number
+    reason?: string | null
+    provider?: string | null
+    queryMode?: string | null
+  } = { created: 0, found: 0, reason: country ? 'Geen nieuwe concurrentkandidaten gevonden.' : 'Geen markt geselecteerd.' }
+
   if(country&&(actor.role==='SUPER_ADMIN'||actor.permissions.includes('competitors.write'))){
-    try{const result=await discoverProductCandidates({companyId:actor.companyId,productId:product.id,countryId:country.id});suggestions=result.created}catch(error){console.error('Smart product discovery failed',error)}
+    try{
+      discovery=await discoverProductCandidates({companyId:actor.companyId,productId:product.id,countryId:country.id})
+    }catch(error){
+      console.error('Smart product discovery failed',error)
+      discovery={created:0,found:0,reason:'Automatische concurrentherkenning kon niet direct worden afgerond.'}
+    }
   }
+
   revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')
-  redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestions}`)
+  const params=new URLSearchParams({
+    toegevoegd:'1',
+    suggesties:String(discovery.created),
+    gevonden:String(discovery.found),
+    algekoppeld:String(discovery.alreadyLinked??0),
+    reden:discovery.reason??'',
+    zoekbron:discovery.provider??'',
+    zoekmodus:discovery.queryMode??(ean?'EAN':'PRODUCT'),
+  })
+  redirect(`/producten/${product.id}?${params.toString()}#concurrenten-vinden`)
 }

@@ -36,14 +36,29 @@ function setControl(form: HTMLFormElement, name: string, value: string | number 
   return true
 }
 
-export function ProductUrlQuickStart({ formId }: { formId: string }) {
+type MarketOption = { id: string; code: string; name: string; currency: string }
+
+function marketCodeFromUrl(value: string) {
+  try {
+    const host = new URL(value).hostname.toLowerCase()
+    if (host.endsWith('.nl')) return 'NL'
+    if (host.endsWith('.be')) return 'BE'
+    if (host.endsWith('.de')) return 'DE'
+    if (host.endsWith('.fr')) return 'FR'
+    if (host.endsWith('.pt')) return 'PT'
+    if (host.endsWith('.co.uk') || host.endsWith('.uk')) return 'GB'
+  } catch {}
+  return null
+}
+
+export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string; markets?: MarketOption[] }) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [preview, setPreview] = useState<ProductPreview | null>(null)
 
-  async function recognize() {
-    const rawUrl = url.trim()
+  async function recognize(inputUrl?: string) {
+    const rawUrl = (inputUrl ?? url).trim()
     if (!rawUrl) {
       setMessage('Plak eerst de URL van je productpagina.')
       return
@@ -84,6 +99,13 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
 
       if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
 
+      const marketCode = marketCodeFromUrl(payload.url || rawUrl)
+      const market = marketCode ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK')) : null
+      if (market) {
+        apply('countryId', market.id, true)
+        apply('currency', market.currency, true)
+      }
+
       setPreview(payload)
       const vatText = payload.vatIncluded === true
         ? 'Prijs is herkend als inclusief btw.'
@@ -91,7 +113,11 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
           ? 'Prijs is herkend als exclusief btw.'
           : 'Btw status kon niet betrouwbaar worden herkend, controleer die handmatig.'
 
-      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}`)
+      const discoveryText = payload.ean
+        ? ' EAN is herkend, na opslaan zoekt Prysight automatisch concurrenten in de gekozen markt.'
+        : ' EAN is niet gevonden, vul die handmatig in voor de betrouwbaarste concurrentherkenning.'
+      const marketText = market ? ` Markt ${market.name} is automatisch geselecteerd.` : ''
+      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}${discoveryText}${marketText}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
     } finally {
@@ -104,7 +130,7 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
       <div className="grid lg:grid-cols-[1.35fr_.65fr]">
         <div className="p-5 sm:p-6">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eaf2ff] text-[12px] font-bold text-[#326fd3]">1</span>
+            <span className="flex h-8 min-w-8 items-center justify-center rounded-[9px] bg-[#eaf2ff] px-2 text-[10px] font-bold text-[#326fd3]">URL</span>
             <div>
               <p className="text-[10px] font-semibold text-[#4f86e8]">Snelste invoer</p>
               <h2 className="mt-0.5 text-[17px] font-semibold text-[#20344b]">Plak je product URL</h2>
@@ -112,13 +138,21 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
           </div>
 
           <p className="mt-3 max-w-3xl text-[11px] leading-5 text-[#6f7d90]">
-            Prysight leest de productpagina uit en vult waar mogelijk productnaam, SKU, EAN, merk, model, productgroep, prijs, valuta, voorraad, verpakking en btw status automatisch in.
+            Prysight leest de productpagina uit en vult waar mogelijk productnaam, SKU, EAN, merk, prijs, valuta en btw status in. Als een EAN wordt gevonden, wordt die na opslaan automatisch gebruikt voor concurrentherkenning.
           </p>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <input
               value={url}
+              autoFocus
               onChange={(event) => setUrl(event.target.value)}
+              onPaste={(event) => {
+                const pasted = event.clipboardData.getData('text').trim()
+                if (!/^https?:\/\//i.test(pasted)) return
+                event.preventDefault()
+                setUrl(pasted)
+                void recognize(pasted)
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault()
@@ -150,7 +184,7 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
             <div className="mt-3 flex flex-wrap gap-2">
               {preview.ownPrice !== null ? <span className="ps-chip ps-chip-green">Prijs herkend</span> : <span className="ps-chip ps-chip-amber">Prijs controleren</span>}
               {preview.articleNumber ? <span className="ps-chip ps-chip-blue">SKU herkend</span> : null}
-              {preview.ean ? <span className="ps-chip ps-chip-blue">EAN herkend</span> : null}
+              {preview.ean ? <span className="ps-chip ps-chip-green">EAN herkend, AI zoekactie klaar</span> : <span className="ps-chip ps-chip-amber">EAN nog nodig voor beste match</span>}
               {preview.vatIncluded !== null ? <span className="ps-chip ps-chip-blue">{preview.vatIncluded ? 'Incl. btw' : 'Excl. btw'}</span> : <span className="ps-chip ps-chip-amber">Btw status controleren</span>}
             </div>
           ) : null}

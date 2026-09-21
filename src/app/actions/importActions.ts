@@ -455,7 +455,7 @@ export async function processImportRowsAction(payload: unknown) {
 
   if (importsProducts && (user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write'))) {
     const uniqueTargets = [...new Map(discoveryTargets.map((target) => [`${target.productId}:${target.countryId}`, target])).values()]
-    const immediateTargets = uniqueTargets.slice(0, 8)
+    const immediateTargets = uniqueTargets.slice(0, 12)
 
     for (let index = 0; index < immediateTargets.length; index += 2) {
       await Promise.all(immediateTargets.slice(index, index + 2).map(async (target) => {
