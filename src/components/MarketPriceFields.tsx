@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 type CountryOption = {
   id: string
@@ -36,45 +36,55 @@ export function MarketPriceFields({
   showCurrency?: boolean
 }) {
   const initialCountry = countries.find((country) => country.id === defaultCountryId) ?? countries[0] ?? null
+  const initialVatRate = Number(initialCountry?.vatRate ?? 0)
+  const initialMultiplier = 1 + initialVatRate / 100
+  const initialNumeric = initialPrice === null ? null : Number(initialPrice)
+
   const [countryId, setCountryId] = useState(initialCountry?.id ?? '')
   const [currency, setCurrency] = useState(initialCountry?.currency ?? 'EUR')
-  const [sourceVatIncluded, setSourceVatIncluded] = useState(initialVatIncluded)
-  const [sourcePrice, setSourcePrice] = useState(initialPrice === null ? '' : formatInput(initialPrice))
-
-  const selectedCountry = useMemo(
-    () => countries.find((country) => country.id === countryId) ?? initialCountry,
-    [countries, countryId, initialCountry],
+  const [source, setSource] = useState<'ex' | 'inc'>(initialVatIncluded ? 'inc' : 'ex')
+  const [exVat, setExVat] = useState(
+    initialNumeric === null ? '' : formatInput(initialVatIncluded ? initialNumeric / initialMultiplier : initialNumeric),
   )
-  const vatRate = selectedCountry?.vatRate ?? 0
+  const [incVat, setIncVat] = useState(
+    initialNumeric === null ? '' : formatInput(initialVatIncluded ? initialNumeric : initialNumeric * initialMultiplier),
+  )
+
+  const selectedCountry = countries.find((country) => country.id === countryId) ?? initialCountry
+  const vatRate = Number(selectedCountry?.vatRate ?? 0)
   const multiplier = 1 + vatRate / 100
 
-  const sourceNumeric = parsePrice(sourcePrice)
-  const exVat = sourceNumeric === null
-    ? null
-    : sourceVatIncluded
-      ? sourceNumeric / multiplier
-      : sourceNumeric
-  const incVat = sourceNumeric === null
-    ? null
-    : sourceVatIncluded
-      ? sourceNumeric
-      : sourceNumeric * multiplier
-
   function onExVat(value: string) {
-    setSourceVatIncluded(false)
-    setSourcePrice(value)
+    setSource('ex')
+    setExVat(value)
+    const parsed = parsePrice(value)
+    setIncVat(parsed === null ? '' : formatInput(parsed * multiplier))
   }
 
   function onIncVat(value: string) {
-    setSourceVatIncluded(true)
-    setSourcePrice(value)
+    setSource('inc')
+    setIncVat(value)
+    const parsed = parsePrice(value)
+    setExVat(parsed === null ? '' : formatInput(parsed / multiplier))
   }
 
   function changeCountry(nextId: string) {
     const nextCountry = countries.find((country) => country.id === nextId)
+    const nextRate = Number(nextCountry?.vatRate ?? 0)
+    const nextMultiplier = 1 + nextRate / 100
     setCountryId(nextId)
     if (nextCountry) setCurrency(nextCountry.currency)
+
+    if (source === 'ex') {
+      const parsed = parsePrice(exVat)
+      setIncVat(parsed === null ? '' : formatInput(parsed * nextMultiplier))
+    } else {
+      const parsed = parsePrice(incVat)
+      setExVat(parsed === null ? '' : formatInput(parsed / nextMultiplier))
+    }
   }
+
+  const sourcePrice = source === 'inc' ? incVat : exVat
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -106,7 +116,7 @@ export function MarketPriceFields({
             name="ownPriceExVat"
             required
             inputMode="decimal"
-            value={formatInput(exVat)}
+            value={exVat}
             onChange={(event) => onExVat(event.target.value)}
             className="min-h-[46px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none"
             placeholder="0,00"
@@ -122,14 +132,14 @@ export function MarketPriceFields({
             name="ownPriceIncVat"
             required
             inputMode="decimal"
-            value={formatInput(incVat)}
+            value={incVat}
             onChange={(event) => onIncVat(event.target.value)}
             className="min-h-[46px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none"
             placeholder="0,00"
           />
         </div>
         <span className="mt-1 block text-[9px] font-normal leading-4 text-[#8793a3]">
-          Btw {vatRate.toLocaleString('nl-NL', { maximumFractionDigits: 2 })}%, beide prijzen blijven automatisch gelijk aan elkaar.
+          Btw {vatRate.toLocaleString('nl-NL', { maximumFractionDigits: 2 })}%, beide prijzen blijven automatisch aan elkaar gekoppeld.
         </span>
       </label>
 
@@ -146,7 +156,7 @@ export function MarketPriceFields({
       ) : null}
 
       <input type="hidden" name="ownPrice" value={sourcePrice.replace(',', '.')} />
-      <input type="hidden" name="vatIncluded" value={String(sourceVatIncluded)} />
+      <input type="hidden" name="vatIncluded" value={String(source === 'inc')} />
     </div>
   )
 }
