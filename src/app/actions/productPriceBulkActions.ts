@@ -6,12 +6,7 @@ import { createAuditLog } from '@/lib/audit'
 import { requirePermission } from '@/lib/authz'
 import { runSelectedPriceChecks } from '@/lib/manual-price-checks'
 import { prisma } from '@/lib/prisma'
-
-const MAX_SELECTED_PRODUCTS = 50
-
-function selectedProductIds(formData: FormData) {
-  return [...new Set(formData.getAll('productIds').map((value) => String(value)).filter(Boolean))].slice(0, MAX_SELECTED_PRODUCTS)
-}
+import { resolveProductSelection } from '@/lib/product-selection'
 
 function singleProductId(formData: FormData) {
   return String(formData.get('singleProductId') ?? formData.get('productId') ?? '').trim()
@@ -94,16 +89,30 @@ export async function refreshSingleProductPriceAction(formData: FormData) {
 
 export async function refreshSelectedProductPricesAction(formData: FormData) {
   const actor = await requirePermission('pricing.manage')
-  const productIds = selectedProductIds(formData)
+  const selection = await resolveProductSelection({ companyId: actor.companyId, formData })
 
-  if (productIds.length === 0) redirect('/producten?selectie=leeg')
+  if (selection.ids.length === 0) redirect('/producten?selectie=leeg')
 
   const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, companyId: actor.companyId, isActive: true },
+    where: { id: { in: selection.ids }, companyId: actor.companyId, isActive: true },
     select: { id: true, articleNumber: true, name: true },
+    orderBy: { articleNumber: 'asc' },
   })
 
   if (products.length === 0) redirect('/producten?selectie=ongeldig')
+
+  // Make every selected source immediately due. The hourly monitor will keep processing
+  // sources that do not fit in this synchronous request, so a large all-pages selection
+  // does not silently stop after the first batch.
+  await prisma.competitorOffer.updateMany({
+    where: {
+      companyId: actor.companyId,
+      isActive: true,
+      competitor: { isActive: true },
+      productMatch: { productId: { in: products.map((product) => product.id) } },
+    },
+    data: { lastCheckedAt: null },
+  })
 
   let result: Awaited<ReturnType<typeof runSelectedPriceChecks>>
   try {
@@ -117,12 +126,13 @@ export async function refreshSelectedProductPricesAction(formData: FormData) {
     redirect(`/producten?crawlstatus=mislukt&producten=${products.length}`)
   }
 
-  await logManualRefresh({ actor, products, result, mode: 'bulk' })
-  revalidateProducts(products)
+  await logManualRefresh({ actor, products: products.slice(0, 250), result, mode: 'bulk' })
+  revalidateProducts(products.slice(0, 250))
 
   if (result.offers === 0) {
-    redirect(`/producten?crawlstatus=geen-bronnen-selectie&producten=${products.length}`)
+    redirect(`/producten?crawlstatus=geen-bronnen-selectie&producten=${selection.totalMatching}`)
   }
 
-  redirect(`/producten?crawlstatus=klaar&crawl=${result.successful}-${result.failed}&bronnen=${result.offers}&producten=${products.length}${result.truncated ? '&limiet=1' : ''}`)
+  const continuesAutomatically = result.truncated || selection.totalMatching > result.checkedProducts
+  redirect(`/producten?crawlstatus=klaar&crawl=${result.successful}-${result.failed}&bronnen=${result.offers}&producten=${selection.totalMatching}${result.truncated ? '&limiet=1' : ''}${continuesAutomatically ? '&automatisch=1' : ''}`)
 }
