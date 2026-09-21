@@ -1,7 +1,7 @@
 declare const Netlify: { env: { get(name: string): string | undefined } }
 
 const DEFAULT_BATCH_SIZE = 40
-const DISCOVERY_BATCH_SIZE = 4
+const DISCOVERY_BATCH_SIZE = 20
 
 export default async (request: Request) => {
   const authorization = request.headers.get('authorization')?.trim()
