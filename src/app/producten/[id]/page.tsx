@@ -228,12 +228,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const discoveryAttempted = query.suggesties !== undefined
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
   const identifiersUpdated = readParam(query.identiteit) === 'bijgewerkt'
+  const duplicateRedirect = readParam(query.dubbel) === '1'
   const sourceUpdated = readParam(query.bron) === 'bijgewerkt'
   const controlSummaryText = controlSummary(controlMessage)
   const sourceControlSummaryText = controlSummary(sourceControlMessage)
 
   return (
     <div className="space-y-4">
+      {duplicateRedirect ? <div className="rounded-[12px] border border-[#e8d3a2] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#76591d]">Dit product bestond al in Prysight. Daarom is geen duplicaat aangemaakt. Je kunt het bestaande product hier verder beheren.</div> : null}
       {priceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Verkoopprijs bijgewerkt.</div> : null}
       {identifiersUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Productherkenning bijgewerkt. Prysight heeft de concurrentzoekactie opnieuw uitgevoerd.</div> : null}
       {sourceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrentiebron bijgewerkt. Als de product URL is gewijzigd, is de oude prijs gewist en kan de bron opnieuw worden gecontroleerd.</div> : null}

@@ -19,6 +19,7 @@ type ProductPreview = {
   productGroup: string | null
   model: string | null
   mpn: string | null
+  existingProduct: { id: string; articleNumber: string; name: string; ean: string | null; gtin: string | null; reason: 'ARTICLE_NUMBER' | 'EAN' | 'GTIN' | 'URL' } | null
 }
 
 function control(form: HTMLFormElement, name: string) {
@@ -99,6 +100,11 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
 
       if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
 
+      const eanControl = control(form, 'ean') as HTMLInputElement | null
+      const articleControl = control(form, 'articleNumber') as HTMLInputElement | null
+      eanControl?.setCustomValidity(payload.existingProduct ? 'Dit product bestaat al in Prysight.' : '')
+      articleControl?.setCustomValidity(payload.existingProduct ? 'Dit product bestaat al in Prysight.' : '')
+
       const marketCode = marketCodeFromUrl(payload.url || rawUrl)
       const market = marketCode ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK')) : null
       if (market) {
@@ -117,7 +123,9 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         ? ' EAN is herkend, na opslaan zoekt Prysight automatisch concurrenten in de gekozen markt.'
         : ' EAN is niet gevonden, vul die handmatig in voor de betrouwbaarste concurrentherkenning.'
       const marketText = market ? ` Markt ${market.name} is automatisch geselecteerd.` : ''
-      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}${discoveryText}${marketText}`)
+      setMessage(payload.existingProduct
+        ? `Dit product bestaat al als artikel ${payload.existingProduct.articleNumber}. Open het bestaande product in plaats van een duplicaat te maken.`
+        : `Product herkend, ${applied} velden zijn ingevuld. ${vatText}${discoveryText}${marketText}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
     } finally {
@@ -175,12 +183,13 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
           </div>
 
           {message ? (
-            <div className={`mt-3 rounded-[10px] px-3.5 py-2.5 text-[11px] font-semibold ${preview ? 'bg-[#eaf8f0] text-[#1f7548]' : 'bg-[#fff5e8] text-[#8a5b16]'}`}>
-              {message}
+            <div className={`mt-3 rounded-[10px] px-3.5 py-2.5 text-[11px] font-semibold ${preview?.existingProduct ? 'bg-[#fff5e8] text-[#8a5b16]' : preview ? 'bg-[#eaf8f0] text-[#1f7548]' : 'bg-[#fff5e8] text-[#8a5b16]'}`}>
+              <p>{message}</p>
+              {preview?.existingProduct ? <a href={`/producten/${preview.existingProduct.id}`} className="mt-2 inline-flex font-bold text-[#2f6edb] underline underline-offset-2">Open bestaand product</a> : null}
             </div>
           ) : null}
 
-          {preview ? (
+          {preview && !preview.existingProduct ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {preview.ownPrice !== null ? <span className="ps-chip ps-chip-green">Prijs herkend</span> : <span className="ps-chip ps-chip-amber">Prijs controleren</span>}
               {preview.articleNumber ? <span className="ps-chip ps-chip-blue">SKU herkend</span> : null}
