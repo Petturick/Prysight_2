@@ -142,7 +142,7 @@ function packagingQuantity(...values: unknown[]) {
     if (typeof value !== 'string') continue
     const compact = value.replace(/\s+/g, ' ').trim()
     const patterns = [
-      /(?:pack|package|doos|box|case|set|verpakking|bundle|tray)\s*(?:van|of|x|:)?\s*(\d{1,4})\b/i,
+      /\b(?:pack|package|doos|box|case|set|verpakking|bundle|tray)\b\s*(?:van|of|x|:)?\s*(\d{1,4})\b/i,
       /\b(\d{1,4})\s*(?:stuks?|pcs?|pieces?|units?)\b/i,
       /(?:per|à)\s*(\d{1,4})\s*(?:stuks?|pcs?|pieces?|units?)?/i,
     ]
@@ -415,6 +415,13 @@ export function publicPriceCheckErrorMessage(error: unknown) {
   if (/\b429\b|too many requests|rate limit/.test(normalized)) return 'Bron beperkt het aantal prijscontroles. Probeer later opnieuw.'
   if (/\b403\b|forbidden|access denied|captcha|robots\.txt|robot check|bot protection/.test(normalized)) return 'Bron blokkeert automatische prijscontrole.'
   if (/timeout|timed out|aborterror|aborted/.test(normalized)) return 'Bron reageerde niet op tijd.'
+  if (/prijsvalidatie afgekeurd/.test(normalized)) {
+    if (/plausibiliteitsbandbreedte/.test(normalized)) return 'Prijs gevonden, maar de genormaliseerde prijs wijkt onwaarschijnlijk af van de eigen prijs.'
+    if (/productidentiteit onvoldoende bevestigd/.test(normalized)) return 'Prijs gevonden, maar het gekoppelde product kon niet betrouwbaar genoeg worden bevestigd.'
+    if (/ean|gtin/.test(normalized)) return 'Prijs gevonden, maar EAN of GTIN wijkt af van het gekoppelde product.'
+    if (/sku|artikelnummer/.test(normalized)) return 'Prijs gevonden, maar SKU of artikelnummer wijkt af van het gekoppelde product.'
+    return 'Prijs gevonden, maar de kwaliteitscontrole heeft deze meting afgewezen.'
+  }
   if (/geen betrouwbare prijs|prijs niet gevonden|price not found/.test(normalized)) return 'Geen betrouwbare prijs gevonden op deze productpagina.'
   if (/browser renderer|scraping service|renderer/.test(normalized)) return 'Dynamische productpagina kon niet worden uitgelezen.'
   return 'Prijscontrole kon niet worden afgerond.'
