@@ -196,6 +196,24 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   let alreadyLinked = 0
 
   for (const candidate of safeRanked) {
+    const baseUrl = candidate.url.split('?')[0]
+    const companyExistingOffers = await prisma.competitorOffer.findMany({
+      where: { companyId, url: { startsWith: baseUrl } },
+      include: { productMatch: true },
+      take: 25,
+    })
+    const alreadyMapped = companyExistingOffers.find((offer) => {
+      try {
+        return canonicalProductUrl(offer.url).split('?')[0] === baseUrl && offer.productMatch?.productId === productId
+      } catch {
+        return false
+      }
+    })
+    if (alreadyMapped) {
+      alreadyLinked += 1
+      continue
+    }
+
     const website = new URL(candidate.url).origin
     const competitorName = hostnameLabel(candidate.url)
     const where = { companyId_name_countryId: { companyId, name: competitorName, countryId } }
