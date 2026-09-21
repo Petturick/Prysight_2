@@ -33,9 +33,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (!country) return NextResponse.json({ skipped: true, reason: 'Geen actieve markt beschikbaar' })
 
     const result = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId: product.id, countryId: country.id })
-    const provider = process.env.SERPER_API_KEY ? 'Serper' : process.env.BRAVE_SEARCH_API_KEY ? 'Brave Search' : 'web fallback'
-
-    return NextResponse.json({ ...result, provider, country: country.code })
+    return NextResponse.json({ ...result, country: country.code })
   } catch (error) {
     console.error('Automatic EAN discovery endpoint failed', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : 'EAN discovery mislukt.' }, { status: 500 })
