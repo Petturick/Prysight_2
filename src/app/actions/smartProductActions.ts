@@ -66,7 +66,7 @@ export async function createSmartProductAction(formData: FormData) {
   if(!product)throw new Error('Product is verwerkt maar kon niet worden geladen.')
 
   let suggestions=0
-  if(country&&(ean||gtin||mpn)&&actor.permissions.includes('competitors.write')){
+  if(country&&(actor.role==='SUPER_ADMIN'||actor.permissions.includes('competitors.write'))){
     try{const result=await discoverProductCandidates({companyId:actor.companyId,productId:product.id,countryId:country.id});suggestions=result.created}catch(error){console.error('Smart product discovery failed',error)}
   }
   revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')
