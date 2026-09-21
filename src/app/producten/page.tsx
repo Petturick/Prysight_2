@@ -37,7 +37,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   const crawlProduct = readParam(params.crawlproduct)
   const openProduct = readParam(params.openproduct)
   const crawlLimited = readParam(params.limiet) === '1'
-  const canCrawl = actor.permissions.includes('pricing.manage')
+  const canCrawl = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
+  const canFindCompetitors = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
+  const canEditProducts = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
   const filters = {
     q: readParam(params.q),
     productGroupId: readParam(params.productgroep),
@@ -227,7 +229,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 pl-7 lg:pl-0">
                     <span className={`text-[10px] font-medium ${isOutOfStock(item.product.stockStatus) ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{stockLabel(item.product.stockStatus)}</span>
-                    {canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Nu crawlen</button> : null}
+                    {item.sourceCount > 0 && canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Prijzen ophalen</button> : null}
+                    {item.sourceCount === 0 && identifier && canFindCompetitors ? <Link href={`/producten/${item.product.id}#concurrenten-vinden`} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Concurrenten zoeken</Link> : null}
+                    {item.sourceCount === 0 && !identifier && canEditProducts ? <Link href={`/producten/${item.product.id}#product-identiteit`} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">EAN toevoegen</Link> : null}
                     <Link href={`/producten/${item.product.id}`} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Analyse</Link>
                   </div>
                 </div>

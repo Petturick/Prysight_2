@@ -8,6 +8,7 @@ import { requirePermission } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
+import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
@@ -36,6 +37,19 @@ function requiredPrice(value: string) {
   const parsed = Number(normalized)
   if (!Number.isFinite(parsed) || parsed <= 0) throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
   return parsed
+}
+
+function normalizedBarcode(value: string) {
+  return value.replace(/[^0-9]/g, '')
+}
+
+function validGtinChecksum(value: string) {
+  if (![8, 12, 13, 14].includes(value.length)) return false
+  const digits = value.split('').map(Number)
+  const check = digits.pop()
+  if (check === undefined) return false
+  const sum = digits.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0)
+  return (10 - (sum % 10)) % 10 === check
 }
 
 
@@ -150,6 +164,69 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/prijsstrategie')
   redirect(`/producten/${productId}?prijs=bijgewerkt#eigen-prijs`)
+}
+
+export async function updateProductIdentifiersAction(formData: FormData) {
+  const user = await requirePermission('products.write')
+  const productId = text(formData, 'productId')
+  const countryId = text(formData, 'countryId')
+  const ean = normalizedBarcode(text(formData, 'ean'))
+  const gtinInput = normalizedBarcode(text(formData, 'gtin'))
+
+  if (!productId) throw new Error('Product ontbreekt.')
+  if (ean && !validGtinChecksum(ean)) throw new Error('Controleer het EAN. De controlecode klopt niet.')
+  if (gtinInput && !validGtinChecksum(gtinInput)) throw new Error('Controleer het GTIN. De controlecode klopt niet.')
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true },
+  })
+  if (!product) throw new Error('Product niet gevonden.')
+
+  const gtin = gtinInput || ean
+  await prisma.product.update({
+    where: { id: productId },
+    data: {
+      ean: ean || null,
+      gtin: gtin || null,
+    },
+  })
+
+  let discovery: {
+    created: number
+    found: number
+    reason?: string | null
+    alreadyLinked?: number
+    provider?: string | null
+    queryMode?: string | null
+  } = { created: 0, found: 0, reason: ean || gtin ? 'Nog geen concurrentsuggesties gevonden.' : 'EAN en GTIN zijn leeg.' }
+
+  const canDiscover = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
+  if (countryId && (ean || gtin) && canDiscover) {
+    await requireLicensedCountry(user.companyId, countryId)
+    try {
+      discovery = await discoverProductCandidates({ companyId: user.companyId, productId, countryId })
+    } catch (error) {
+      console.error('Product identifier discovery failed', { companyId: user.companyId, productId, error })
+      discovery = { created: 0, found: 0, reason: 'Productgegevens zijn opgeslagen, maar concurrentherkenning kon niet direct worden afgerond.' }
+    }
+  }
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/productmatches')
+
+  const params = new URLSearchParams({
+    identiteit: 'bijgewerkt',
+    suggesties: String(discovery.created),
+    gevonden: String(discovery.found),
+    algekoppeld: String(discovery.alreadyLinked ?? 0),
+    zoekbron: discovery.provider ?? '',
+    zoekmodus: discovery.queryMode ?? (ean ? 'EAN' : 'PRODUCT'),
+    reden: discovery.reason ?? '',
+  })
+  redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
 }
 
 export async function createCompetitorAction(formData: FormData) {
@@ -347,16 +424,27 @@ export async function discoverCompetitorUrlsAction(formData: FormData) {
   const user = await requirePermission('competitors.write')
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
-  if (!productId || !countryId) throw new Error('Product en land zijn verplicht voor EAN onderzoek.')
+  if (!productId || !countryId) throw new Error('Product en markt zijn verplicht voor concurrentonderzoek.')
   await requireLicensedCountry(user.companyId, countryId)
-  const result = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId, countryId })
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true, ean: true },
+  })
+  if (!product) throw new Error('Product niet gevonden.')
+
+  const result = await discoverProductCandidates({ companyId: user.companyId, productId, countryId })
+  const alreadyLinked = 'alreadyLinked' in result ? Number(result.alreadyLinked ?? 0) : 0
+  const provider = 'provider' in result ? String(result.provider ?? '') : ''
+  const queryMode = 'queryMode' in result ? String(result.queryMode ?? '') : product.ean ? 'EAN' : 'PRODUCT'
+
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`); revalidatePath('/productmatches'); revalidatePath('/concurrenten')
   const params = new URLSearchParams({
     suggesties: String(result.created),
     gevonden: String(result.found),
-    algekoppeld: String(result.alreadyLinked ?? 0),
-    zoekbron: result.provider ?? '',
-    zoekmodus: result.queryMode ?? '',
+    algekoppeld: String(alreadyLinked),
+    zoekbron: provider,
+    zoekmodus: queryMode,
     reden: result.reason ?? '',
   })
   redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
