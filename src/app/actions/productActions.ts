@@ -39,6 +39,19 @@ function requiredPrice(value: string) {
   return parsed
 }
 
+function normalizedBarcode(value: string) {
+  return value.replace(/[^0-9]/g, '')
+}
+
+function validGtinChecksum(value: string) {
+  if (![8, 12, 13, 14].includes(value.length)) return false
+  const digits = value.split('').map(Number)
+  const check = digits.pop()
+  if (check === undefined) return false
+  const sum = digits.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0)
+  return (10 - (sum % 10)) % 10 === check
+}
+
 
 export async function createProductAction(formData: FormData) {
   const user = await requirePermission('products.write')
@@ -151,6 +164,69 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/prijsstrategie')
   redirect(`/producten/${productId}?prijs=bijgewerkt#eigen-prijs`)
+}
+
+export async function updateProductIdentifiersAction(formData: FormData) {
+  const user = await requirePermission('products.write')
+  const productId = text(formData, 'productId')
+  const countryId = text(formData, 'countryId')
+  const ean = normalizedBarcode(text(formData, 'ean'))
+  const gtinInput = normalizedBarcode(text(formData, 'gtin'))
+
+  if (!productId) throw new Error('Product ontbreekt.')
+  if (ean && !validGtinChecksum(ean)) throw new Error('Controleer het EAN. De controlecode klopt niet.')
+  if (gtinInput && !validGtinChecksum(gtinInput)) throw new Error('Controleer het GTIN. De controlecode klopt niet.')
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true },
+  })
+  if (!product) throw new Error('Product niet gevonden.')
+
+  const gtin = gtinInput || ean
+  await prisma.product.update({
+    where: { id: productId },
+    data: {
+      ean: ean || null,
+      gtin: gtin || null,
+    },
+  })
+
+  let discovery: {
+    created: number
+    found: number
+    reason?: string | null
+    alreadyLinked?: number
+    provider?: string | null
+    queryMode?: string | null
+  } = { created: 0, found: 0, reason: ean || gtin ? 'Nog geen concurrentsuggesties gevonden.' : 'EAN en GTIN zijn leeg.' }
+
+  const canDiscover = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
+  if (countryId && (ean || gtin) && canDiscover) {
+    await requireLicensedCountry(user.companyId, countryId)
+    try {
+      discovery = await discoverProductCandidates({ companyId: user.companyId, productId, countryId })
+    } catch (error) {
+      console.error('Product identifier discovery failed', { companyId: user.companyId, productId, error })
+      discovery = { created: 0, found: 0, reason: 'Productgegevens zijn opgeslagen, maar concurrentherkenning kon niet direct worden afgerond.' }
+    }
+  }
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/productmatches')
+
+  const params = new URLSearchParams({
+    identiteit: 'bijgewerkt',
+    suggesties: String(discovery.created),
+    gevonden: String(discovery.found),
+    algekoppeld: String(discovery.alreadyLinked ?? 0),
+    zoekbron: discovery.provider ?? '',
+    zoekmodus: discovery.queryMode ?? (ean ? 'EAN' : 'PRODUCT'),
+    reden: discovery.reason ?? '',
+  })
+  redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
 }
 
 export async function createCompetitorAction(formData: FormData) {
