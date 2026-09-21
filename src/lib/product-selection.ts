@@ -77,7 +77,11 @@ export async function resolveProductSelection({
   }
 
   const filters = readProductSelectionFilters(formData)
-  const where = productSelectionWhere(companyId, filters)
+  const excludedIds = [...new Set(formData.getAll('excludedProductIds').map((entry) => String(entry)).filter(Boolean))]
+  const baseWhere = productSelectionWhere(companyId, filters)
+  const where: Prisma.ProductWhereInput = excludedIds.length
+    ? { AND: [baseWhere, { id: { notIn: excludedIds } }] }
+    : baseWhere
   const [rows, totalMatching] = await Promise.all([
     prisma.product.findMany({
       where,
