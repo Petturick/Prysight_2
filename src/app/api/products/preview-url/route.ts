@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/authz'
 import { extractOfferSnapshot } from '@/lib/price-monitoring'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
 import { detectVatInclusion } from '@/lib/vat-detection'
+import { findExistingProduct } from '@/lib/product-duplicate'
 
 const MAX_HTML_BYTES = 4 * 1024 * 1024
 
@@ -103,7 +104,7 @@ async function readLimitedHtml(response: Response) {
 
 export async function POST(request: Request) {
   try {
-    await requirePermission('products.write')
+    const actor = await requirePermission('products.write')
     const body = await request.json() as { url?: unknown }
     const rawUrl = typeof body.url === 'string' ? body.url.trim() : ''
     if (!rawUrl) return NextResponse.json({ error: 'Vul eerst een product URL in.' }, { status: 400 })
@@ -133,11 +134,19 @@ export async function POST(request: Request) {
       const offer = extractOfferSnapshot(html)
       const details = structuredProductDetails(html)
       const vat = detectVatInclusion(html, offer.price)
+      const resolvedUrl = response.url || rawUrl
+      const existingProduct = await findExistingProduct({
+        companyId: actor.companyId,
+        articleNumber: offer.sku,
+        ean: offer.ean,
+        gtin: offer.ean,
+        ownUrl: resolvedUrl,
+      })
       if (!offer.productTitle && !offer.sku && !offer.ean && !offer.price) {
         return NextResponse.json({
           error: 'Prysight kon nog geen productgegevens herkennen. Vul de ontbrekende velden handmatig in.',
           partial: true,
-          url: response.url || rawUrl,
+          url: resolvedUrl,
         }, { status: 422 })
       }
 
@@ -159,6 +168,7 @@ export async function POST(request: Request) {
         model: details.model,
         mpn: details.mpn,
         image: details.image,
+        existingProduct,
       })
     } finally {
       clearTimeout(timer)
