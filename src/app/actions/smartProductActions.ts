@@ -8,6 +8,7 @@ import { requireLicensedCountry } from '@/lib/company-countries'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
+import { findExistingProduct } from '@/lib/product-duplicate'
 
 function text(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim() }
 function identifier(value: string) { return value.replace(/[^0-9A-Za-z]/g, '') }
@@ -25,6 +26,19 @@ export async function createSmartProductAction(formData: FormData) {
   const vatIncluded=text(formData,'vatIncluded') !== 'false'
   const parsedOwnPrice=Number(ownPrice.replace(',', '.'))
   if(!ownPrice||!Number.isFinite(parsedOwnPrice)||parsedOwnPrice<=0)throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
+  const existingProduct=await findExistingProduct({
+    companyId:actor.companyId,
+    articleNumber,
+    ean:ean||null,
+    gtin:gtin||null,
+    ownUrl:text(formData,'ownUrl')||null,
+  })
+  if(existingProduct){
+    const params=new URLSearchParams({dubbel:'1'})
+    if(country?.id)params.set('markt',country.id)
+    redirect(`/producten/${existingProduct.id}?${params.toString()}#product-identiteit`)
+  }
+
   const pricingFields=['costPrice','minimumMarginPct','targetMarginPct','minimumPrice','maximumPrice','pricingMode','pricingCooldownHours']
   const hasPricingInput=pricingFields.some((key)=>text(formData,key))
   if(hasPricingInput&&actor.role!=='SUPER_ADMIN'&&!actor.permissions.includes('pricing.manage'))throw new Error('Onvoldoende rechten om pricinginstellingen te wijzigen.')
