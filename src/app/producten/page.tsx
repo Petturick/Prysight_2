@@ -154,17 +154,17 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       <section className="grid gap-3 md:grid-cols-3" aria-label="Producten toevoegen">
         <Link href="/producten/nieuw" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
           <div className="flex items-center justify-between gap-3">
-            <div><p className="text-[10px] font-semibold text-[#4f86e8]">Eén product</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Handmatig toevoegen</p></div>
+            <div><p className="text-[10px] font-semibold text-[#4f86e8]">Eén product</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Via URL of handmatig</p></div>
             <span className="text-[18px] text-[#8aa7d6] transition group-hover:translate-x-0.5">→</span>
           </div>
-          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Voer product, eigen verkoopprijs en markt in. Beste keuze voor een losse SKU.</p>
+          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Plak een product URL of vul de kernvelden in. Met EAN zoekt Prysight automatisch concurrenten voor de gekozen markt.</p>
         </Link>
         <Link href="/import/bulk" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
           <div className="flex items-center justify-between gap-3">
             <div><p className="text-[10px] font-semibold text-[#7a8798]">Veel producten</p><p className="mt-1 text-[14px] font-semibold text-[#20344b]">Excel of CSV importeren</p></div>
             <span className="text-[18px] text-[#9ba8b8] transition group-hover:translate-x-0.5">→</span>
           </div>
-          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Upload meerdere SKU’s tegelijk. Prysight herkent artikelnummer, prijs en productvelden automatisch.</p>
+          <p className="mt-2 text-[11px] leading-5 text-[#748296]">Upload meerdere SKU’s tegelijk. Productvelden worden herkend en EAN’s starten automatisch marktgerichte concurrentherkenning.</p>
         </Link>
         <Link href="/feeds" className="ps-panel group p-4 transition hover:border-[#c7d5e8] hover:shadow-[0_7px_18px_rgba(31,49,77,.06)]">
           <div className="flex items-center justify-between gap-3">
@@ -220,7 +220,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                       <div className="flex flex-wrap items-center gap-2">
                         <Link href={`/producten/${item.product.id}`} className="text-[15px] font-semibold text-[#20344b] hover:text-[#2f6edb]">{item.product.name}</Link>
                         {item.stale ? <span className="ps-chip ps-chip-amber">Vernieuwen</span> : item.sourceCount > 0 ? <span className="ps-chip ps-chip-green">Actueel</span> : null}
-                        {item.reviewMatches > 0 ? <span className="ps-chip ps-chip-amber">{item.reviewMatches} match{item.reviewMatches === 1 ? '' : 'es'}</span> : null}
+                        {item.reviewMatches > 0 ? <span className="ps-chip ps-chip-amber">{item.reviewMatches} AI suggestie{item.reviewMatches === 1 ? '' : 's'}</span> : null}
                       </div>
                       <p className="mt-1.5 truncate text-[11px] text-[#788698]">Artikel {item.product.articleNumber}{identifier ? ` · EAN ${identifier}` : ' · EAN ontbreekt'} · {item.product.productGroup.name}</p>
                     </div>
