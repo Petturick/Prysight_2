@@ -61,7 +61,7 @@ async function discoverFeedProductCompetitors(feedSourceId: string) {
         isActive: true,
         ...(source.countryCode !== 'GLOBAL' ? { country: { code: source.countryCode } } : {}),
       },
-      orderBy: source.countryCode === 'GLOBAL' ? [{ isDefault: 'desc' }, { createdAt: 'asc' }] : [{ createdAt: 'asc' }],
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
       select: { countryId: true },
     }),
   ])
