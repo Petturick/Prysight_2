@@ -94,5 +94,6 @@ export async function createSmartProductAction(formData: FormData) {
     zoekbron:discovery.provider??'',
     zoekmodus:discovery.queryMode??(ean?'EAN':'PRODUCT'),
   })
+  if(country?.id)params.set('markt',country.id)
   redirect(`/producten/${product.id}?${params.toString()}#concurrenten-vinden`)
 }
