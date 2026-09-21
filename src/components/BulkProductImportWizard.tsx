@@ -61,7 +61,7 @@ export function BulkProductImportWizard() {
           <div className="bg-[#111827] p-5 text-white sm:p-6">
             <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#93c5fd]">Bulk productfeed</p>
             <h2 className="mt-2 text-[22px] font-black">Bestand erin, producten herkend</h2>
-            <p className="mt-2 max-w-xl text-[11px] font-semibold leading-6 text-[#cbd5e1]">PrySight herkent productcode, naam, EAN, merk, categorie, eigen prijs, kostprijs en gangbare feedvelden automatisch. Horizontale Prisync rapporten worden apart herkend.</p>
+            <p className="mt-2 max-w-xl text-[11px] font-semibold leading-6 text-[#cbd5e1]">PrySight herkent productcode, naam, EAN, merk, categorie, product URL, eigen prijs, btw status, kostprijs en gangbare feedvelden automatisch. Na import zoekt Prysight voor de juiste markt direct naar concurrentsuggesties.</p>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center">
               <div className="rounded-[12px] bg-white/10 p-3"><p className="text-[18px] font-black">CSV</p><p className="mt-1 text-[9px] font-bold text-[#cbd5e1]">ondersteund</p></div>
               <div className="rounded-[12px] bg-white/10 p-3"><p className="text-[18px] font-black">XLSX</p><p className="mt-1 text-[9px] font-bold text-[#cbd5e1]">ondersteund</p></div>
@@ -94,10 +94,11 @@ export function BulkProductImportWizard() {
           <button type="button" className="ps-button-green" disabled={isPending} onClick={runImport}>{isPending ? 'Importeren…' : `Importeer ${data.productCount} producten`}</button>
         </div>
 
-        <div className="grid sm:grid-cols-4">
+        <div className="grid sm:grid-cols-5">
           <div className="p-4 sm:px-5"><p className="text-[9px] font-black uppercase text-[#6f7b91]">Producten</p><p className="mt-1 text-[24px] font-black text-[#111827]">{data.productCount}</p></div>
           <div className="p-4"><p className="text-[9px] font-black uppercase text-[#6f7b91]">Velden herkend</p><p className="mt-1 text-[24px] font-black text-[#2457d6]">{data.recognizedFields.length}</p></div>
           <div className="p-4"><p className="text-[9px] font-black uppercase text-[#6f7b91]">Concurrentdomeinen</p><p className="mt-1 text-[24px] font-black text-[#7c3aed]">{data.detectedCompetitors.length}</p></div>
+          <div className="p-4"><p className="text-[9px] font-black uppercase text-[#6f7b91]">Na import</p><p className="mt-1 text-[14px] font-black text-[#2457d6]">AI suggesties</p><p className="mt-1 text-[9px] font-semibold text-[#647087]">per markt</p></div>
           <div className="p-4"><p className="text-[9px] font-black uppercase text-[#6f7b91]">Controle</p><p className="mt-1 text-[14px] font-black text-[#0d7a49]">Klaar voor import</p></div>
         </div>
 
@@ -111,15 +112,16 @@ export function BulkProductImportWizard() {
 
         <div className="overflow-x-auto border-t-2 border-[var(--border-strong)]">
           <table className="min-w-full text-[10px]">
-            <thead><tr><th className="px-4 py-3 text-left">Artikelnummer</th><th className="px-4 py-3 text-left">Product</th><th className="px-4 py-3 text-left">Categorie</th><th className="px-4 py-3 text-right">Eigen prijs</th><th className="px-4 py-3 text-right">Kostprijs</th><th className="px-4 py-3 text-left">EAN</th></tr></thead>
-            <tbody>{data.preview.map((row) => <tr key={row.articleNumber}><td className="px-4 py-3 font-black">{row.articleNumber}</td><td className="max-w-[360px] px-4 py-3 font-semibold">{row.productName}</td><td className="px-4 py-3">{row.productGroup}</td><td className="px-4 py-3 text-right">{row.ownPrice || '—'}</td><td className="px-4 py-3 text-right">{row.costPrice && Number(row.costPrice) > 0 ? row.costPrice : '—'}</td><td className="px-4 py-3">{row.ean || '—'}</td></tr>)}</tbody>
+            <thead><tr><th className="px-4 py-3 text-left">Artikelnummer</th><th className="px-4 py-3 text-left">Product</th><th className="px-4 py-3 text-left">Categorie</th><th className="px-4 py-3 text-right">Eigen prijs</th><th className="px-4 py-3 text-left">Btw</th><th className="px-4 py-3 text-left">EAN</th><th className="px-4 py-3 text-left">Product URL</th></tr></thead>
+            <tbody>{data.preview.map((row) => <tr key={row.articleNumber}><td className="px-4 py-3 font-black">{row.articleNumber}</td><td className="max-w-[320px] px-4 py-3 font-semibold">{row.productName}</td><td className="px-4 py-3">{row.productGroup}</td><td className="px-4 py-3 text-right">{row.ownPrice || '—'}</td><td className="px-4 py-3">{row.vatIncluded === 'true' ? 'Incl.' : row.vatIncluded === 'false' ? 'Excl.' : 'Controleren'}</td><td className="px-4 py-3">{row.ean || '—'}</td><td className="max-w-[220px] truncate px-4 py-3">{row.ownUrl || '—'}</td></tr>)}</tbody>
           </table>
         </div>
       </section> : null}
 
       {result ? <section className={`rounded-[14px] border-2 p-5 ${result.ok ? 'border-[#0d7a49] bg-[#e7f5ed]' : 'border-[#b4233d] bg-[#fff0f2]'}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className={`text-[12px] font-black ${result.ok ? 'text-[#0d7a49]' : 'text-[#b4233d]'}`}>{result.message}</p><p className="mt-1 text-[10px] font-semibold text-[#647087]">{result.summary.products} producten · {result.summary.markets} marktregels · {result.summary.groups} productgroepen</p></div><span className={`ps-chip ${result.ok ? 'ps-chip-green' : 'ps-chip-red'}`}>{result.ok ? 'Succesvol' : 'Aandacht nodig'}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className={`text-[12px] font-black ${result.ok ? 'text-[#0d7a49]' : 'text-[#b4233d]'}`}>{result.message}</p><p className="mt-1 text-[10px] font-semibold text-[#647087]">{result.summary.products} producten · {result.summary.markets} marktregels · {result.summary.groups} productgroepen · {result.summary.suggestions} AI suggesties</p></div><span className={`ps-chip ${result.ok ? 'ps-chip-green' : 'ps-chip-red'}`}>{result.ok ? 'Succesvol' : 'Aandacht nodig'}</span></div>
         {result.errors.length ? <div className="mt-3 text-[10px] font-semibold text-[#8e1d32]">{result.errors.slice(0, 5).join(' · ')}</div> : null}
+        {result.warnings.length ? <div className="mt-3 text-[10px] font-semibold text-[#7a5a18]">{result.warnings.slice(0, 5).join(' · ')}</div> : null}
       </section> : null}
     </div>
   )
