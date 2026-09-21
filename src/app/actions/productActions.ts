@@ -316,7 +316,15 @@ export async function discoverCompetitorUrlsAction(formData: FormData) {
   await requireLicensedCountry(user.companyId, countryId)
   const result = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId, countryId })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`); revalidatePath('/productmatches'); revalidatePath('/concurrenten')
-  redirect(`/producten/${productId}?suggesties=${result.created}&gevonden=${result.found}`)
+  const params = new URLSearchParams({
+    suggesties: String(result.created),
+    gevonden: String(result.found),
+    algekoppeld: String(result.alreadyLinked ?? 0),
+    zoekbron: result.provider ?? '',
+    zoekmodus: result.queryMode ?? '',
+    reden: result.reason ?? '',
+  })
+  redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
 }
 
 export async function updateCompetitorFrequencyAction(formData: FormData) {
