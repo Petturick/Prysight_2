@@ -18,12 +18,23 @@ const getProductPriceHistory = unstable_cache(
     const selectedCountryId = countryId ?? null
     const [ownRows, competitorRows, competitorSeriesRows] = await Promise.all([
       prisma.$queryRaw<OwnDailyRow[]>(Prisma.sql`
-        select date_trunc('day', recorded_at) as day,
-               avg(price)::float8 as "ownPrice"
-        from own_price_history
-        where company_id = ${companyId}
-          and product_id = ${productId}
-          and recorded_at >= ${since}
+        select date_trunc('day', oph.recorded_at) as day,
+               avg(
+                 case
+                   when coalesce(pm.vat_included, true) then oph.price
+                   else oph.price * (1 + coalesce(ct.vat_rate, 0) / 100)
+                 end
+               )::float8 as "ownPrice"
+        from own_price_history oph
+        left join product_markets pm
+          on pm.company_id = oph.company_id
+         and pm.product_id = oph.product_id
+         and pm.country_id = oph.country_id
+        left join countries ct on ct.id = oph.country_id
+        where oph.company_id = ${companyId}
+          and oph.product_id = ${productId}
+          and (${selectedCountryId}::text is null or oph.country_id = ${selectedCountryId})
+          and oph.recorded_at >= ${since}
         group by 1
         order by 1 asc
       `),
@@ -67,7 +78,7 @@ const getProductPriceHistory = unstable_cache(
     const competitors = competitorSeriesRows.map((row) => [row.competitorId, row.competitorName] as const)
 
     const series: PriceChartSeries[] = [
-      { key: 'ownPrice', name: 'Eigen prijs', kind: 'own' },
+      { key: 'ownPrice', name: 'Eigen prijs incl. btw', kind: 'own' },
       ...competitors.map(([competitorId, competitorName], index) => ({
         key: `competitor_${index}`,
         name: competitorName,
@@ -114,7 +125,7 @@ const getProductPriceHistory = unstable_cache(
 
     return { data, series }
   },
-  ['prysight-product-price-history-v2'],
+  ['prysight-product-price-history-v3'],
   { revalidate: 60 },
 )
 
