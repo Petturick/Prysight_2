@@ -47,8 +47,13 @@ export function EanDiscoveryField() {
         name="ean"
         inputMode="numeric"
         autoComplete="off"
-        value={value}
-        onChange={(event) => setValue(normalize(event.target.value))}
+        defaultValue=""
+        onInput={(event) => {
+          const input = event.currentTarget
+          const normalized = normalize(input.value)
+          if (input.value !== normalized) input.value = normalized
+          setValue(normalized)
+        }}
         className="toolbar-control mt-1.5 w-full"
         placeholder="Bijvoorbeeld 8712345678901"
       />
