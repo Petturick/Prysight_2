@@ -82,6 +82,8 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
   const ownPrice = requiredPrice(text(formData, 'ownPrice'))
+  const ownPriceExVat = requiredPrice(text(formData, 'ownPriceExVat'))
+  const ownPriceIncVat = requiredPrice(text(formData, 'ownPriceIncVat'))
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const ownUrl = text(formData, 'ownUrl')
@@ -95,6 +97,12 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
   const currency = text(formData, 'currency') || country?.currency || product.currency || 'EUR'
+  if (country) {
+    const expectedInc = ownPriceExVat * (1 + Number(country.vatRate) / 100)
+    if (Math.abs(expectedInc - ownPriceIncVat) > Math.max(0.03, expectedInc * 0.001)) {
+      throw new Error('De prijs inclusief en exclusief btw sluiten niet aan op het btw tarief van de gekozen markt.')
+    }
+  }
   const companyCountry = countryId
     ? await prisma.companyCountry.findFirst({
         where: { companyId: user.companyId, countryId, isActive: true },
@@ -150,7 +158,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   revalidatePath('/producten')
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/prijsstrategie')
-  redirect(`/producten/${productId}?prijs=bijgewerkt#eigen-prijs`)
+  redirect(`/producten/${productId}?prijs=bijgewerkt${countryId ? `&land=${countryId}` : ''}#eigen-prijs`)
 }
 
 export async function createCompetitorAction(formData: FormData) {
