@@ -5,9 +5,13 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 export function MarketProfileSelector({
   countries,
   value,
+  allowAll = false,
+  compact = false,
 }: {
   countries: Array<{ id: string; name: string }>
-  value: string
+  value?: string | null
+  allowAll?: boolean
+  compact?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -15,21 +19,25 @@ export function MarketProfileSelector({
 
   function changeMarket(countryId: string) {
     const params = new URLSearchParams(searchParams.toString())
-    params.set('land', countryId)
+    if (countryId) params.set('land', countryId)
+    else params.delete('land')
+    params.delete('pagina')
     for (const key of ['prijs', 'bron', 'controle', 'broncontrole', 'crawlstatus', 'suggesties', 'gevonden', 'algekoppeld', 'zoekbron', 'zoekmodus', 'reden', 'concurrent']) {
       params.delete(key)
     }
-    router.push(`${pathname}?${params.toString()}`)
+    const query = params.toString()
+    router.push(query ? `${pathname}?${query}` : pathname)
   }
 
   return (
-    <label className="flex items-center gap-2 text-[10px] font-semibold text-[#617288]">
-      Marktprofiel
+    <label className={`flex items-center gap-2 text-[10px] font-semibold text-[#617288] ${compact ? '' : 'flex-wrap'}`}>
+      <span className="whitespace-nowrap">Marktprofiel</span>
       <select
-        value={value}
+        value={value ?? ''}
         onChange={(event) => changeMarket(event.target.value)}
-        className="toolbar-control min-w-[150px]"
+        className={`toolbar-control ${compact ? 'min-w-[145px]' : 'min-w-[160px]'}`}
       >
+        {allowAll ? <option value="">Alle markten</option> : null}
         {countries.map((country) => (
           <option key={country.id} value={country.id}>{country.name}</option>
         ))}
