@@ -81,7 +81,7 @@ async function inChunks<T>(items: T[], size: number, worker: (item: T) => Promis
 export async function processBulkProductImportAction(payload: unknown) {
   const parsed = payloadSchema.safeParse(payload)
   if (!parsed.success) {
-    return { ok: false, message: 'Bulkimport afgekeurd door validatie.', errors: parsed.error.issues.map((issue) => issue.message), summary: { products: 0, markets: 0, groups: 0 } }
+    return { ok: false, message: 'Bulkimport afgekeurd door validatie.', errors: parsed.error.issues.map((issue) => issue.message), summary: { products: 0, markets: 0, groups: 0, suggestions: 0 } }
   }
 
   const user = await requireWritableUser()
