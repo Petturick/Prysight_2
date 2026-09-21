@@ -8,7 +8,7 @@ const SYSTEM_USER_ID = 'system_pricing'
 type ApprovedRow = { id: string; product_id: string; product_group_id: string }
 
 export async function runPricingExecutor(companyId: string, limit = 20, prefetchedSettings?: ProductSetting[]) {
-  if (!isMagentoPricingConfigured(companyId)) return { ready: false, candidates: 0, applied: 0, skipped: 0 }
+  if (!(await isMagentoPricingConfigured(companyId))) return { ready: false, candidates: 0, applied: 0, skipped: 0 }
   const [settings, requests] = await Promise.all([
     prefetchedSettings ? Promise.resolve(prefetchedSettings) : getCompanyProductSettings(companyId),
     prisma.$queryRaw<ApprovedRow[]>(Prisma.sql`

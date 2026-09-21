@@ -70,16 +70,20 @@ export async function POST(request: Request) {
   const access = await validateSyntrxSession(request)
   if (!access.ok) return json({ error: access.message }, { status: access.status })
 
-  const body = await request.json().catch(() => null) as { organizationId?: string; products?: CanonicalFeedProduct[]; sourceName?: string } | null
+  const body = await request.json().catch(() => null) as { organizationId?: string; countryCode?: string; products?: CanonicalFeedProduct[]; sourceName?: string } | null
   if (!body?.products || !Array.isArray(body.products)) return json({ error: 'Products array ontbreekt.' }, { status: 400 })
   if (body.organizationId !== ENGELS_ORGANIZATION_ID) return json({ error: 'Alleen de actieve Engels Group organisatie kan naar PricingTool synchroniseren.' }, { status: 403 })
   if (body.products.length > 5000) return json({ error: 'Maximaal 5000 producten per synchronisatiebatch.' }, { status: 413 })
 
+  const countryCode = body.countryCode?.trim().toUpperCase() || 'GLOBAL'
+  if (countryCode !== 'GLOBAL' && !/^[A-Z]{2}$/.test(countryCode)) return json({ error: 'Ongeldige landcode.' }, { status: 400 })
+
   const result = await ingestCanonicalProducts({
     companyId: DEFAULT_COMPANY_ID,
-    sourceKey: `syntrx:cieqifmizthutfvfgfny:${ENGELS_ORGANIZATION_ID}`,
-    sourceName: body.sourceName?.trim() || 'Syntrx PIM · Engels Group',
+    sourceKey: `syntrx:cieqifmizthutfvfgfny:${ENGELS_ORGANIZATION_ID}:${countryCode}`,
+    sourceName: body.sourceName?.trim() || `Syntrx PIM · Engels Group · ${countryCode}`,
     sourceType: FeedSourceType.SYNTRX,
+    countryCode,
     products: body.products,
     config: { projectId: 'cieqifmizthutfvfgfny', organizationId: ENGELS_ORGANIZATION_ID, syncedBy: access.user.email ?? access.user.id },
   })

@@ -1,10 +1,11 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { MagentoIntegrationPanel } from '@/components/MagentoIntegrationPanel'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getSafeDatabaseStatus } from '@/lib/database-url'
 import { formatDate } from '@/lib/format'
-import { isMagentoPricingConfigured } from '@/lib/magento-pricing'
+import { getMagentoIntegrationSummary } from '@/lib/magento-pricing'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
@@ -14,31 +15,27 @@ function Status({ ready, label }: { ready: boolean; label?: string }) {
 
 export default async function IntegrationsPage() {
   const actor = await requireAuthenticatedUser()
+  const canManage = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('settings.manage')
   const monitorReady = Boolean(process.env.PRICE_MONITOR_API_KEY)
   const feedReady = Boolean(process.env.DATA_FEED_API_KEY)
   const webhookReady = Boolean(process.env.ALERT_WEBHOOK_URL)
-  const magentoWritebackReady = isMagentoPricingConfigured(actor.companyId)
   const databaseStatus = getSafeDatabaseStatus()
-  const syntrxResult = await safeDatabaseQuery(
-    () => prisma.feedSource.findFirst({
-      where: { companyId: actor.companyId, sourceType: 'SYNTRX', isActive: true },
-      orderBy: { lastRunAt: 'desc' },
-    }),
-    null,
-  )
+
+  const [magentoSummary, syntrxResult] = await Promise.all([
+    getMagentoIntegrationSummary(actor.companyId),
+    safeDatabaseQuery(
+      () => prisma.feedSource.findFirst({
+        where: { companyId: actor.companyId, sourceType: 'SYNTRX', isActive: true },
+        orderBy: { lastRunAt: 'desc' },
+      }),
+      null,
+    ),
+  ])
+
   const syntrx = syntrxResult.data
   const databaseReady = databaseStatus.configured && syntrxResult.available
 
-  const cards = [
-    {
-      title: 'Syntrx PIM',
-      kicker: 'Directe productstroom',
-      description: 'Producten kunnen rechtstreeks vanuit Syntrx naar Prysight worden gesynchroniseerd. De status hieronder hoort uitsluitend bij de actieve organisatie.',
-      ready: Boolean(syntrx),
-      detail: syntrx ? `Laatste synchronisatie ${formatDate(syntrx.lastRunAt)}, ${syntrx.lastItemCount} regels, status ${syntrx.lastRunStatus}.` : 'Nog geen actieve Syntrx bron gekoppeld aan deze organisatie.',
-      href: '/feeds',
-      linkLabel: 'Bekijk databronnen',
-    },
+  const supportingCards = [
     {
       title: 'Automatische prijscontroles',
       kicker: 'Prijsmonitoring',
@@ -49,27 +46,18 @@ export default async function IntegrationsPage() {
       linkLabel: 'Open productonderzoek',
     },
     {
-      title: 'Magento prijswriteback',
-      kicker: 'Gecontroleerde uitvoering',
-      description: 'Goedgekeurde prijswijzigingen kunnen via de officiële base price API naar Magento worden gepubliceerd, teruggelezen en indien nodig veilig worden teruggedraaid.',
-      ready: magentoWritebackReady,
-      detail: magentoWritebackReady ? 'HTTPS endpoint, tenant, valuta, access token en btw-modus zijn voor deze organisatie geconfigureerd. Publicatie controleert altijd eerst de actuele Magento-prijs.' : 'Nog niet actief voor deze organisatie. Configureer MAGENTO_BASE_URL, MAGENTO_ACCESS_TOKEN, MAGENTO_COMPANY_ID, MAGENTO_CURRENCY en MAGENTO_PRICES_INCLUDE_TAX.',
-      href: '/prijswijzigingen',
-      linkLabel: 'Open goedkeuringscentrum',
-    },
-    {
       title: 'Productfeed API',
       kicker: 'Externe systemen',
-      description: 'ERP, Magento, PIM of een andere bron kan eigen producten, prijzen, voorraad en marktinformatie via een beveiligde JSON feed synchroniseren.',
+      description: 'ERP, PIM of een andere bron kan eigen producten, prijzen, voorraad en marktinformatie via een beveiligde JSON feed synchroniseren.',
       ready: feedReady,
-      detail: 'POST naar /api/integraties/product-feed met Bearer DATA_FEED_API_KEY en de companyId van de doelorganisatie. Bestaande standaardintegraties blijven compatibel.',
+      detail: 'POST naar /api/integraties/product-feed met Bearer DATA_FEED_API_KEY en de companyId van de doelorganisatie.',
       href: '/feeds',
       linkLabel: 'Open Feedbeheer',
     },
     {
       title: 'Prysight database',
       kicker: 'Datalaag',
-      description: 'De applicatie gebruikt de toegewezen Supabase database via de server side databaseverbinding. Feeds, Syntrx en handmatige invoer schrijven naar dezelfde tenant gescheiden kernstructuur.',
+      description: 'Feeds, Syntrx, Magento en handmatige invoer schrijven naar dezelfde tenant gescheiden kernstructuur.',
       ready: databaseReady,
       detail: databaseReady ? `Databaseverbinding actief via ${databaseStatus.mode === 'supavisor' ? 'Supavisor' : 'serververbinding'}.` : 'Database runtime configuratie vraagt nog aandacht.',
       href: '/dashboard',
@@ -92,18 +80,53 @@ export default async function IntegrationsPage() {
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
           <div>
             <p className="eyebrow">Integraties</p>
-            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Datastromen en gecontroleerde uitvoering</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Data-invoer, monitoring en writeback blijven gescheiden. Externe prijswijzigingen lopen altijd via de approval flow en worden na publicatie opnieuw bij Magento gecontroleerd.</p>
+            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Koppel systemen, test ze en gebruik ze echt</h1>
+            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Een integratie krijgt pas de status gekoppeld nadat de externe verbinding technisch is gecontroleerd. Credentials blijven server side en Magento writeback blijft achter de bestaande approval flow.</p>
           </div>
           <div className="flex flex-wrap gap-2"><Link href="/feeds" className="secondary-action">Feedbeheer</Link><Link href="/prijswijzigingen" className="primary-action">Prijsuitvoering</Link></div>
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">{cards.map((card) => <div key={card.title} className="surface-card flex min-h-[225px] flex-col p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">{card.kicker}</p><h2 className="mt-1.5 text-[14px] font-semibold text-[#252a37]">{card.title}</h2></div><Status ready={card.ready} /></div><p className="mt-3 text-[11px] leading-6 text-[#697386]">{card.description}</p><div className="mt-auto pt-4"><p className="rounded-[11px] bg-[#f6f8fb] px-3 py-3 text-[9px] leading-5 text-[#7d8799]">{card.detail}</p><Link href={card.href} className="mt-3 inline-flex text-[10px] font-semibold text-[var(--blue)]">{card.linkLabel} →</Link></div></div>)}</section>
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className="surface-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Directe productstroom</p>
+              <h2 className="mt-1.5 text-[15px] font-semibold text-[#252a37]">Syntrx PIM</h2>
+            </div>
+            <Status ready={Boolean(syntrx)} label={syntrx ? 'Gekoppeld' : 'Nog niet gekoppeld'} />
+          </div>
+          <p className="mt-3 text-[11px] leading-6 text-[#697386]">Syntrx heeft een native PrySight connector. Activeer PrySight in Syntrx, voer daar de synchronisatie uit en PrySight registreert de bron automatisch na de eerste geldige overdracht.</p>
+          <div className="mt-4 rounded-[11px] bg-[#f6f8fb] px-3 py-3 text-[10px] leading-5 text-[#6f7b91]">
+            {syntrx ? <>Laatste synchronisatie {formatDate(syntrx.lastRunAt)}, {syntrx.lastItemCount} regels, status {syntrx.lastRunStatus}.</> : <>Nog geen geldige Syntrx overdracht ontvangen voor deze organisatie.</>}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a href="https://app.syntrx.eu/integrations" target="_blank" rel="noreferrer" className="primary-action">Open Syntrx integraties</a>
+            <Link href="/integraties" className="secondary-action">Status vernieuwen</Link>
+          </div>
+          <p className="mt-3 text-[9px] leading-5 text-[#8790a2]">Doelendpoint in Syntrx, https://prysight.netlify.app/api/integraties/syntrx</p>
+        </article>
+
+        <article className="surface-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">Gecontroleerde uitvoering</p>
+              <h2 className="mt-1.5 text-[15px] font-semibold text-[#252a37]">Magento 2</h2>
+            </div>
+            <Status ready={magentoSummary.ready} label={magentoSummary.ready ? 'Gekoppeld' : 'Niet gekoppeld'} />
+          </div>
+          <p className="mt-3 text-[11px] leading-6 text-[#697386]">Koppel Magento 2 met een Integration Access Token. PrySight test de API eerst tegen de storeviews en activeert writeback alleen na een geslaagde controle.</p>
+          <MagentoIntegrationPanel initialSummary={magentoSummary} canManage={canManage} />
+        </article>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        {supportingCards.map((card) => <div key={card.title} className="surface-card flex min-h-[210px] flex-col p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">{card.kicker}</p><h2 className="mt-1.5 text-[14px] font-semibold text-[#252a37]">{card.title}</h2></div><Status ready={card.ready} /></div><p className="mt-3 text-[11px] leading-6 text-[#697386]">{card.description}</p><div className="mt-auto pt-4"><p className="rounded-[11px] bg-[#f6f8fb] px-3 py-3 text-[9px] leading-5 text-[#7d8799]">{card.detail}</p><Link href={card.href} className="mt-3 inline-flex text-[10px] font-semibold text-[var(--blue)]">{card.linkLabel} →</Link></div></div>)}
+      </section>
 
       <section className="surface-card p-5">
         <h2 className="text-[14px] font-semibold text-[#252a37]">Writeback veiligheidsketen</h2>
-        <p className="mt-2 max-w-5xl text-[11px] leading-6 text-[#697386]">Prijsadvies → aanvraag → commerciële hercontrole → goedkeuring → live Magento-prijs opnieuw lezen → alleen bij een onveranderde uitgangsprijs publiceren → prijs opnieuw uitlezen → lokale prijshistorie synchroniseren. Rollback wordt automatisch geblokkeerd zodra de Magento-prijs na PrySight-publicatie buiten PrySight opnieuw is aangepast.</p>
+        <p className="mt-2 max-w-5xl text-[11px] leading-6 text-[#697386]">Prijsadvies → aanvraag → commerciële hercontrole → goedkeuring → live Magento prijs opnieuw lezen → alleen bij een onveranderde uitgangsprijs publiceren → prijs opnieuw uitlezen → lokale prijshistorie synchroniseren. Rollback wordt automatisch geblokkeerd zodra de Magento prijs na PrySight publicatie buiten PrySight opnieuw is aangepast.</p>
       </section>
     </div>
   )
