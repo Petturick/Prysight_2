@@ -13,6 +13,7 @@ import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
+import { findExistingProduct } from '@/lib/product-duplicate'
 
 const MANUAL_CHECK_FREQUENCY_HOURS = 876000
 
@@ -69,6 +70,18 @@ export async function createProductAction(formData: FormData) {
   if (!articleNumber || !name) throw new Error('Artikelnummer en productnaam zijn verplicht.')
   const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
   const currency = text(formData, 'currency') || country?.currency || 'EUR'
+  const existingProduct = await findExistingProduct({
+    companyId: user.companyId,
+    articleNumber,
+    ean: ean || null,
+    gtin: ean || null,
+    ownUrl: ownUrl || null,
+  })
+  if (existingProduct) {
+    const params = new URLSearchParams({ dubbel: '1' })
+    if (country?.id) params.set('markt', country.id)
+    redirect(`/producten/${existingProduct.id}?${params.toString()}#product-identiteit`)
+  }
   await ingestCanonicalProducts({
     companyId: user.companyId,
     sourceKey: 'manual:prysight',
@@ -188,6 +201,16 @@ export async function updateProductIdentifiersAction(formData: FormData) {
   if (!product) throw new Error('Product niet gevonden.')
 
   const gtin = gtinInput || ean
+  const duplicate = await findExistingProduct({
+    companyId: user.companyId,
+    ean: ean || null,
+    gtin: gtin || null,
+    excludeProductId: productId,
+  })
+  if (duplicate) {
+    redirect(`/producten/${duplicate.id}?dubbel=1#product-identiteit`)
+  }
+
   await prisma.product.update({
     where: { id: productId },
     data: {
