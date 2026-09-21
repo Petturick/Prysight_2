@@ -3,6 +3,7 @@
 import { FeedSourceType, MatchStatus } from '@/generated/prisma/client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { createAuditLog } from '@/lib/audit'
 import { requirePermission } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { assertCompanyCapacity } from '@/lib/company-license'
@@ -193,6 +194,118 @@ export async function addCompetitorOfferAction(formData: FormData) {
   })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${product.id}`); revalidatePath('/concurrenten')
   redirect(`/producten/${product.id}?bron=toegevoegd`)
+}
+
+export async function updateCompetitorOfferAction(formData: FormData) {
+  const user = await requirePermission('competitors.write')
+  const productId = text(formData, 'productId')
+  const competitorOfferId = text(formData, 'competitorOfferId')
+  const competitorName = text(formData, 'competitorName')
+  const offerUrl = text(formData, 'offerUrl')
+  const packagingUnit = text(formData, 'packagingUnit') || 'stuks'
+  const packagingQty = positiveInteger(text(formData, 'packagingQty'))
+  const vatIncluded = text(formData, 'vatIncluded') !== 'false'
+  const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
+
+  if (!productId || !competitorOfferId || !competitorName || !offerUrl) {
+    throw new Error('Concurrent, product en product URL zijn verplicht.')
+  }
+
+  const existing = await prisma.competitorOffer.findFirst({
+    where: {
+      id: competitorOfferId,
+      companyId: user.companyId,
+      productMatch: { companyId: user.companyId, productId },
+    },
+    include: { competitor: true },
+  })
+  if (!existing) throw new Error('Concurrentiebron niet gevonden.')
+
+  const safeOfferUrl = (await assertSafeRemoteHttpUrl(offerUrl)).toString()
+  const duplicateCompetitor = await prisma.competitor.findUnique({
+    where: {
+      companyId_name_countryId: {
+        companyId: user.companyId,
+        name: competitorName,
+        countryId: existing.competitor.countryId,
+      },
+    },
+    select: { id: true },
+  })
+  if (duplicateCompetitor && duplicateCompetitor.id !== existing.competitorId) {
+    throw new Error('Er bestaat in dit land al een andere concurrent met deze naam.')
+  }
+
+  const duplicateOffer = await prisma.competitorOffer.findFirst({
+    where: {
+      companyId: user.companyId,
+      competitorId: existing.competitorId,
+      url: safeOfferUrl,
+      NOT: { id: existing.id },
+    },
+    select: { id: true },
+  })
+  if (duplicateOffer) throw new Error('Deze product URL is al gekoppeld aan dezelfde concurrent.')
+
+  const urlChanged = existing.url !== safeOfferUrl
+  await prisma.$transaction([
+    prisma.competitor.update({
+      where: { id: existing.competitorId },
+      data: {
+        name: competitorName,
+        website: new URL(safeOfferUrl).origin,
+        checkFrequencyHours,
+      },
+    }),
+    prisma.competitorOffer.update({
+      where: { id: existing.id },
+      data: {
+        url: safeOfferUrl,
+        packagingUnit,
+        packagingQty,
+        vatIncluded,
+        ...(urlChanged
+          ? {
+              rawPrice: null,
+              normalizedPrice: null,
+              stockStatus: null,
+              lastCheckedAt: null,
+            }
+          : {}),
+      },
+    }),
+  ])
+
+  await createAuditLog({
+    companyId: user.companyId,
+    userId: user.id,
+    action: 'COMPETITOR_OFFER_UPDATED',
+    entityType: 'CompetitorOffer',
+    entityId: existing.id,
+    oldValue: {
+      competitorName: existing.competitor.name,
+      url: existing.url,
+      packagingUnit: existing.packagingUnit,
+      packagingQty: existing.packagingQty,
+      vatIncluded: existing.vatIncluded,
+      checkFrequencyHours: existing.competitor.checkFrequencyHours,
+    },
+    newValue: {
+      competitorName,
+      url: safeOfferUrl,
+      packagingUnit,
+      packagingQty,
+      vatIncluded,
+      checkFrequencyHours,
+    },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/concurrenten')
+  revalidatePath('/monitoring')
+  redirect(`/producten/${productId}?concurrent=${existing.id}&bron=bijgewerkt#concurrentieprijzen`)
 }
 
 export async function discoverCompetitorUrlsAction(formData: FormData) {
