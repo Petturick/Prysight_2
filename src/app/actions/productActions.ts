@@ -45,6 +45,7 @@ export async function createProductAction(formData: FormData) {
   const ean = text(formData, 'ean')
   const productGroup = text(formData, 'productGroup') || 'Onbekend'
   const ownPrice = text(formData, 'ownPrice')
+  const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const packagingUnit = text(formData, 'packagingUnit') || 'stuks'
   const packagingQty = positiveInteger(text(formData, 'packagingQty'))
@@ -59,7 +60,7 @@ export async function createProductAction(formData: FormData) {
     sourceName: 'Handmatig toegevoegd in Prysight',
     sourceType: FeedSourceType.API,
     countryCode: country?.code ?? 'GLOBAL',
-    products: [{ articleNumber, ean: ean || undefined, gtin: ean || undefined, name, productGroup, ownPrice: ownPrice || undefined, currency, stockStatus, packagingUnit, packagingQty, countryCode: country?.code, ownUrl: ownUrl || undefined, isActive: true }],
+    products: [{ articleNumber, ean: ean || undefined, gtin: ean || undefined, name, productGroup, ownPrice: ownPrice || undefined, vatIncluded, currency, stockStatus, packagingUnit, packagingQty, countryCode: country?.code, ownUrl: ownUrl || undefined, isActive: true }],
     config: { mode: 'manual', createdBy: user.email },
   })
   const product = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId: user.companyId, articleNumber } } })
@@ -80,6 +81,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
   const ownPrice = requiredPrice(text(formData, 'ownPrice'))
+  const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const ownUrl = text(formData, 'ownUrl')
   if (!productId) throw new Error('Product ontbreekt.')
@@ -101,6 +103,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     if (country) {
+      await tx.product.update({ where: { id: productId }, data: { vatIncluded } })
       await tx.productMarket.upsert({
         where: { companyId_productId_countryId: { companyId: user.companyId, productId, countryId: country.id } },
         update: {
@@ -133,7 +136,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
     } else {
       await tx.product.update({
         where: { id: productId },
-        data: { ownPrice, currency, stockStatus },
+        data: { ownPrice, currency, stockStatus, vatIncluded },
       })
       await tx.ownPriceHistory.create({
         data: { companyId: user.companyId, productId, countryId: null, recordedAt: new Date(), price: ownPrice, currency },
