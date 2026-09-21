@@ -26,7 +26,7 @@ export default async (request: Request) => {
 
   try {
     const result = await syncFeedSource(feedSourceId)
-    console.log(`Background feed sync completed for ${feedSourceId}, ${result.rows} rows, ${result.errors} errors.`)
+    console.log(`Background feed sync completed for ${feedSourceId}, ${result.rows} rows, ${result.errors} errors, ${result.competitorDiscovery?.suggestions ?? 0} competitor suggestions, ${result.competitorDiscovery?.deferred ?? 0} deferred.`)
   } catch (error) {
     console.error(`Background feed sync failed for ${feedSourceId}.`, error)
   }
