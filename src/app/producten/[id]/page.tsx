@@ -249,35 +249,55 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-[16px] font-semibold text-[#21364d]">Eigen verkoopprijs</h2>
+            <p className="mt-1 text-[10px] text-[#8290a1]">Prijsprofiel per land, exclusief en inclusief btw altijd naast elkaar.</p>
           </div>
-          {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : <span className="ps-chip">Algemeen</span>}
+          {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}{selectedMarket ? '' : ' · nieuw profiel'}</span> : <span className="ps-chip">Geen markt</span>}
         </div>
-        <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
-          <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
-            <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#7b8999]">{product.vatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
-            {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voeg eerst je eigen prijs toe om marktverschillen en prijsadvies correct te berekenen.</p> : null}
+
+        <div className="grid gap-0 lg:grid-cols-[.58fr_1.42fr]">
+          <div className="border-b border-[#e7edf3] bg-[#f8fbff] p-5 sm:p-6 lg:border-b-0 lg:border-r">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#8492a3]">Exclusief btw</p>
+                <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#1e2d3f]">{formatCurrency(ownPriceExVat, ownCurrency)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#8492a3]">Inclusief btw</p>
+                <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#1e2d3f]">{formatCurrency(ownPriceIncVat, ownCurrency)}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-[10px] leading-4 text-[#7b8999]">
+              {defaultCountry ? `Btw tarief ${formatNumber(vatRate, 2)}% · ${defaultCountry.name}` : 'Selecteer een marktprofiel'}
+              {' · '}{selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}
+            </p>
+            {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voor dit land is nog geen eigen prijs opgeslagen. Vul beide prijsvelden in om dit marktprofiel aan te maken.</p> : null}
           </div>
+
           <div className="p-5 sm:p-6">
-            {canEditProduct ? (
-              <form action={updateProductOwnPriceAction} className="grid gap-4 md:grid-cols-2">
+            {canEditProduct && defaultCountry ? (
+              <form action={updateProductOwnPriceAction} className="space-y-4">
                 <input type="hidden" name="productId" value={product.id} />
-                {defaultCountry ? <input type="hidden" name="countryId" value={defaultCountry.id} /> : null}
-                <input type="hidden" name="currency" value={ownCurrency} />
-                <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *
-                  <div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]">
-                    <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
-                    <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
-                  </div>
-                </label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(product.vatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
-                {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
-                <div className="md:col-span-2 flex justify-end">
-                  <button type="submit" className="primary-action shrink-0">Opslaan</button>
+                <input type="hidden" name="countryId" value={defaultCountry.id} />
+                <MarketPriceFields
+                  countries={countries.map((country) => ({ id: country.id, name: country.name, currency: country.currency, vatRate: Number(country.vatRate) }))}
+                  defaultCountryId={defaultCountry.id}
+                  initialPrice={ownPrice}
+                  initialVatIncluded={marketVatIncluded}
+                  showCountry={false}
+                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus
+                    <input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" />
+                  </label>
+                  <label className="text-[11px] font-semibold text-[#4f5869]">Jouw product URL
+                    <input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." />
+                  </label>
+                </div>
+                <div className="flex justify-end">
+                  <button type="submit" className="primary-action shrink-0">{selectedMarket ? 'Prijsprofiel opslaan' : 'Marktprofiel aanmaken'}</button>
                 </div>
               </form>
-            ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen-lezen toegang tot productprijzen.</p>}
+            ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen lezen toegang tot productprijzen.</p>}
           </div>
         </div>
       </section>
@@ -294,7 +314,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
 
         <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-          <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Eigen prijs voor vergelijking</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p><p className="mt-1 text-[9px] text-[#8793a3]">{product.vatIncluded ? 'Prijs inclusief btw' : 'Genormaliseerd naar inclusief btw'}</p></div>
+          <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Eigen prijs incl. btw</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p><p className="mt-1 text-[9px] text-[#8793a3]">Vergelijkingsbasis voor {defaultCountry?.name ?? 'de markt'}</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Markt</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(marketBenchmark)}</p><p className="mt-1 text-[10px] text-[#8793a3]">{competitorCount} gemeten</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Advies</p><p className={`mt-1 text-[23px] font-semibold ${adviceTone}`}>{formatCurrency(recommendedPrice)}</p><p className={`mt-1 text-[10px] font-medium ${adviceTone}`}>{actionLabel(recommendation?.action)}{adviceChange !== null ? ` · ${adviceChange > 0 ? '+' : ''}${formatNumber(adviceChange, 1)}%` : ''}</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Positie</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{marketPosition === null ? '—' : `${marketPosition} / ${competitorCount + 1}`}</p></div>
