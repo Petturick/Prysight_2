@@ -142,11 +142,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       for (const shop of shops) {
         try {
-          const host = new URL(shop.url).hostname.toLowerCase().replace(/^www\\./, '')
+          const host = new URL(shop.url).hostname.toLowerCase().replace(/^www\./, '')
           const search = await webSearch(`"${product.ean}" site:${host}`)
           const hit = search.candidates.find((candidate) => {
             try {
-              const candidateHost = new URL(candidate.url).hostname.toLowerCase().replace(/^www\\./, '')
+              const candidateHost = new URL(candidate.url).hostname.toLowerCase().replace(/^www\./, '')
               return candidateHost === host || candidateHost.endsWith(`.${host}`)
             } catch { return false }
           })
