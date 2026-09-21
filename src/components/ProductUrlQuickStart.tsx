@@ -73,7 +73,10 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
       apply('articleNumber', payload.articleNumber)
       apply('name', payload.name)
       apply('ean', payload.ean)
-      apply('ownPrice', payload.ownPrice)
+      if (payload.ownPrice !== null) {
+        if (payload.vatIncluded === false) apply('ownPriceExVat', payload.ownPrice, true)
+        else apply('ownPriceIncVat', payload.ownPrice, true)
+      }
       apply('currency', payload.currency, true)
       apply('stockStatus', payload.stockStatus)
       apply('packagingQty', payload.packagingQty)
@@ -82,7 +85,6 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
       apply('model', payload.model)
       apply('mpn', payload.mpn)
 
-      if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
 
       setPreview(payload)
       const vatText = payload.vatIncluded === true
