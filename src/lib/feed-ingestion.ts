@@ -15,7 +15,21 @@ export async function ingestCanonicalProducts(...args: Parameters<typeof ingestC
   if (input.sourceKey === 'manual:prysight' && result.errors > 0) {
     throw new Error(result.errorMessages[0] || 'Product kon niet volledig worden verwerkt.')
   }
-  return result
+
+  if (input.sourceKey === 'manual:prysight') return result
+
+  let competitorDiscovery = { attempted: 0, suggestions: 0, failed: 0, deferred: 0 }
+  try {
+    competitorDiscovery = await discoverFeedProductCompetitors(result.feedSourceId)
+  } catch (error) {
+    console.error('API product feed competitor discovery could not start', {
+      companyId: input.companyId,
+      feedSourceId: result.feedSourceId,
+      error,
+    })
+  }
+
+  return { ...result, competitorDiscovery }
 }
 
 async function discoverFeedProductCompetitors(feedSourceId: string) {
