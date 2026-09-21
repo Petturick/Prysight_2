@@ -36,7 +36,22 @@ function setControl(form: HTMLFormElement, name: string, value: string | number 
   return true
 }
 
-export function ProductUrlQuickStart({ formId }: { formId: string }) {
+type MarketOption = { id: string; code: string; name: string; currency: string }
+
+function marketCodeFromUrl(value: string) {
+  try {
+    const host = new URL(value).hostname.toLowerCase()
+    if (host.endsWith('.nl')) return 'NL'
+    if (host.endsWith('.be')) return 'BE'
+    if (host.endsWith('.de')) return 'DE'
+    if (host.endsWith('.fr')) return 'FR'
+    if (host.endsWith('.pt')) return 'PT'
+    if (host.endsWith('.co.uk') || host.endsWith('.uk')) return 'GB'
+  } catch {}
+  return null
+}
+
+export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string; markets?: MarketOption[] }) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -84,6 +99,13 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
 
       if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
 
+      const marketCode = marketCodeFromUrl(payload.url || rawUrl)
+      const market = marketCode ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK')) : null
+      if (market) {
+        apply('countryId', market.id, true)
+        apply('currency', market.currency, true)
+      }
+
       setPreview(payload)
       const vatText = payload.vatIncluded === true
         ? 'Prijs is herkend als inclusief btw.'
@@ -94,7 +116,8 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
       const discoveryText = payload.ean
         ? ' EAN is herkend, na opslaan zoekt Prysight automatisch concurrenten in de gekozen markt.'
         : ' EAN is niet gevonden, vul die handmatig in voor de betrouwbaarste concurrentherkenning.'
-      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}${discoveryText}`)
+      const marketText = market ? ` Markt ${market.name} is automatisch geselecteerd.` : ''
+      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}${discoveryText}${marketText}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
     } finally {
