@@ -286,6 +286,8 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 <input type="hidden" name="returnTo" value="detail" />
                 <PriceFetchSubmitButton idleLabel="Prijzen ophalen" pendingLabel="Ophalen…" />
               </form>
+            ) : defaultCountry && canEditCompetitors ? (
+              <a href="#concurrenten-vinden" className="primary-action">Concurrenten zoeken</a>
             ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
           </div>
         </div>
@@ -496,7 +498,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     </tr>
                   )
                 })}
-                {comparisonMatches.length === 0 ? <tr><td colSpan={8} className="px-6 py-10 text-center"><p className="font-semibold text-[#42566d]">Nog geen concurrent gekoppeld voor deze markt</p><a href="#concurrent-bron-toevoegen" className="mt-2 inline-flex text-[11px] font-semibold text-[#2f6edb]">Concurrent koppelen</a></td></tr> : null}
+                {comparisonMatches.length === 0 ? <tr><td colSpan={8} className="px-6 py-10 text-center"><p className="font-semibold text-[#42566d]">Nog geen concurrent gekoppeld voor deze markt</p><p className="mt-1 text-[10px] text-[#8391a1]">Laat Prysight eerst automatisch zoeken op EAN en productcontext.</p><div className="mt-3 flex flex-wrap justify-center gap-3"><a href="#concurrenten-vinden" className="text-[11px] font-semibold text-[#2f6edb]">Concurrenten zoeken</a><a href="#concurrent-bron-toevoegen" className="text-[11px] font-semibold text-[#60758d]">Handmatig koppelen</a></div></td></tr> : null}
               </tbody>
             </table>
           </div>
