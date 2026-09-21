@@ -128,10 +128,14 @@ async function syncMarket(
   const ownUrl = text(mapped.ownUrl)
   const stockStatus = text(mapped.stockStatus)
   const active = bool(mapped.isActive, true)
+  const marketVatIncluded = mapped.vatIncluded === undefined || mapped.vatIncluded === null || mapped.vatIncluded === ''
+    ? undefined
+    : bool(mapped.vatIncluded, true)
   await prisma.productMarket.upsert({
     where: { companyId_productId_countryId: { companyId, productId, countryId: country.id } },
     update: {
       ...(ownPrice ? { ownPrice } : {}),
+      ...(marketVatIncluded === undefined ? {} : { vatIncluded: marketVatIncluded }),
       currency,
       ...(ownUrl ? { ownUrl } : {}),
       ...(stockStatus ? { stockStatus } : {}),
@@ -142,6 +146,7 @@ async function syncMarket(
       productId,
       countryId: country.id,
       ownPrice: ownPrice ?? undefined,
+      vatIncluded: marketVatIncluded ?? true,
       currency,
       ownUrl: ownUrl ?? undefined,
       stockStatus: stockStatus ?? 'Onbekend',
