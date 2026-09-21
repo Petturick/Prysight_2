@@ -59,10 +59,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         { ean: { contains: filters.q } },
         { gtin: { contains: filters.q } },
       ] } : {},
-      filters.countryId ? { OR: [
-        { productMarkets: { some: { companyId: actor.companyId, countryId: filters.countryId, isActive: true } } },
-        { matches: { some: { companyId: actor.companyId, competitorOffer: { competitor: { companyId: actor.companyId, countryId: filters.countryId } } } } },
-      ] } : {},
+      filters.countryId ? {
+        productMarkets: { some: { companyId: actor.companyId, countryId: filters.countryId, isActive: true } },
+      } : {},
       filters.identifierStatus === 'ontbreekt'
         ? { AND: [{ ean: null }, { gtin: null }] }
         : filters.identifierStatus === 'aanwezig'
@@ -183,12 +182,12 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         <div className="grid gap-2.5 xl:grid-cols-[1.6fr_1fr_1fr_1fr_1fr_auto]">
           <input name="q" defaultValue={filters.q} placeholder="Zoek artikel, EAN of productnaam" className="toolbar-control w-full" />
           <select name="productgroep" defaultValue={filters.productGroupId} className="toolbar-control w-full"><option value="">Alle productgroepen</option>{filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
-          <select name="land" defaultValue={filters.countryId} className="toolbar-control w-full"><option value="">Alle landen</option>{filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
+          <select name="land" defaultValue={filters.countryId} className="toolbar-control w-full"><option value="">Alle marktprofielen</option>{filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
           <select name="concurrent" defaultValue={filters.competitorId} className="toolbar-control w-full"><option value="">Alle concurrenten</option>{filterOptions.competitors.map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}</select>
           <select name="identificatie" defaultValue={filters.identifierStatus} className="toolbar-control w-full"><option value="">Alle EAN statussen</option><option value="aanwezig">EAN aanwezig</option><option value="ontbreekt">EAN ontbreekt</option></select>
           <button className="primary-action min-w-[96px]">Filter</button>
         </div>
-        {selectedCountry ? <p className="mt-2 text-[10px] text-[#8793a3]">Markt, {selectedCountry.name}</p> : null}
+        {selectedCountry ? <p className="mt-2 text-[10px] font-semibold text-[#52667d]">Actief marktprofiel, {selectedCountry.name}. Alleen producten die voor dit land zijn opgevoerd worden getoond.</p> : <p className="mt-2 text-[10px] text-[#8793a3]">Selecteer een marktprofiel om producten en prijzen per land te bekijken.</p>}
       </form>
 
       <form id="product-bulk-form" action={deleteSelectedProductsAction} className="space-y-3">
@@ -218,7 +217,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                     <input type="checkbox" name="productIds" value={item.product.id} aria-label={`Selecteer ${item.product.name}`} className="mt-1 h-[17px] w-[17px] shrink-0 cursor-pointer rounded" />
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Link href={`/producten/${item.product.id}`} className="text-[15px] font-semibold text-[#20344b] hover:text-[#2f6edb]">{item.product.name}</Link>
+                        <Link href={filters.countryId ? `/producten/${item.product.id}?land=${filters.countryId}` : `/producten/${item.product.id}`} className="text-[15px] font-semibold text-[#20344b] hover:text-[#2f6edb]">{item.product.name}</Link>
                         {item.stale ? <span className="ps-chip ps-chip-amber">Vernieuwen</span> : item.sourceCount > 0 ? <span className="ps-chip ps-chip-green">Actueel</span> : null}
                         {item.reviewMatches > 0 ? <span className="ps-chip ps-chip-amber">{item.reviewMatches} match{item.reviewMatches === 1 ? '' : 'es'}</span> : null}
                       </div>
@@ -228,7 +227,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   <div className="flex shrink-0 flex-wrap items-center gap-2 pl-7 lg:pl-0">
                     <span className={`text-[10px] font-medium ${isOutOfStock(item.product.stockStatus) ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{stockLabel(item.product.stockStatus)}</span>
                     {canCrawl ? <button type="submit" name="singleProductId" value={item.product.id} formAction={refreshSingleProductPriceAction} className="secondary-action min-h-[36px] px-3.5 py-2 text-[11px]">Nu crawlen</button> : null}
-                    <Link href={`/producten/${item.product.id}`} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Analyse</Link>
+                    <Link href={filters.countryId ? `/producten/${item.product.id}?land=${filters.countryId}` : `/producten/${item.product.id}`} className="primary-action min-h-[36px] px-3.5 py-2 text-[11px]">Analyse</Link>
                   </div>
                 </div>
 
@@ -236,8 +235,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-medium text-[#8591a0]">Eigen prijs</p>
                     {item.ownPrice !== null && item.ownPrice !== undefined
-                      ? <><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.ownPrice, item.ownCurrency)}</p><p className="mt-0.5 text-[9px] text-[#8793a3]">{item.vatIncluded ? 'Incl. btw' : `Excl. btw · vergelijking ${formatCurrency(item.comparisonOwnPrice, item.ownCurrency)} incl.`}</p></>
-                      : <Link href={`/producten/${item.product.id}#eigen-prijs`} className="mt-1 inline-flex text-[11px] font-semibold text-[#2f6edb]">Prijs toevoegen →</Link>}
+                      ? <><p className="mt-1 text-[14px] font-semibold text-[#24384f]">{formatCurrency(item.ownPriceExVat, item.ownCurrency)} <span className="text-[9px] font-medium text-[#8793a3]">excl.</span></p><p className="mt-0.5 text-[12px] font-semibold text-[#52667d]">{formatCurrency(item.ownPriceIncVat, item.ownCurrency)} <span className="text-[9px] font-medium text-[#8793a3]">incl. btw</span></p></>
+                      : <Link href={filters.countryId ? `/producten/${item.product.id}?land=${filters.countryId}#eigen-prijs` : `/producten/${item.product.id}#eigen-prijs`} className="mt-1 inline-flex text-[11px] font-semibold text-[#2f6edb]">Prijs toevoegen →</Link>}
                   </div>
                   <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Laagste markt</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.lowestPrice)}</p>{cheapestCompetitor ? <p className="mt-0.5 truncate text-[10px] text-[#8793a3]">{cheapestCompetitor}</p> : null}</div>
                   <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Verschil</p><p className={`mt-1 text-[16px] font-semibold ${pctDiff !== null && pctDiff > 0 ? 'text-[#b6414d]' : pctDiff !== null && pctDiff < 0 ? 'text-[#20814d]' : 'text-[#24384f]'}`}>{pctDiff !== null ? `${pctDiff > 0 ? '+' : ''}${formatNumber(pctDiff, 1)}%` : '—'}</p></div>
