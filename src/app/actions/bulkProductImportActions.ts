@@ -175,10 +175,11 @@ export async function processBulkProductImportAction(payload: unknown) {
         })
 
         if (country && activeCountryIds.has(country.id)) {
+          const marketVatIncluded = vatIncluded(row.vatIncluded, product.vatIncluded)
           await prisma.productMarket.upsert({
             where: { companyId_productId_countryId: { companyId, productId: product.id, countryId: country.id } },
-            update: { ownPrice: ownPrice ?? undefined, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, isActive: true },
-            create: { companyId, productId: product.id, countryId: country.id, ownPrice, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, stockStatus: 'Onbekend', isActive: true },
+            update: { ownPrice: ownPrice ?? undefined, vatIncluded: marketVatIncluded, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, isActive: true },
+            create: { companyId, productId: product.id, countryId: country.id, ownPrice, vatIncluded: marketVatIncluded, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, stockStatus: 'Onbekend', isActive: true },
           })
           marketCount += 1
           discoveryTargets.push({ productId: product.id, countryId: country.id, articleNumber: row.articleNumber.trim() })
