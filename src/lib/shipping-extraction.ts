@@ -20,12 +20,12 @@ function normalizedIdentifier(value: unknown) {
 function parseAmount(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : null
   if (typeof value !== 'string') return null
-  const cleaned = value.replace(/ /g, ' ').replace(/[^0-9,.-]/g, '').trim()
+  const cleaned = value.replace(/\u00a0/g, ' ').replace(/[^0-9,.-]/g, '').trim()
   if (!cleaned) return null
   const lastComma = cleaned.lastIndexOf(',')
   const lastDot = cleaned.lastIndexOf('.')
   let normalized = cleaned
-  if (lastComma > lastDot) normalized = cleaned.replace(/./g, '').replace(',', '.')
+  if (lastComma > lastDot) normalized = cleaned.replace(/\./g, '').replace(',', '.')
   else if (lastDot > lastComma) normalized = cleaned.replace(/,/g, '')
   else normalized = cleaned.replace(',', '.')
   const numeric = Number(normalized)
@@ -62,8 +62,8 @@ function productScore(product: JsonRecord, target?: ShippingExtractionTarget) {
   const actualEan = normalizedIdentifier(product.gtin13 ?? product.gtin14 ?? product.gtin ?? product.ean)
   let score = expectedEan && actualEan ? (expectedEan === actualEan ? 100 : -50) : 0
 
-  const expectedWords = new Set(String(target.productName ?? '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/gi, ' ').split(/s+/).filter((word) => word.length >= 4))
-  const actualWords = new Set(String(product.name ?? '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/gi, ' ').split(/s+/).filter((word) => word.length >= 4))
+  const expectedWords = new Set(String(target.productName ?? '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/gi, ' ').split(/\s+/).filter((word) => word.length >= 4))
+  const actualWords = new Set(String(product.name ?? '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/gi, ' ').split(/\s+/).filter((word) => word.length >= 4))
   if (expectedWords.size && actualWords.size) {
     const overlap = [...expectedWords].filter((word) => actualWords.has(word)).length / expectedWords.size
     score += Math.round(overlap * 30)
@@ -141,7 +141,11 @@ function extractJsonLd(html: string, target?: ShippingExtractionTarget): Shippin
   candidates.sort((a, b) => b.score - a.score)
   for (const { product } of candidates) {
     const rawOffers = product.offers
-    const offers = Array.isArray(rawOffers) ? rawOffers : rawOffers && typeof rawOffers === 'object' ? walkJson(rawOffers).filter((record) => typeNames(record['@type']).some((item) => item.toLowerCase().includes('offer')) || record.shippingDetails !== undefined) : []
+    const offers = Array.isArray(rawOffers)
+      ? rawOffers.filter((value): value is JsonRecord => Boolean(value) && typeof value === 'object' && !Array.isArray(value))
+      : rawOffers && typeof rawOffers === 'object'
+        ? walkJson(rawOffers).filter((record) => typeNames(record['@type']).some((item) => item.toLowerCase().includes('offer')) || record.shippingDetails !== undefined)
+        : []
     for (const offer of offers) {
       const result = shippingDetailsFromOffer(offer, target)
       if (result) return result
@@ -151,9 +155,9 @@ function extractJsonLd(html: string, target?: ShippingExtractionTarget): Shippin
 }
 
 function attribute(tag: string, name: string) {
-  const quoted = tag.match(new RegExp(`${name}\\s*=\\s*["']([^"']+)["']`, 'i'))
+  const quoted = tag.match(new RegExp(name + '\\s*=\\s*["\']([^"\']+)["\']', 'i'))
   if (quoted?.[1]) return quoted[1]
-  const bare = tag.match(new RegExp(`${name}\\s*=\\s*([^\\s>]+)`, 'i'))
+  const bare = tag.match(new RegExp(name + '\\s*=\\s*([^\\s>]+)', 'i'))
   return bare?.[1] ?? null
 }
 
