@@ -33,7 +33,7 @@ function statusClass(status: PriceChangeStatus) {
 export default async function PriceChangesPage() {
   const actor = await requirePermission('pricing.manage')
   const requests = await listPriceChangeRequests(actor.companyId, 200)
-  const magentoReady = isMagentoPricingConfigured(actor.companyId)
+  const magentoReady = await isMagentoPricingConfigured(actor.companyId)
   const canPublish = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.publish')
   const pending = requests.filter((item) => item.status === 'PENDING').length
   const approved = requests.filter((item) => item.status === 'APPROVED').length
@@ -64,7 +64,7 @@ export default async function PriceChangesPage() {
       </section>
 
       {!canPublish ? <section className="rounded-[12px] border-2 border-[#afc5e7] bg-[#edf3fb] p-4"><p className="text-[12px] font-black text-[#355a91]">Gescheiden publicatierecht actief</p><p className="mt-1 text-[11px] leading-5 text-[#526d95]">Je kunt prijsadviezen aanvragen en de status volgen. Goedkeuren, afwijzen, publiceren en rollback vereisen het aparte recht <strong>Prijswijzigingen publiceren</strong>.</p></section> : null}
-      {!magentoReady ? <section className="rounded-[12px] border-2 border-[#e1c98d] bg-[#fbf4df] p-4"><p className="text-[12px] font-black text-[#6f5218]">Magento writeback staat veilig uit</p><p className="mt-1 text-[11px] leading-5 text-[#7b6534]">Aanvragen kunnen wel worden aangemaakt en beheerd. Publiceren blijft geblokkeerd totdat MAGENTO_BASE_URL, MAGENTO_ACCESS_TOKEN, MAGENTO_COMPANY_ID, MAGENTO_CURRENCY en MAGENTO_PRICES_INCLUDE_TAX correct zijn ingesteld voor deze organisatie.</p></section> : null}
+      {!magentoReady ? <section className="rounded-[12px] border-2 border-[#e1c98d] bg-[#fbf4df] p-4"><p className="text-[12px] font-black text-[#6f5218]">Magento writeback staat veilig uit</p><p className="mt-1 text-[11px] leading-5 text-[#7b6534]">Aanvragen kunnen wel worden aangemaakt en beheerd. Publiceren blijft geblokkeerd totdat Magento 2 onder <Link href="/integraties" className="font-black underline">Integraties</Link> succesvol is getest en gekoppeld.</p></section> : null}
 
       <section className="space-y-3">
         {requests.length === 0 ? <div className="surface-card p-8 text-center"><p className="text-[13px] font-semibold text-[#34445b]">Nog geen prijswijzigingen</p><p className="mt-2 text-[11px] text-[#7b889a]">Maak vanuit Prijsstrategie een aanvraag van een actieadvies.</p></div> : requests.map((item) => {
