@@ -11,6 +11,8 @@ import { EanPriceSuggestions } from '@/components/EanPriceSuggestions'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
+import { MarketPriceFields } from '@/components/MarketPriceFields'
+import { MarketProfileSelector } from '@/components/MarketProfileSelector'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -134,12 +136,12 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
   if (!product) notFound()
 
-  const requestedCountryId = readParam(query.markt)
-  const defaultCountry = countries.find((country) => country.id === requestedCountryId && product.productMarkets.some((market) => market.countryId === country.id))
-    ?? countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id))
+  const requestedCountryId = readParam(query.markt) ?? readParam(query.land)
+  const defaultCountry = countries.find((country) => country.id === requestedCountryId)
+    ?? countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id && market.isActive))
     ?? countries.find((country) => country.code === 'NL')
     ?? countries[0]
-  const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
+  const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id && market.isActive) ?? null : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const marketMatches = defaultCountry
@@ -173,15 +175,16 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const spread = lowestPrice !== null && highestPrice !== null ? highestPrice - lowestPrice : null
   const spreadPct = lowestPrice !== null && lowestPrice > 0 && spread !== null ? (spread / lowestPrice) * 100 : null
   const latestCheck = crawlableMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
-  const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
-  const ownCurrency = selectedMarket?.currency ?? product.currency
+  const ownPrice = numberValue(selectedMarket?.ownPrice ?? (product.productMarkets.length === 0 ? product.ownPrice : null))
+  const ownCurrency = selectedMarket?.currency ?? defaultCountry?.currency ?? product.currency
+  const marketVatIncluded = selectedMarket?.vatIncluded ?? product.vatIncluded
   const vatRate = numberValue(defaultCountry?.vatRate)
-  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
-    ? ownPrice * (1 + vatRate / 100)
+  const comparisonOwnPriceExVat = ownPrice !== null && vatRate !== null
+    ? marketVatIncluded ? ownPrice / (1 + vatRate / 100) : ownPrice
     : ownPrice
-  const comparisonOwnPriceExVat = comparisonOwnPrice !== null && vatRate !== null
-    ? comparisonOwnPrice / (1 + vatRate / 100)
-    : null
+  const comparisonOwnPrice = ownPrice !== null && vatRate !== null
+    ? marketVatIncluded ? ownPrice : ownPrice * (1 + vatRate / 100)
+    : ownPrice
   const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const automaticMatches = crawlableMatches.filter((match) => match.competitorOffer.competitor.checkFrequencyHours < 876000)
   const automaticDue = automaticMatches.filter((match) => isCrawlDue(
@@ -280,8 +283,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               </div>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/producten" className="secondary-action">Terug</Link>
+          <div className="flex flex-col gap-2 lg:items-end">
+            {defaultCountry ? <MarketProfileSelector countries={countries.map((country) => ({ id: country.id, name: country.name }))} value={defaultCountry.id} paramName="markt" compact /> : null}
+            <div className="flex flex-wrap gap-2">
+            <Link href={defaultCountry ? `/producten?land=${defaultCountry.id}` : '/producten'} className="secondary-action">Terug</Link>
             <a href="#eigen-prijs" className="secondary-action">Prijs aanpassen</a>
             {crawlableMatches.length > 0 ? (
               <form action={refreshSingleProductPriceAction}>
@@ -292,6 +297,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             ) : defaultCountry && canEditCompetitors ? (
               <a href="#concurrenten-vinden" className="primary-action">Concurrenten zoeken</a>
             ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
+            </div>
           </div>
         </div>
       </section>
@@ -337,33 +343,36 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-[16px] font-semibold text-[#21364d]">Eigen verkoopprijs</h2>
+            <p className="mt-1 text-[10px] text-[#8290a1]">Prijsprofiel per land, exclusief en inclusief btw.</p>
           </div>
-          {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : <span className="ps-chip">Algemeen</span>}
+          {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}{selectedMarket ? '' : ' · nieuw profiel'}</span> : null}
         </div>
-        <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
-          <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
-            <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#7b8999]">{product.vatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
-            {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voeg eerst je eigen prijs toe om marktverschillen en prijsadvies correct te berekenen.</p> : null}
+        <div className="grid gap-0 lg:grid-cols-[.58fr_1.42fr]">
+          <div className="border-b border-[#e7edf3] bg-[#f8fbff] p-5 sm:p-6 lg:border-b-0 lg:border-r">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#8492a3]">Exclusief btw</p><p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#1e2d3f]">{formatCurrency(comparisonOwnPriceExVat, ownCurrency)}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#8492a3]">Inclusief btw</p><p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#1e2d3f]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p></div>
+            </div>
+            <p className="mt-3 text-[10px] text-[#7b8999]">{defaultCountry ? `${formatNumber(vatRate, 2)}% btw · ${defaultCountry.name}` : 'Geen markt geselecteerd'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
+            {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voor dit land is nog geen prijsprofiel opgeslagen.</p> : null}
           </div>
           <div className="p-5 sm:p-6">
-            {canEditProduct ? (
-              <form action={updateProductOwnPriceAction} className="grid gap-4 md:grid-cols-2">
+            {canEditProduct && defaultCountry ? (
+              <form action={updateProductOwnPriceAction} className="space-y-4">
                 <input type="hidden" name="productId" value={product.id} />
-                {defaultCountry ? <input type="hidden" name="countryId" value={defaultCountry.id} /> : null}
-                <input type="hidden" name="currency" value={ownCurrency} />
-                <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *
-                  <div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]">
-                    <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
-                    <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
-                  </div>
-                </label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(product.vatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
-                {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
-                <div className="md:col-span-2 flex justify-end">
-                  <button type="submit" className="primary-action shrink-0">Opslaan</button>
+                <input type="hidden" name="countryId" value={defaultCountry.id} />
+                <MarketPriceFields
+                  countries={countries.map((country) => ({ id: country.id, name: country.name, currency: country.currency, vatRate: Number(country.vatRate) }))}
+                  defaultCountryId={defaultCountry.id}
+                  initialPrice={ownPrice}
+                  initialVatIncluded={marketVatIncluded}
+                  showCountry={false}
+                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
+                  <label className="text-[11px] font-semibold text-[#4f5869]">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label>
                 </div>
+                <div className="flex justify-end"><button type="submit" className="primary-action">{selectedMarket ? 'Opslaan' : 'Marktprofiel aanmaken'}</button></div>
               </form>
             ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen-lezen toegang tot productprijzen.</p>}
           </div>
@@ -618,7 +627,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-[#34495f]">Technische controlehistorie</summary>
           <div className="border-t border-[#e7edf3] p-4">
             <Suspense fallback={<AnalyticsFallback label="Controlehistorie" />}>
-              <ProductCheckHistoryPanel companyId={user.companyId} productId={product.id} />
+              <ProductCheckHistoryPanel companyId={user.companyId} productId={product.id} countryId={defaultCountry?.id} />
             </Suspense>
           </div>
         </details>
@@ -672,8 +681,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
 
         <div className="surface-card p-5">
-          <h2 className="text-[14px] font-semibold text-[#252a37]">Markten</h2>
-          <div className="mt-4 space-y-2">{product.productMarkets.length === 0 ? <p className="rounded-[12px] bg-[#eef1f7] px-3 py-4 text-[11px] text-[#697386]">Nog geen landspecifieke productdata.</p> : product.productMarkets.map((market) => <div key={market.id} className="flex items-center justify-between gap-3 rounded-[11px] bg-[#f4f6fa] px-3 py-3"><div><p className="text-[11px] font-semibold text-[#303647]">{market.country.name}</p><p className="mt-0.5 text-[10px] text-[#697386]">{market.stockStatus ?? 'Voorraad onbekend'}</p></div><div className="text-right"><p className="text-[11px] font-semibold text-[#303647]">{formatCurrency(market.ownPrice, market.currency)}</p>{market.ownUrl ? <a href={market.ownUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[10px] font-semibold text-[#2f6edb]">Webshop</a> : null}</div></div>)}</div>
+          <div className="flex items-center justify-between gap-3"><h2 className="text-[14px] font-semibold text-[#252a37]">Marktprofielen</h2><span className="text-[10px] font-semibold text-[#7b8999]">{product.productMarkets.length}</span></div>
+          <div className="mt-3 space-y-2">{product.productMarkets.length === 0 ? <p className="rounded-[10px] bg-[#eef1f7] px-3 py-3 text-[10px] text-[#697386]">Nog geen marktprofielen.</p> : product.productMarkets.map((market) => {
+            const stored = numberValue(market.ownPrice)
+            const rate = numberValue(market.country.vatRate)
+            const ex = stored !== null && rate !== null ? market.vatIncluded ? stored / (1 + rate / 100) : stored : stored
+            const inc = stored !== null && rate !== null ? market.vatIncluded ? stored : stored * (1 + rate / 100) : stored
+            return <Link key={market.id} href={`/producten/${product.id}?markt=${market.countryId}`} className={`flex items-center justify-between gap-3 rounded-[10px] px-3 py-3 transition ${defaultCountry?.id === market.countryId ? 'bg-[#edf4ff]' : 'bg-[#f4f6fa] hover:bg-[#eef2f7]'}`}><div><p className="text-[11px] font-semibold text-[#303647]">{market.country.name}</p><p className="mt-0.5 text-[9px] text-[#697386]">{market.stockStatus ?? 'Voorraad onbekend'}</p></div><div className="text-right"><p className="text-[10px] font-semibold text-[#303647]">{formatCurrency(ex, market.currency)} <span className="text-[8px] font-medium text-[#8793a3]">excl.</span></p><p className="mt-0.5 text-[10px] font-semibold text-[#53677f]">{formatCurrency(inc, market.currency)} <span className="text-[8px] font-medium text-[#8793a3]">incl.</span></p></div></Link>
+          })}</div>
         </div>
       </section>
     </div>
