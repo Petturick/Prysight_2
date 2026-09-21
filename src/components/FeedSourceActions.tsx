@@ -10,6 +10,7 @@ export function FeedSourceActions({ id, isActive, canSync = true }: { id: string
 
   const call = async (action: 'sync' | 'toggle' | 'delete') => {
     if (busy) return
+    if (action === 'delete' && !window.confirm('Deze feedbron en alle bronregels verwijderen? Reeds geïmporteerde producten blijven behouden.')) return
     setBusy(action)
     setNotice(null)
     try {
@@ -17,7 +18,7 @@ export function FeedSourceActions({ id, isActive, canSync = true }: { id: string
         ? await fetch(`/api/feeds/${id}/sync`, { method: 'POST' })
         : action === 'toggle'
           ? await fetch(`/api/feeds/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !isActive }) })
-          : await fetch(`/api/feeds/${id}`, { method: 'DELETE' })
+          : await fetch(`/api/feeds/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) })
       const result = await response.json().catch(() => ({})) as {
         error?: string
         accepted?: boolean
