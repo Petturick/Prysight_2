@@ -88,7 +88,9 @@ export async function createProductAction(formData: FormData) {
     } catch (error) { console.error('Automatic EAN competitor discovery failed', error) }
   }
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath('/feeds'); revalidatePath('/productmatches')
-  redirect(`/producten/${product.id}?toegevoegd=1&suggesties=${suggestionCount}`)
+  const createParams = new URLSearchParams({ toegevoegd: '1', suggesties: String(suggestionCount) })
+  if (country?.id) createParams.set('markt', country.id)
+  redirect(`/producten/${product.id}?${createParams.toString()}`)
 }
 
 export async function updateProductOwnPriceAction(formData: FormData) {
@@ -163,7 +165,9 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   revalidatePath('/producten')
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/prijsstrategie')
-  redirect(`/producten/${productId}?prijs=bijgewerkt#eigen-prijs`)
+  const priceParams = new URLSearchParams({ prijs: 'bijgewerkt' })
+  if (countryId) priceParams.set('markt', countryId)
+  redirect(`/producten/${productId}?${priceParams.toString()}#eigen-prijs`)
 }
 
 export async function updateProductIdentifiersAction(formData: FormData) {
@@ -226,6 +230,7 @@ export async function updateProductIdentifiersAction(formData: FormData) {
     zoekmodus: discovery.queryMode ?? (ean ? 'EAN' : 'PRODUCT'),
     reden: discovery.reason ?? '',
   })
+  if (countryId) params.set('markt', countryId)
   redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
 }
 
@@ -273,7 +278,7 @@ export async function addCompetitorOfferAction(formData: FormData) {
     create: { companyId: user.companyId, productId: product.id, competitorOfferId: offer.id, confidenceScore: 100, matchStatus: MatchStatus.CERTAIN, matchEvidence: { source: 'manual', reason: 'Handmatig gekoppeld in Prysight' }, approvedBy: user.id, approvedAt: new Date() },
   })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${product.id}`); revalidatePath('/concurrenten')
-  redirect(`/producten/${product.id}?bron=toegevoegd`)
+  redirect(`/producten/${product.id}?markt=${encodeURIComponent(countryId)}&bron=toegevoegd`)
 }
 
 export async function updateCompetitorOfferAction(formData: FormData) {
@@ -385,7 +390,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/concurrenten')
   revalidatePath('/monitoring')
-  redirect(`/producten/${productId}?concurrent=${existing.id}&bron=bijgewerkt#concurrentieprijzen`)
+  redirect(`/producten/${productId}?markt=${encodeURIComponent(existing.competitor.countryId)}&concurrent=${existing.id}&bron=bijgewerkt#concurrentieprijzen`)
 }
 
 export async function removeCompetitorOfferAction(formData: FormData) {
@@ -447,6 +452,7 @@ export async function discoverCompetitorUrlsAction(formData: FormData) {
     zoekmodus: queryMode,
     reden: result.reason ?? '',
   })
+  params.set('markt', countryId)
   redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
 }
 
@@ -479,10 +485,10 @@ export async function runCompetitorOfferResearchAction(formData: FormData) {
   if (!productId || !competitorOfferId) throw new Error('Product of concurrentiebron ontbreekt.')
   const offer = await prisma.competitorOffer.findFirst({
     where: { id: competitorOfferId, companyId: user.companyId, isActive: true, productMatch: { companyId: user.companyId, productId } },
-    select: { id: true },
+    select: { id: true, competitor: { select: { countryId: true } } },
   })
   if (!offer) throw new Error('Concurrentiebron niet gevonden of niet actief.')
   const summary = await runDuePriceChecks({ companyId: user.companyId, competitorOfferId: offer.id, limit: 1, force: true })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`); revalidatePath('/monitoring')
-  redirect(`/producten/${productId}?broncontrole=${summary.successful}-${summary.failed}#concurrentieprijzen`)
+  redirect(`/producten/${productId}?markt=${encodeURIComponent(offer.competitor.countryId)}&broncontrole=${summary.successful}-${summary.failed}#concurrentieprijzen`)
 }
