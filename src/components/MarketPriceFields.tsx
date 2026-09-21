@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type CountryOption = {
   id: string
@@ -85,6 +85,18 @@ export function MarketPriceFields({
   }
 
   const sourcePrice = source === 'inc' ? incVat : exVat
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ price?: number | null; vatIncluded?: boolean | null }>).detail
+      if (!detail || detail.price === null || detail.price === undefined || !Number.isFinite(Number(detail.price))) return
+      const value = formatInput(Number(detail.price))
+      if (detail.vatIncluded === false) onExVat(value)
+      else onIncVat(value)
+    }
+    window.addEventListener('prysight:set-market-price', handler)
+    return () => window.removeEventListener('prysight:set-market-price', handler)
+  }, [multiplier])
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
