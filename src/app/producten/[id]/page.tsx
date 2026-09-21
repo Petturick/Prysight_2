@@ -262,32 +262,28 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               <span className={`ps-chip ${measurementQuality === 'Sterk' ? 'ps-chip-green' : measurementQuality === 'Redelijk' ? 'ps-chip-amber' : 'ps-chip-red'}`}>Data {measurementQuality.toLowerCase()}</span>
             </div>
             <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.025em] text-[#18273a]">{product.name}</h1>
-            <p className="mt-1 text-[11px] text-[#788698]">{product.packagingQty} {product.packagingUnit ?? 'stuks'} · {product.stockStatus ?? 'Voorraad onbekend'}</p>
-            {product.productMarkets.length > 1 ? (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-[10px] font-semibold text-[#8793a3]">Markt</span>
-                {product.productMarkets.map((market) => (
-                  <Link
-                    key={market.id}
-                    href={`/producten/${product.id}?markt=${market.countryId}`}
-                    className={`ps-chip ${defaultCountry?.id === market.countryId ? 'ps-chip-blue' : ''}`}
-                  >
-                    {market.country.code}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
+            <p className="mt-1 text-[11px] text-[#788698]">{product.packagingQty} {product.packagingUnit ?? 'stuks'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/producten" className="secondary-action">Terug</Link>
-            <a href="#eigen-prijs" className="secondary-action">Prijs aanpassen</a>
-            {crawlableMatches.length > 0 ? (
-              <form action={refreshSingleProductPriceAction}>
-                <input type="hidden" name="singleProductId" value={product.id} />
-                <input type="hidden" name="returnTo" value="detail" />
-                <PriceFetchSubmitButton idleLabel="Prijzen ophalen" pendingLabel="Ophalen…" />
-              </form>
-            ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
+          <div className="flex flex-col gap-2 lg:items-end">
+            {defaultCountry ? (
+              <MarketProfileSelector
+                countries={countries.map((country) => ({ id: country.id, name: country.name }))}
+                value={defaultCountry.id}
+                paramName="markt"
+                compact
+              />
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Link href={defaultCountry ? `/producten?land=${defaultCountry.id}` : '/producten'} className="secondary-action">Terug</Link>
+              <a href="#eigen-prijs" className="secondary-action">Prijs aanpassen</a>
+              {crawlableMatches.length > 0 ? (
+                <form action={refreshSingleProductPriceAction}>
+                  <input type="hidden" name="singleProductId" value={product.id} />
+                  <input type="hidden" name="returnTo" value="detail" />
+                  <PriceFetchSubmitButton idleLabel="Prijzen ophalen" pendingLabel="Ophalen…" />
+                </form>
+              ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
+            </div>
           </div>
         </div>
       </section>
