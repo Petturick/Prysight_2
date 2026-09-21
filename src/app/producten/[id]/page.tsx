@@ -90,6 +90,12 @@ function nextCrawlLabel(lastCheckedAt: Date | null | undefined, hours: number) {
   return `Volgende rond ${next.toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
 }
 
+function isCrawlDue(lastCheckedAt: Date | null | undefined, hours: number) {
+  if (hours >= 876000) return false
+  if (!lastCheckedAt) return true
+  return Date.now() - lastCheckedAt.getTime() >= hours * 60 * 60 * 1000
+}
+
 function isOutOfStock(value: string | null | undefined) {
   return /niet op voorraad|out of stock|uitverkocht|sold out/i.test(value ?? '')
 }
@@ -177,11 +183,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
     : null
   const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const automaticMatches = crawlableMatches.filter((match) => match.competitorOffer.competitor.checkFrequencyHours < 876000)
-  const automaticDue = automaticMatches.filter((match) => {
-    const lastCheckedAt = match.competitorOffer.lastCheckedAt
-    const frequencyHours = match.competitorOffer.competitor.checkFrequencyHours
-    return !lastCheckedAt || Date.now() - lastCheckedAt.getTime() >= frequencyHours * 60 * 60 * 1000
-  }).length
+  const automaticDue = automaticMatches.filter((match) => isCrawlDue(
+    match.competitorOffer.lastCheckedAt,
+    match.competitorOffer.competitor.checkFrequencyHours,
+  )).length
   const competitorOutOfStock = confirmedMatches.filter((match) => isOutOfStock(match.competitorOffer.stockStatus)).length
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
@@ -194,7 +199,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const recommendation = pricing.recommendations.find((item) => item.productId === product.id && defaultCountry && item.countryId === defaultCountry.id)
     ?? pricing.recommendations.find((item) => item.productId === product.id)
     ?? null
-  const marketBenchmark = recommendation?.marketMedian ?? recommendation?.marketAverage ?? lowestPrice
   const recommendedPrice = recommendation?.recommendedPrice ?? null
   const expectedMargin = recommendation?.marginAfterPct ?? null
   const currentMargin = recommendation?.marginBeforePct ?? null
