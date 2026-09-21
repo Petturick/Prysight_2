@@ -374,7 +374,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-[16px] font-semibold text-[#21364d]">Marktpositie</h2>
-            <p className="mt-1 text-[10px] text-[#7f8ea0]">Prijsafstand, positie, voorraad en automatische monitoring in één overzicht.</p>
+            <p className="mt-1 text-[10px] text-[#7f8ea0]">Prijsafstand, verzendkosten, totaalprijs, voorraad en automatische monitoring in één overzicht.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : null}
@@ -444,12 +444,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             <span className="ps-chip ps-chip-blue">{pricedMatches.length} gemeten</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse text-[11px]">
+            <table className="w-full min-w-[1420px] border-collapse text-[11px]">
               <thead className="bg-[#f6f8fb] text-left text-[10px] font-semibold text-[#758396]">
                 <tr>
                   <th className="px-4 py-3">Concurrent</th>
                   <th className="px-4 py-3">Incl. btw</th>
                   <th className="px-4 py-3">Excl. btw</th>
+                  <th className="px-4 py-3">Verzendkosten</th>
+                  <th className="px-4 py-3">Totaal</th>
                   <th className="px-4 py-3">Afstand tot jouw prijs</th>
                   <th className="px-4 py-3">Positie</th>
                   <th className="px-4 py-3">Voorraad</th>
@@ -463,6 +465,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                   const price = numberValue(offer.normalizedPrice)
                   const competitorVatRate = numberValue(offer.competitor.country.vatRate)
                   const priceExVat = price !== null && competitorVatRate !== null ? price / (1 + competitorVatRate / 100) : null
+                  const normalizedShipping = numberValue(offer.normalizedShippingCost)
+                  const deliveredPrice = numberValue(offer.deliveredPrice)
+                  const rawShipping = numberValue(offer.shippingCost)
+                  const shippingCurrency = offer.shippingCurrency ?? offer.currency
                   const deltaAmount = comparisonOwnPrice !== null && price !== null ? price - comparisonOwnPrice : null
                   const ownDeltaPct = comparisonOwnPrice !== null && price !== null && comparisonOwnPrice > 0 ? ((price - comparisonOwnPrice) / comparisonOwnPrice) * 100 : null
                   const competitorPosition = price !== null ? prices.filter((candidate) => candidate < price).length + 1 : null
@@ -487,6 +493,15 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                       <td className="px-4 py-3"><p className="font-semibold text-[#24384f]">{price === null ? <span className="text-[#a36816]">Nog geen prijs</span> : formatCurrency(price)}</p><p className="mt-0.5 text-[9px] text-[#8a98a9]">Genormaliseerd</p></td>
                       <td className="px-4 py-3"><p className="font-semibold text-[#44576d]">{formatCurrency(priceExVat)}</p><p className="mt-0.5 text-[9px] text-[#8a98a9]">{competitorVatRate === null ? 'Btw onbekend' : `${formatNumber(competitorVatRate, 1)}% btw`}</p></td>
                       <td className="px-4 py-3">
+                        <p className="font-semibold text-[#33485f]">{normalizedShipping === null ? 'Niet vastgesteld' : normalizedShipping === 0 ? 'Gratis' : formatCurrency(normalizedShipping)}</p>
+                        {rawShipping !== null && shippingCurrency !== 'EUR' ? <p className="mt-0.5 text-[9px] text-[#8a98a9]">Bron {formatCurrency(rawShipping, shippingCurrency)}</p> : null}
+                        {offer.shippingLabel ? <p className="mt-0.5 max-w-[140px] text-[9px] text-[#8a98a9]">{offer.shippingLabel}</p> : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[#244b37]">{deliveredPrice === null ? 'Niet vastgesteld' : formatCurrency(deliveredPrice)}</p>
+                        <p className="mt-0.5 text-[9px] text-[#8a98a9]">Prijs + verzending</p>
+                      </td>
+                      <td className="px-4 py-3">
                         <p className={`font-semibold ${distanceTone}`}>{deltaAmount === null || ownDeltaPct === null ? '—' : `${deltaAmount > 0 ? '+' : ''}${formatCurrency(deltaAmount)} · ${ownDeltaPct > 0 ? '+' : ''}${formatNumber(ownDeltaPct, 1)}%`}</p>
                         <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-[#e7edf3]"><div className={`h-full rounded-full ${distanceBar}`} style={{ width: `${distanceWidth}%` }} /></div>
                         {ownDeltaPct !== null ? <p className="mt-1 text-[9px] text-[#8a98a9]">{ownDeltaPct < 0 ? 'Concurrent goedkoper' : ownDeltaPct > 0 ? 'Concurrent duurder' : 'Gelijke prijs'}</p> : null}
@@ -510,7 +525,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     </tr>
                   )
                 })}
-                {comparisonMatches.length === 0 ? <tr><td colSpan={8} className="px-6 py-10 text-center"><p className="font-semibold text-[#42566d]">Nog geen concurrent gekoppeld voor deze markt</p><p className="mt-1 text-[10px] text-[#8391a1]">Laat Prysight eerst automatisch zoeken op EAN en productcontext.</p><div className="mt-3 flex flex-wrap justify-center gap-3"><a href="#concurrenten-vinden" className="text-[11px] font-semibold text-[#2f6edb]">Concurrenten zoeken</a><a href="#concurrent-bron-toevoegen" className="text-[11px] font-semibold text-[#60758d]">Handmatig koppelen</a></div></td></tr> : null}
+                {comparisonMatches.length === 0 ? <tr><td colSpan={10} className="px-6 py-10 text-center"><p className="font-semibold text-[#42566d]">Nog geen concurrent gekoppeld voor deze markt</p><p className="mt-1 text-[10px] text-[#8391a1]">Laat Prysight eerst automatisch zoeken op EAN en productcontext.</p><div className="mt-3 flex flex-wrap justify-center gap-3"><a href="#concurrenten-vinden" className="text-[11px] font-semibold text-[#2f6edb]">Concurrenten zoeken</a><a href="#concurrent-bron-toevoegen" className="text-[11px] font-semibold text-[#60758d]">Handmatig koppelen</a></div></td></tr> : null}
               </tbody>
             </table>
           </div>

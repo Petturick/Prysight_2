@@ -120,6 +120,10 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     const lowestRate = lowestOffer ? Number(lowestOffer.competitor.country.vatRate) : null
     const marketEx = metrics.lowestPrice !== null && lowestRate !== null && Number.isFinite(lowestRate)
       ? metrics.lowestPrice / (1 + lowestRate / 100) : null
+    const shipping = lowestOffer?.normalizedShippingCost === null || lowestOffer?.normalizedShippingCost === undefined
+      ? null : Number(lowestOffer.normalizedShippingCost)
+    const delivered = lowestOffer?.deliveredPrice === null || lowestOffer?.deliveredPrice === undefined
+      ? null : Number(lowestOffer.deliveredPrice)
     const delta = metrics.difference.pctDiff === null || metrics.difference.pctDiff === undefined
       ? null : Number(metrics.difference.pctDiff)
     const checked = metrics.lastCheckedAt ? formatDate(metrics.lastCheckedAt) : 'Nog niet'
@@ -141,6 +145,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       ownInc: price(ownInc, metrics.ownCurrency),
       marketEx: price(marketEx),
       marketInc: price(metrics.lowestPrice),
+      shipping: shipping === 0 ? 'Gratis' : price(shipping),
+      delivered: price(delivered),
       difference: percent(delta),
       differencePct: delta,
       sources: metrics.sourceCount,

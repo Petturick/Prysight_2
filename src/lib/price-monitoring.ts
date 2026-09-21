@@ -7,10 +7,11 @@ import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
+import { extractShippingSnapshot } from '@/lib/shipping-extraction'
 import { detectVatInclusion } from '@/lib/vat-detection'
 
 type ExtractionMethod = 'JSON_LD' | 'META' | 'MAGENTO' | 'HTML_REGEX'
-type ExtractedOffer = {
+type ExtractedOfferCore = {
   price: number | null
   currency: string | null
   stockStatus: string | null
@@ -20,12 +21,19 @@ type ExtractedOffer = {
   packagingQty: number | null
   method: ExtractionMethod | null
 }
+type ExtractedOffer = ExtractedOfferCore & {
+  shippingCost: number | null
+  shippingCurrency: string | null
+  shippingLabel: string | null
+  shippingMethod: string | null
+}
 type JsonRecord = Record<string, unknown>
 type FetchMode = 'HTTP' | 'BROWSER'
 export type PriceExtractionTarget = {
   ean?: string | null
   sku?: string | null
   productName?: string | null
+  countryCode?: string | null
 }
 
 const robotsCache = new Map<string, { checkedAt: number; disallow: string[] }>()
@@ -156,7 +164,7 @@ function packagingQuantity(...values: unknown[]) {
   return null
 }
 
-function extractJsonLd(html: string, target?: PriceExtractionTarget): ExtractedOffer | null {
+function extractJsonLd(html: string, target?: PriceExtractionTarget): ExtractedOfferCore | null {
   const scripts = [...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
   const candidates: Array<{ product: JsonRecord; offer: JsonRecord; score: number; order: number }> = []
   let order = 0
@@ -211,7 +219,7 @@ function attribute(tag: string, name: string) {
   return bare?.[1] ?? null
 }
 
-function extractMeta(html: string): ExtractedOffer | null {
+function extractMeta(html: string): ExtractedOfferCore | null {
   const meta = [...html.matchAll(/<meta\b[^>]*>/gi)].map((match) => match[0])
   const values = new Map<string, string>()
   for (const tag of meta) {
@@ -236,7 +244,7 @@ function extractMeta(html: string): ExtractedOffer | null {
   }
 }
 
-function extractMagento(html: string): ExtractedOffer | null {
+function extractMagento(html: string): ExtractedOfferCore | null {
   const compact = html.replace(/\s+/g, ' ')
   const candidates = [
     compact.match(/data-price-amount=["']([0-9][0-9.,]*)["']/i)?.[1],
@@ -269,7 +277,7 @@ function extractMagento(html: string): ExtractedOffer | null {
   }
 }
 
-function extractHtmlFallback(html: string): ExtractedOffer | null {
+function extractHtmlFallback(html: string): ExtractedOfferCore | null {
   const compact = html.replace(/\s+/g, ' ')
   const patterns: Array<{ regex: RegExp; currency: string }> = [
     { regex: /€\s*([0-9][0-9.,\s]{0,14})/i, currency: 'EUR' },
@@ -293,7 +301,7 @@ function extractHtmlFallback(html: string): ExtractedOffer | null {
 }
 
 export function extractOfferSnapshot(html: string, target?: PriceExtractionTarget): ExtractedOffer {
-  return extractJsonLd(html, target) ?? extractMeta(html) ?? extractMagento(html) ?? extractHtmlFallback(html) ?? {
+  const offer = extractJsonLd(html, target) ?? extractMeta(html) ?? extractMagento(html) ?? extractHtmlFallback(html) ?? {
     price: null,
     currency: null,
     stockStatus: null,
@@ -302,6 +310,18 @@ export function extractOfferSnapshot(html: string, target?: PriceExtractionTarge
     ean: null,
     packagingQty: null,
     method: null,
+  }
+  const shipping = extractShippingSnapshot(html, {
+    ean: target?.ean,
+    productName: target?.productName,
+    countryCode: target?.countryCode,
+  })
+  return {
+    ...offer,
+    shippingCost: shipping.cost,
+    shippingCurrency: shipping.currency,
+    shippingLabel: shipping.label,
+    shippingMethod: shipping.method,
   }
 }
 
@@ -495,12 +515,16 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     ean: trustedProductMapping ? null : product?.ean ?? product?.gtin,
     sku: trustedProductMapping ? null : product?.articleNumber,
     productName: product?.name,
+    countryCode: offer.competitor.country.code,
   }
   let diagnosticSnapshot: {
     foundPrice: number | null
     currency: string
     stockStatus: string | null
     productTitle: string | null
+    shippingCost: number | null
+    shippingCurrency: string | null
+    shippingLabel: string | null
     checkMethod: string
     statusCode: number | null
   } | null = null
@@ -534,12 +558,17 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     const detectedVat = detectVatInclusion(page.html, extracted.price)
     const sourceVatIncluded = detectedVat.vatIncluded ?? offer.vatIncluded
 
+    const shippingCurrency = (extracted.shippingCurrency ?? currency).toUpperCase()
     let priceForNormalization = extracted.price
+    let shippingForNormalization = extracted.shippingCost
     let fxSource: string | null = null
     let fxAsOf: string | null = null
-    if (currency !== 'EUR') {
+    if (currency !== 'EUR' || (shippingForNormalization !== null && shippingCurrency !== 'EUR')) {
       const fxSnapshot = await getFxSnapshot()
-      priceForNormalization = convertWithFxSnapshot(extracted.price, currency, 'EUR', fxSnapshot)
+      if (currency !== 'EUR') priceForNormalization = convertWithFxSnapshot(extracted.price, currency, 'EUR', fxSnapshot)
+      if (shippingForNormalization !== null && shippingCurrency !== 'EUR') {
+        shippingForNormalization = convertWithFxSnapshot(shippingForNormalization, shippingCurrency, 'EUR', fxSnapshot)
+      }
       fxSource = fxSnapshot.source
       fxAsOf = fxSnapshot.asOf
     }
@@ -554,6 +583,20 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       true,
       'EUR',
     ).amount
+    const normalizedShipping = shippingForNormalization === null
+      ? null
+      : normalizePrice(
+          new Prisma.Decimal(shippingForNormalization),
+          sourceVatIncluded,
+          offer.competitor.country.vatRate,
+          'EUR',
+          offer.packagingUnit,
+          packagingQty,
+          true,
+          'EUR',
+        ).amount
+    const deliveredPrice = normalizedShipping === null ? null : normalized.add(normalizedShipping)
+    const shippingLabel = extracted.shippingLabel ?? (extracted.shippingCost === 0 ? 'Gratis verzending' : null)
 
     const checkMethod = methodLabel(extracted.method, fetchMode, fxSource, fxAsOf)
     diagnosticSnapshot = {
@@ -561,6 +604,9 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       currency,
       stockStatus: extracted.stockStatus ?? offer.stockStatus,
       productTitle: extracted.productTitle ?? product?.name ?? null,
+      shippingCost: extracted.shippingCost,
+      shippingCurrency,
+      shippingLabel,
       checkMethod,
       statusCode: page.statusCode,
     }
@@ -590,6 +636,11 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           competitorOfferId: offer.id,
           checkedAt,
           foundPrice: new Prisma.Decimal(extracted.price),
+          shippingCost: extracted.shippingCost === null ? null : new Prisma.Decimal(extracted.shippingCost),
+          normalizedShippingCost: normalizedShipping,
+          deliveredPrice,
+          shippingCurrency: extracted.shippingCost === null ? null : shippingCurrency,
+          shippingLabel,
           currency,
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
           productTitle: extracted.productTitle ?? offer.productMatch?.product.name ?? null,
@@ -607,6 +658,11 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           recordedAt: checkedAt,
           price: new Prisma.Decimal(extracted.price),
           normalizedPrice: normalized,
+          shippingCost: extracted.shippingCost === null ? null : new Prisma.Decimal(extracted.shippingCost),
+          normalizedShippingCost: normalizedShipping,
+          deliveredPrice,
+          shippingCurrency: extracted.shippingCost === null ? null : shippingCurrency,
+          shippingLabel,
           currency,
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
           source: checkMethod,
@@ -617,6 +673,11 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
         data: {
           rawPrice: new Prisma.Decimal(extracted.price),
           normalizedPrice: normalized,
+          shippingCost: extracted.shippingCost === null ? null : new Prisma.Decimal(extracted.shippingCost),
+          normalizedShippingCost: normalizedShipping,
+          deliveredPrice,
+          shippingCurrency: extracted.shippingCost === null ? null : shippingCurrency,
+          shippingLabel,
           currency,
           packagingQty,
           vatIncluded: sourceVatIncluded,
@@ -652,6 +713,11 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       method: checkMethod,
       confidence: quality.confidence,
       packagingQty,
+      shippingCost: extracted.shippingCost,
+      normalizedShippingCost: normalizedShipping?.toNumber() ?? null,
+      deliveredPrice: deliveredPrice?.toNumber() ?? null,
+      shippingCurrency: extracted.shippingCost === null ? null : shippingCurrency,
+      shippingLabel,
       fxSource,
       fxAsOf,
       stockStatus: extracted.stockStatus ?? offer.stockStatus,
@@ -671,6 +737,9 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           competitorOfferId: offer.id,
           checkedAt,
           foundPrice: diagnosticSnapshot?.foundPrice ? new Prisma.Decimal(diagnosticSnapshot.foundPrice) : null,
+          shippingCost: diagnosticSnapshot?.shippingCost === null || diagnosticSnapshot?.shippingCost === undefined ? null : new Prisma.Decimal(diagnosticSnapshot.shippingCost),
+          shippingCurrency: diagnosticSnapshot?.shippingCurrency ?? null,
+          shippingLabel: diagnosticSnapshot?.shippingLabel ?? null,
           currency: diagnosticSnapshot?.currency ?? offer.currency,
           stockStatus: diagnosticSnapshot?.stockStatus ?? offer.stockStatus,
           productTitle: diagnosticSnapshot?.productTitle ?? offer.productMatch?.product.name ?? null,

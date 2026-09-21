@@ -12,6 +12,10 @@ type Suggestion = {
   observedPrice: number | null
   priceInclVat: number | null
   priceExclVat: number | null
+  shippingCost: number | null
+  shippingCurrency: string | null
+  deliveredPriceInclVat: number | null
+  shippingLabel: string | null
   vatIncluded: boolean | null
   vatRate: number
   currency: string
@@ -80,7 +84,7 @@ export function EanPriceSuggestions({
         <div>
           <p className="eyebrow">EAN {ean}</p>
           <h2 className="mt-1 text-[15px] font-semibold text-[#24384f]">Prijssuggesties</h2>
-          <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Eigen webshop en concurrenten, automatisch gecontroleerd in de gekozen markt. Je bepaalt zelf welke bron je gebruikt.</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Eigen webshop en concurrenten, automatisch gecontroleerd op prijs én verzendkosten in de gekozen markt. Alleen expliciete verzendkosten worden overgenomen.</p>
         </div>
         <button type="button" className="secondary-action min-h-[40px]" onClick={check} disabled={pending}>
           {pending ? 'Prijzen controleren…' : 'Opnieuw controleren'}
@@ -88,7 +92,7 @@ export function EanPriceSuggestions({
       </div>
       <div className="p-5 sm:px-6">
         {error ? <p role="alert" className="rounded-[10px] bg-[#fff1f2] px-4 py-3 text-[12px] text-[#a83f4b]">{error}</p> : null}
-        {pending && !result ? <p role="status" className="text-[12px] text-[#60758d]">Prysight controleert nu de beschikbare productbronnen op EAN en prijs.</p> : null}
+        {pending && !result ? <p role="status" className="text-[12px] text-[#60758d]">Prysight controleert nu de beschikbare productbronnen op EAN, prijs en verzendkosten.</p> : null}
         {result && !result.hasOwnUrl ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">De eigen product URL ontbreekt voor deze markt. Voeg die hierboven bij jouw verkoopprijs toe, zodat ook de eigen webshopprijs live gecontroleerd kan worden.</p> : null}
         {result && !result.hasCompetitors ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">Nog geen concurrentbronnen beschikbaar. Prysight zoekt automatisch naar EAN kandidaten. Je kunt ook hieronder opnieuw naar concurrenten zoeken.</p> : null}
         {items.length ? (
@@ -104,7 +108,7 @@ export function EanPriceSuggestions({
                     {item.confidence === 'HIGH' ? 'EAN bevestigd' : item.confidence === 'REVIEW' ? 'Controleren' : 'Geen prijs'}
                   </span>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[10px] bg-[#f3f7fb] px-3 py-3">
                     <p className="text-[10px] text-[#74869a]">Inclusief btw</p>
                     <p className="mt-1 text-[15px] font-semibold text-[#24384f]">{formatAmount(item.priceInclVat, item.currency)}</p>
@@ -112,6 +116,14 @@ export function EanPriceSuggestions({
                   <div className="rounded-[10px] bg-[#f3f7fb] px-3 py-3">
                     <p className="text-[10px] text-[#74869a]">Exclusief btw</p>
                     <p className="mt-1 text-[15px] font-semibold text-[#24384f]">{formatAmount(item.priceExclVat, item.currency)}</p>
+                  </div>
+                  <div className="rounded-[10px] bg-[#f3f7fb] px-3 py-3">
+                    <p className="text-[10px] text-[#74869a]">Verzendkosten</p>
+                    <p className="mt-1 text-[15px] font-semibold text-[#24384f]">{item.shippingCost === 0 ? 'Gratis' : formatAmount(item.shippingCost, item.shippingCurrency ?? item.currency)}</p>
+                  </div>
+                  <div className="rounded-[10px] bg-[#eef7f2] px-3 py-3">
+                    <p className="text-[10px] text-[#668072]">Totaal incl. verzending</p>
+                    <p className="mt-1 text-[15px] font-semibold text-[#244b37]">{formatAmount(item.deliveredPriceInclVat, item.currency)}</p>
                   </div>
                 </div>
                 {item.observedPrice !== null ? <p className="mt-2 text-[10px] text-[#687c90]">Gelezen bronprijs: {formatAmount(item.observedPrice, item.currency)} · Btw {item.vatIncluded === null ? 'onbekend' : item.vatIncluded ? 'inbegrepen' : 'niet inbegrepen'} · Tarief {item.vatRate}%</p> : null}

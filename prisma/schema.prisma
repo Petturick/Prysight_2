@@ -404,9 +404,14 @@ model CompetitorOffer {
   productMatchId  String?        @map("product_match_id")
   url             String
   rawPrice        Decimal?       @map("raw_price")
-  normalizedPrice Decimal?       @map("normalized_price")
-  currency        String         @default("EUR")
-  vatIncluded     Boolean        @default(true) @map("vat_included")
+  normalizedPrice       Decimal?       @map("normalized_price")
+  shippingCost          Decimal?       @map("shipping_cost")
+  normalizedShippingCost Decimal?      @map("normalized_shipping_cost")
+  deliveredPrice        Decimal?       @map("delivered_price")
+  shippingCurrency      String?        @map("shipping_currency")
+  shippingLabel         String?        @map("shipping_label")
+  currency              String         @default("EUR")
+  vatIncluded           Boolean        @default(true) @map("vat_included")
   packagingUnit   String?        @map("packaging_unit")
   packagingQty    Int?           @map("packaging_qty")
   stockStatus     String?        @map("stock_status")
@@ -454,9 +459,14 @@ model PriceCheck {
   companyId         String          @default("cmp_engels_group") @map("company_id")
   competitorOfferId String          @map("competitor_offer_id")
   checkedAt         DateTime        @map("checked_at")
-  foundPrice        Decimal?        @map("found_price")
-  currency          String
-  stockStatus       String?         @map("stock_status")
+  foundPrice             Decimal?        @map("found_price")
+  shippingCost          Decimal?        @map("shipping_cost")
+  normalizedShippingCost Decimal?       @map("normalized_shipping_cost")
+  deliveredPrice        Decimal?        @map("delivered_price")
+  shippingCurrency      String?         @map("shipping_currency")
+  shippingLabel         String?         @map("shipping_label")
+  currency               String
+  stockStatus            String?         @map("stock_status")
   productTitle      String?         @map("product_title")
   packagingUnit     String?         @map("packaging_unit")
   checkMethod       String          @map("check_method")
@@ -478,10 +488,15 @@ model PriceHistory {
   companyId         String          @default("cmp_engels_group") @map("company_id")
   competitorOfferId String          @map("competitor_offer_id")
   recordedAt        DateTime        @map("recorded_at")
-  price             Decimal
-  normalizedPrice   Decimal?        @map("normalized_price")
-  currency          String
-  stockStatus       String?         @map("stock_status")
+  price                  Decimal
+  normalizedPrice        Decimal?        @map("normalized_price")
+  shippingCost           Decimal?        @map("shipping_cost")
+  normalizedShippingCost Decimal?        @map("normalized_shipping_cost")
+  deliveredPrice         Decimal?        @map("delivered_price")
+  shippingCurrency       String?         @map("shipping_currency")
+  shippingLabel          String?         @map("shipping_label")
+  currency               String
+  stockStatus            String?         @map("stock_status")
   source            String
   createdAt         DateTime        @default(now()) @map("created_at")
   company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)

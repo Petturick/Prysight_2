@@ -14,6 +14,8 @@ export type ProductGridRow = {
   ownInc: string
   marketEx: string
   marketInc: string
+  shipping: string
+  delivered: string
   difference: string
   differencePct: number | null
   sources: number
@@ -23,7 +25,7 @@ export type ProductGridRow = {
   detailHref: string
 }
 
-type Column = 'articleNumber' | 'name' | 'ean' | 'group' | 'markets' | 'ownEx' | 'ownInc' | 'marketEx' | 'marketInc' | 'difference' | 'sources' | 'lastChecked' | 'status'
+type Column = 'articleNumber' | 'name' | 'ean' | 'group' | 'markets' | 'ownEx' | 'ownInc' | 'marketEx' | 'marketInc' | 'shipping' | 'delivered' | 'difference' | 'sources' | 'lastChecked' | 'status'
 const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
   { key: 'articleNumber', label: 'Artikelnummer' },
   { key: 'name', label: 'Product' },
@@ -34,6 +36,8 @@ const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
   { key: 'ownInc', label: 'Eigen incl. btw', align: 'right' },
   { key: 'marketEx', label: 'Laagste excl. btw', align: 'right' },
   { key: 'marketInc', label: 'Laagste incl. btw', align: 'right' },
+  { key: 'shipping', label: 'Verzendkosten', align: 'right' },
+  { key: 'delivered', label: 'Totaal incl. verzending', align: 'right' },
   { key: 'difference', label: 'Prijsverschil', align: 'right' },
   { key: 'sources', label: 'Bronnen', align: 'right' },
   { key: 'lastChecked', label: 'Laatste meting' },
@@ -41,7 +45,7 @@ const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
 ]
 const DEFAULT_COLUMNS: Column[] = [
   'articleNumber', 'name', 'ean', 'markets', 'ownEx', 'ownInc',
-  'marketInc', 'difference', 'sources', 'lastChecked', 'status',
+  'marketInc', 'shipping', 'delivered', 'difference', 'sources', 'lastChecked', 'status',
 ]
 
 export function ProductOverviewGrid({
