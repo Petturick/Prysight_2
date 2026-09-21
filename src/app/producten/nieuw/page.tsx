@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createSmartProductAction } from '@/app/actions/smartProductActions'
 import { ProductUrlQuickStart } from '@/components/ProductUrlQuickStart'
 import { EanDiscoveryField } from '@/components/EanDiscoveryField'
+import { ProductCreateSubmitButton } from '@/components/ProductCreateSubmitButton'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
@@ -135,7 +136,7 @@ export default async function NewProductPage() {
           </div>
           <div className="flex shrink-0 gap-2">
             <Link href="/producten" className="secondary-action">Annuleren</Link>
-            <button type="submit" className="primary-action min-w-[210px]">Opslaan en concurrenten zoeken</button>
+            <ProductCreateSubmitButton />
           </div>
         </section>
       </form>
