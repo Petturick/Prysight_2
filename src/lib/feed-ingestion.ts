@@ -83,7 +83,7 @@ async function discoverFeedProductCompetitors(feedSourceId: string) {
   }
 
   const targets = [...unique.values()]
-  const immediate = targets.slice(0, 12)
+  const immediate = targets.slice(0, 4)
   let suggestions = 0
   let failed = 0
 
