@@ -6,6 +6,7 @@ import { requireWritableUser } from '@/lib/authz'
 import type { BulkProductRow } from '@/lib/bulk-product-import'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
+import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -19,6 +20,8 @@ const rowSchema = z.object({
   productGroup: z.string().default('Onbekend'),
   productTags: z.string().default(''),
   ownPrice: z.string().default(''),
+  vatIncluded: z.string().default(''),
+  ownUrl: z.string().default(''),
   costPrice: z.string().default(''),
   country: z.string().default('NL'),
   currency: z.string().default('EUR'),
@@ -42,6 +45,13 @@ const payloadSchema = z.object({
 function decimal(value: string) {
   const numeric = Number(value.replace(',', '.'))
   return value && Number.isFinite(numeric) ? new Prisma.Decimal(numeric) : null
+}
+
+function vatIncluded(value: string, fallback = true) {
+  const normalized = value.trim().toLowerCase()
+  if (['false', '0', 'nee', 'no', 'excl', 'exclusive', 'excluding'].includes(normalized)) return false
+  if (['true', '1', 'ja', 'yes', 'incl', 'inclusive', 'including'].includes(normalized)) return true
+  return fallback
 }
 
 function positiveInteger(value: string) {
@@ -71,7 +81,7 @@ async function inChunks<T>(items: T[], size: number, worker: (item: T) => Promis
 export async function processBulkProductImportAction(payload: unknown) {
   const parsed = payloadSchema.safeParse(payload)
   if (!parsed.success) {
-    return { ok: false, message: 'Bulkimport afgekeurd door validatie.', errors: parsed.error.issues.map((issue) => issue.message), summary: { products: 0, markets: 0, groups: 0 } }
+    return { ok: false, message: 'Bulkimport afgekeurd door validatie.', errors: parsed.error.issues.map((issue) => issue.message), summary: { products: 0, markets: 0, groups: 0, suggestions: 0 } }
   }
 
   const user = await requireWritableUser()
@@ -106,6 +116,8 @@ export async function processBulkProductImportAction(payload: unknown) {
   const warnings: string[] = []
   let processed = 0
   let marketCount = 0
+  let suggestionCount = 0
+  const discoveryTargets: Array<{ productId: string; countryId: string; articleNumber: string }> = []
 
   try {
     const groups = await Promise.all(groupNames.map((name) => prisma.productGroup.upsert({
@@ -124,6 +136,7 @@ export async function processBulkProductImportAction(payload: unknown) {
         const ownPrice = decimal(row.ownPrice)
         const country = countryByCode.get((row.country || 'NL').toUpperCase())
         const note = reportNote(row)
+        const existing = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId, articleNumber: row.articleNumber.trim() } }, select: { vatIncluded: true } })
         const product = await prisma.product.upsert({
           where: { companyId_articleNumber: { companyId, articleNumber: row.articleNumber.trim() } },
           update: {
@@ -131,6 +144,7 @@ export async function processBulkProductImportAction(payload: unknown) {
             ean: row.ean || undefined,
             productGroupId: group.id,
             ownPrice: ownPrice ?? undefined,
+            vatIncluded: vatIncluded(row.vatIncluded, existing?.vatIncluded ?? true),
             packagingUnit: row.packagingUnit || 'stuks',
             packagingQty: positiveInteger(row.packagingQty),
             currency: row.currency || 'EUR',
@@ -144,6 +158,7 @@ export async function processBulkProductImportAction(payload: unknown) {
             name: row.productName.trim(),
             productGroupId: group.id,
             ownPrice,
+            vatIncluded: vatIncluded(row.vatIncluded, true),
             packagingUnit: row.packagingUnit || 'stuks',
             packagingQty: positiveInteger(row.packagingQty),
             currency: row.currency || 'EUR',
@@ -162,10 +177,11 @@ export async function processBulkProductImportAction(payload: unknown) {
         if (country && activeCountryIds.has(country.id)) {
           await prisma.productMarket.upsert({
             where: { companyId_productId_countryId: { companyId, productId: product.id, countryId: country.id } },
-            update: { ownPrice: ownPrice ?? undefined, currency: row.currency || country.currency, isActive: true },
-            create: { companyId, productId: product.id, countryId: country.id, ownPrice, currency: row.currency || country.currency, stockStatus: 'Onbekend', isActive: true },
+            update: { ownPrice: ownPrice ?? undefined, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, isActive: true },
+            create: { companyId, productId: product.id, countryId: country.id, ownPrice, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, stockStatus: 'Onbekend', isActive: true },
           })
           marketCount += 1
+          discoveryTargets.push({ productId: product.id, countryId: country.id, articleNumber: row.articleNumber.trim() })
         } else {
           warnings.push(`${row.articleNumber}: markt ${row.country || 'NL'} is niet actief of niet herkend.`)
         }
@@ -174,6 +190,29 @@ export async function processBulkProductImportAction(payload: unknown) {
         errors.push(`${row.articleNumber}: ${error instanceof Error ? error.message : 'onbekende fout'}`)
       }
     })
+
+    if (user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')) {
+      const uniqueTargets = [...new Map(discoveryTargets.map((target) => [`${target.productId}:${target.countryId}`, target])).values()]
+      const immediateTargets = uniqueTargets.slice(0, 8)
+
+      await inChunks(immediateTargets, 2, async (target) => {
+        try {
+          const discovery = await discoverProductCandidates({
+            companyId,
+            productId: target.productId,
+            countryId: target.countryId,
+          })
+          suggestionCount += discovery.created
+        } catch (error) {
+          warnings.push(`${target.articleNumber}: AI concurrentsuggesties konden niet direct worden opgebouwd, dit wordt later opnieuw geprobeerd.`)
+          console.error('Bulk product competitor discovery failed', { companyId, productId: target.productId, error })
+        }
+      })
+
+      if (uniqueTargets.length > immediateTargets.length) {
+        warnings.push(`Voor ${uniqueTargets.length - immediateTargets.length} extra producten worden concurrentsuggesties automatisch via de achtergrondcontrole aangevuld.`)
+      }
+    }
 
     await prisma.importTask.update({
       where: { id: task.id },
@@ -185,7 +224,7 @@ export async function processBulkProductImportAction(payload: unknown) {
       action: 'BULK_PRODUCT_IMPORT',
       entityType: 'ImportTask',
       entityId: task.id,
-      newValue: { companyId, filename: parsed.data.filename, profile: parsed.data.profile, products: processed, markets: marketCount, groups: groupNames.length, errors: errors.length },
+      newValue: { companyId, filename: parsed.data.filename, profile: parsed.data.profile, products: processed, markets: marketCount, groups: groupNames.length, suggestions: suggestionCount, errors: errors.length },
     })
 
     for (const path of ['/import', '/import/bulk', '/producten', '/dashboard', '/productmatches']) revalidatePath(path)
@@ -195,11 +234,11 @@ export async function processBulkProductImportAction(payload: unknown) {
       message: errors.length ? `${processed} producten verwerkt, ${errors.length} regels met fouten.` : `${processed} producten succesvol geïmporteerd.`,
       errors,
       warnings,
-      summary: { products: processed, markets: marketCount, groups: groupNames.length },
+      summary: { products: processed, markets: marketCount, groups: groupNames.length, suggestions: suggestionCount },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Bulkimport is onverwacht gestopt.'
     await prisma.importTask.update({ where: { id: task.id }, data: { status: ImportStatus.FAILED, processedRows: processed, errorRows: Math.max(1, errors.length), errors: [...errors, message], warnings } })
-    return { ok: false, message, errors: [...errors, message], warnings, summary: { products: processed, markets: marketCount, groups: groupNames.length } }
+    return { ok: false, message, errors: [...errors, message], warnings, summary: { products: processed, markets: marketCount, groups: groupNames.length, suggestions: suggestionCount } }
   }
 }

@@ -45,6 +45,7 @@ export async function createProductAction(formData: FormData) {
   const ean = text(formData, 'ean')
   const productGroup = text(formData, 'productGroup') || 'Onbekend'
   const ownPrice = text(formData, 'ownPrice')
+  const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const packagingUnit = text(formData, 'packagingUnit') || 'stuks'
   const packagingQty = positiveInteger(text(formData, 'packagingQty'))
@@ -59,7 +60,7 @@ export async function createProductAction(formData: FormData) {
     sourceName: 'Handmatig toegevoegd in Prysight',
     sourceType: FeedSourceType.API,
     countryCode: country?.code ?? 'GLOBAL',
-    products: [{ articleNumber, ean: ean || undefined, gtin: ean || undefined, name, productGroup, ownPrice: ownPrice || undefined, currency, stockStatus, packagingUnit, packagingQty, countryCode: country?.code, ownUrl: ownUrl || undefined, isActive: true }],
+    products: [{ articleNumber, ean: ean || undefined, gtin: ean || undefined, name, productGroup, ownPrice: ownPrice || undefined, vatIncluded, currency, stockStatus, packagingUnit, packagingQty, countryCode: country?.code, ownUrl: ownUrl || undefined, isActive: true }],
     config: { mode: 'manual', createdBy: user.email },
   })
   const product = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId: user.companyId, articleNumber } } })
@@ -80,6 +81,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
   const ownPrice = requiredPrice(text(formData, 'ownPrice'))
+  const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const ownUrl = text(formData, 'ownUrl')
   if (!productId) throw new Error('Product ontbreekt.')
@@ -101,6 +103,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     if (country) {
+      await tx.product.update({ where: { id: productId }, data: { vatIncluded } })
       await tx.productMarket.upsert({
         where: { companyId_productId_countryId: { companyId: user.companyId, productId, countryId: country.id } },
         update: {
@@ -133,7 +136,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
     } else {
       await tx.product.update({
         where: { id: productId },
-        data: { ownPrice, currency, stockStatus },
+        data: { ownPrice, currency, stockStatus, vatIncluded },
       })
       await tx.ownPriceHistory.create({
         data: { companyId: user.companyId, productId, countryId: null, recordedAt: new Date(), price: ownPrice, currency },
@@ -193,6 +196,38 @@ export async function addCompetitorOfferAction(formData: FormData) {
   })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${product.id}`); revalidatePath('/concurrenten')
   redirect(`/producten/${product.id}?bron=toegevoegd`)
+}
+
+export async function removeCompetitorOfferAction(formData: FormData) {
+  const user = await requirePermission('competitors.write')
+  const productId = text(formData, 'productId')
+  const competitorOfferId = text(formData, 'competitorOfferId')
+  if (!productId || !competitorOfferId) throw new Error('Product of concurrent ontbreekt.')
+
+  const match = await prisma.productMatch.findFirst({
+    where: {
+      companyId: user.companyId,
+      productId,
+      competitorOfferId,
+      competitorOffer: { companyId: user.companyId },
+    },
+    select: { id: true, competitorOfferId: true },
+  })
+  if (!match) throw new Error('Deze concurrent is niet meer aan het product gekoppeld.')
+
+  await prisma.$transaction([
+    prisma.productMatch.delete({ where: { id: match.id } }),
+    prisma.competitorOffer.update({
+      where: { id: match.competitorOfferId },
+      data: { isActive: false },
+    }),
+  ])
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/productmatches')
+  revalidatePath('/concurrenten')
 }
 
 export async function discoverCompetitorUrlsAction(formData: FormData) {

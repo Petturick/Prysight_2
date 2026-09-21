@@ -21,6 +21,7 @@ export async function createSmartProductAction(formData: FormData) {
   const currency=text(formData,'currency')||country?.currency||'EUR'
   const ean=text(formData,'ean'), gtin=text(formData,'gtin'), mpn=text(formData,'mpn')
   const ownPrice=text(formData,'ownPrice')
+  const vatIncluded=text(formData,'vatIncluded') !== 'false'
   const parsedOwnPrice=Number(ownPrice.replace(',', '.'))
   if(!ownPrice||!Number.isFinite(parsedOwnPrice)||parsedOwnPrice<=0)throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
   const pricingFields=['costPrice','minimumMarginPct','targetMarginPct','minimumPrice','maximumPrice','pricingMode','pricingCooldownHours']
@@ -43,6 +44,7 @@ export async function createSmartProductAction(formData: FormData) {
       name,
       productGroup:text(formData,'productGroup')||'Onbekend',
       ownPrice,
+      vatIncluded,
       costPrice:text(formData,'costPrice')||undefined,
       minimumMarginPct:text(formData,'minimumMarginPct')||undefined,
       targetMarginPct:text(formData,'targetMarginPct')||undefined,
@@ -64,7 +66,7 @@ export async function createSmartProductAction(formData: FormData) {
   if(!product)throw new Error('Product is verwerkt maar kon niet worden geladen.')
 
   let suggestions=0
-  if(country&&(ean||gtin||mpn)&&actor.permissions.includes('competitors.write')){
+  if(country&&(actor.role==='SUPER_ADMIN'||actor.permissions.includes('competitors.write'))){
     try{const result=await discoverProductCandidates({companyId:actor.companyId,productId:product.id,countryId:country.id});suggestions=result.created}catch(error){console.error('Smart product discovery failed',error)}
   }
   revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')

@@ -7,6 +7,7 @@ import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
+import { detectVatInclusion } from '@/lib/vat-detection'
 
 type ExtractionMethod = 'JSON_LD' | 'META' | 'MAGENTO' | 'HTML_REGEX'
 type ExtractedOffer = {
@@ -523,6 +524,8 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     if (!extracted.price) throw new Error('Geen betrouwbare prijs gevonden op de productpagina.')
     const currency = (extracted.currency ?? offer.currency ?? offer.competitor.country.currency).toUpperCase()
     const packagingQty = extracted.packagingQty ?? offer.packagingQty ?? 1
+    const detectedVat = detectVatInclusion(page.html, extracted.price)
+    const sourceVatIncluded = detectedVat.vatIncluded ?? offer.vatIncluded
 
     let priceForNormalization = extracted.price
     let fxSource: string | null = null
@@ -536,7 +539,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
 
     const normalized = normalizePrice(
       new Prisma.Decimal(priceForNormalization),
-      offer.vatIncluded,
+      sourceVatIncluded,
       offer.competitor.country.vatRate,
       'EUR',
       offer.packagingUnit,
@@ -609,6 +612,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
           normalizedPrice: normalized,
           currency,
           packagingQty,
+          vatIncluded: sourceVatIncluded,
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
           lastCheckedAt: checkedAt,
         },

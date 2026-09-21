@@ -10,6 +10,8 @@ export type BulkProductRow = {
   productGroup: string
   productTags: string
   ownPrice: string
+  vatIncluded: string
+  ownUrl: string
   costPrice: string
   country: string
   currency: string
@@ -43,6 +45,15 @@ function normalizeNumber(value: string | undefined) {
   const normalized = raw.replace(/\s/g, '').replace(',', '.')
   const numeric = Number(normalized)
   return Number.isFinite(numeric) ? String(numeric) : ''
+}
+
+function normalizeVatIncluded(value: string | undefined, priceHeader = '') {
+  const raw = (value ?? '').trim().toLowerCase()
+  const header = priceHeader.trim().toLowerCase()
+  const combined = `${raw} ${header}`
+  if (/\b(?:false|0|nee|no|excl|exclusive|excluding|ex\.?\s*(?:vat|btw)|zzgl)\b/i.test(combined)) return 'false'
+  if (/\b(?:true|1|ja|yes|incl|inclusive|including|inkl)\b/i.test(combined)) return 'true'
+  return ''
 }
 
 function validBarcode(value: string | undefined) {
@@ -93,6 +104,8 @@ export function recognizeBulkProductFeed(parsed: ParsedImportResult): BulkProduc
   const categoryHeader = headerByAliases(headers, ['Category', 'Categorie', 'Product Group', 'Productgroep']) || inferred.productGroup
   const tagsHeader = headerByAliases(headers, ['Product Tags', 'Tags'])
   const ownPriceHeader = headerByAliases(headers, ['My Price', 'Eigen prijs', 'Own Price', 'Verkoopprijs']) || inferred.ownPrice
+  const vatIncludedHeader = inferred.vatIncluded
+  const ownUrlHeader = inferred.engelsUrl
   const costPriceHeader = headerByAliases(headers, ['My Product Cost', 'Product Cost', 'Cost Price', 'Kostprijs', 'Inkoopprijs']) || inferred.costPrice
   const marketMinHeader = headerByAliases(headers, ['Minimum Price', 'Minimum marktprijs'])
   const marketMaxHeader = headerByAliases(headers, ['Maximum Price', 'Maximum marktprijs'])
@@ -123,6 +136,8 @@ export function recognizeBulkProductFeed(parsed: ParsedImportResult): BulkProduc
       productGroup: value(row, categoryHeader).trim() || 'Onbekend',
       productTags: value(row, tagsHeader).trim(),
       ownPrice: normalizeNumber(value(row, ownPriceHeader)),
+      vatIncluded: normalizeVatIncluded(value(row, vatIncludedHeader), ownPriceHeader),
+      ownUrl: value(row, ownUrlHeader).trim(),
       costPrice: normalizeNumber(value(row, costPriceHeader)),
       country: value(row, countryHeader).trim().toUpperCase() || 'NL',
       currency: value(row, currencyHeader).trim().toUpperCase() || 'EUR',
@@ -139,7 +154,7 @@ export function recognizeBulkProductFeed(parsed: ParsedImportResult): BulkProduc
 
   const recognizedHeaders = new Set([
     productCodeHeader, productNameHeader, barcodeHeader, brandHeader, categoryHeader, tagsHeader, ownPriceHeader,
-    costPriceHeader, marketMinHeader, marketMaxHeader, marketAverageHeader, marketPositionHeader, marketIndexHeader,
+    vatIncludedHeader, ownUrlHeader, costPriceHeader, marketMinHeader, marketMaxHeader, marketAverageHeader, marketPositionHeader, marketIndexHeader,
     matchCountHeader, countryHeader, currencyHeader, packagingUnitHeader, packagingQtyHeader,
   ].filter(Boolean))
 

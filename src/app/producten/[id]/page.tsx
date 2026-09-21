@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { addCompetitorOfferAction, discoverCompetitorUrlsAction, runCompetitorOfferResearchAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
+import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
+import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -105,6 +106,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const defaultCountry = countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id)) ?? countries.find((country) => country.code === 'NL') ?? countries[0]
   const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
+  const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const confirmedMatches = product.matches.filter((match) => match.matchStatus === 'CERTAIN' && match.competitorOffer.isActive)
   const reviewMatches = product.matches.filter((match) => match.matchStatus === 'REVIEW' && match.competitorOffer.isActive)
   const crawlableMatches = product.matches.filter((match) => (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW') && match.competitorOffer.isActive)
@@ -127,7 +129,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const latestCheck = crawlableMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
   const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
   const ownCurrency = selectedMarket?.currency ?? product.currency
-  const averageDifferencePct = ownPrice !== null && averagePrice !== null && averagePrice > 0 ? ((ownPrice - averagePrice) / averagePrice) * 100 : null
+  const vatRate = numberValue(defaultCountry?.vatRate)
+  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
+    ? ownPrice * (1 + vatRate / 100)
+    : ownPrice
+  const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
   const measurementQuality = confirmedMatches.length >= 3 && staleSources === 0 && failedLatestChecks === 0
@@ -143,7 +149,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const recommendedPrice = recommendation?.recommendedPrice ?? null
   const expectedMargin = recommendation?.marginAfterPct ?? null
   const currentMargin = recommendation?.marginBeforePct ?? null
-  const marketPosition = recommendation?.marketPosition ?? (ownPrice !== null && prices.length ? prices.filter((price) => price < ownPrice).length + 1 : null)
+  const marketPosition = recommendation?.marketPosition ?? (comparisonOwnPrice !== null && prices.length ? prices.filter((price) => price < comparisonOwnPrice).length + 1 : null)
   const competitorCount = recommendation?.competitorCount ?? pricedMatches.length
   const guardrailMin = recommendation?.minimumAllowedPrice ?? null
   const guardrailMax = recommendation?.maximumAllowedPrice ?? null
@@ -220,7 +226,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
           <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
             <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#7b8999]">{selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
+            <p className="mt-1 text-[10px] text-[#7b8999]">{product.vatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
             {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voeg eerst je eigen prijs toe om marktverschillen en prijsadvies correct te berekenen.</p> : null}
           </div>
           <div className="p-5 sm:p-6">
@@ -235,6 +241,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
                   </div>
                 </label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(product.vatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
                 {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
                 <div className="md:col-span-2 flex justify-end">
@@ -258,7 +265,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
 
         <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-          <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Eigen prijs</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(ownPrice, ownCurrency)}</p></div>
+          <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Eigen prijs voor vergelijking</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p><p className="mt-1 text-[9px] text-[#8793a3]">{product.vatIncluded ? 'Prijs inclusief btw' : 'Genormaliseerd naar inclusief btw'}</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Markt</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(marketBenchmark)}</p><p className="mt-1 text-[10px] text-[#8793a3]">{competitorCount} gemeten</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Advies</p><p className={`mt-1 text-[23px] font-semibold ${adviceTone}`}>{formatCurrency(recommendedPrice)}</p><p className={`mt-1 text-[10px] font-medium ${adviceTone}`}>{actionLabel(recommendation?.action)}{adviceChange !== null ? ` · ${adviceChange > 0 ? '+' : ''}${formatNumber(adviceChange, 1)}%` : ''}</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Positie</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{marketPosition === null ? '—' : `${marketPosition} / ${competitorCount + 1}`}</p></div>
@@ -295,7 +302,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 {comparisonMatches.map((match, index) => {
                   const offer = match.competitorOffer
                   const price = numberValue(offer.normalizedPrice)
-                  const ownDeltaPct = ownPrice !== null && price !== null && ownPrice > 0 ? ((price - ownPrice) / ownPrice) * 100 : null
+                  const ownDeltaPct = comparisonOwnPrice !== null && price !== null && comparisonOwnPrice > 0 ? ((price - comparisonOwnPrice) / comparisonOwnPrice) * 100 : null
                   const latestSourceCheck = offer.priceChecks[0]
                   const sourceIssue = sourceIssueLabel(latestSourceCheck?.errorMessage)
 
@@ -307,7 +314,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                       <td className="px-4 py-3"><span className="ps-chip">{offer.stockStatus ?? 'Onbekend'}</span></td>
                       <td className="px-4 py-3"><p className="font-medium text-[#44576d]">{offer.lastCheckedAt ? formatDate(offer.lastCheckedAt) : 'Nog niet'}</p></td>
                       <td className="px-4 py-3">{latestSourceCheck ? <span className={`ps-chip ${latestSourceCheck.isSuccess ? 'ps-chip-green' : 'ps-chip-red'}`}>{latestSourceCheck.isSuccess ? 'Actueel' : 'Probleem'}</span> : <span className="ps-chip">Niet gemeten</span>}{sourceIssue ? <p className="mt-1 max-w-[150px] text-[9px] text-[#a93442]">{sourceIssue}</p> : null}</td>
-                      <td className="px-4 py-3"><form action={runCompetitorOfferResearchAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><PriceFetchSubmitButton compact idleLabel={latestSourceCheck ? 'Opnieuw' : 'Prijs ophalen'} pendingLabel="Ophalen…" /></form></td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-2"><form action={runCompetitorOfferResearchAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><PriceFetchSubmitButton compact idleLabel={latestSourceCheck ? 'Opnieuw' : 'Prijs ophalen'} pendingLabel="Ophalen…" /></form>{canEditCompetitors ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={offer.id} /><RemoveCompetitorButton label={offer.competitor.name} /></form> : null}</div></td>
                     </tr>
                   )
                 })}
@@ -365,7 +372,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             </form>
           ) : <span className="text-[11px] font-medium text-[#8a6a2a]">{product.ean ? 'Geen actieve markt beschikbaar.' : 'EAN ontbreekt.'}</span>}
         </div>
-        {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <a key={match.id} href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></div><span className="ps-chip ps-chip-blue">{formatNumber(match.confidenceScore)}%</span></div></a>)}</div> : null}
+        {reviewMatches.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{reviewMatches.map((match) => <div key={match.id} className="rounded-[12px] border border-[#d8d2f6] bg-white p-3"><div className="flex items-start justify-between gap-3"><a href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1"><p className="text-[11px] font-semibold text-[#253149]">{match.competitorOffer.competitor.name}</p><p className="mt-1 max-w-[260px] truncate text-[9px] text-[#697386]">{match.competitorOffer.url}</p></a><div className="flex items-center gap-2"><span className="ps-chip ps-chip-blue">AI {formatNumber(match.confidenceScore)}%</span>{canEditCompetitors ? <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={match.competitorOffer.id} /><RemoveCompetitorButton label={match.competitorOffer.competitor.name} /></form> : null}</div></div></div>)}</div> : null}
         {reviewMatches.length ? <div className="mt-3 flex justify-end"><Link href="/productmatches" className="text-[11px] font-semibold text-[#2f6edb]">Suggesties beoordelen</Link></div> : null}
       </section>
 

@@ -236,7 +236,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-medium text-[#8591a0]">Eigen prijs</p>
                     {item.ownPrice !== null && item.ownPrice !== undefined
-                      ? <p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.ownPrice, item.ownCurrency)}</p>
+                      ? <><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.ownPrice, item.ownCurrency)}</p><p className="mt-0.5 text-[9px] text-[#8793a3]">{item.vatIncluded ? 'Incl. btw' : `Excl. btw · vergelijking ${formatCurrency(item.comparisonOwnPrice, item.ownCurrency)} incl.`}</p></>
                       : <Link href={`/producten/${item.product.id}#eigen-prijs`} className="mt-1 inline-flex text-[11px] font-semibold text-[#2f6edb]">Prijs toevoegen →</Link>}
                   </div>
                   <div className="px-4 py-3"><p className="text-[10px] font-medium text-[#8591a0]">Laagste markt</p><p className="mt-1 text-[16px] font-semibold text-[#24384f]">{formatCurrency(item.lowestPrice)}</p>{cheapestCompetitor ? <p className="mt-0.5 truncate text-[10px] text-[#8793a3]">{cheapestCompetitor}</p> : null}</div>
