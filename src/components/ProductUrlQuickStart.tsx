@@ -42,8 +42,8 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
   const [message, setMessage] = useState<string | null>(null)
   const [preview, setPreview] = useState<ProductPreview | null>(null)
 
-  async function recognize() {
-    const rawUrl = url.trim()
+  async function recognize(inputUrl?: string) {
+    const rawUrl = (inputUrl ?? url).trim()
     if (!rawUrl) {
       setMessage('Plak eerst de URL van je productpagina.')
       return
@@ -91,7 +91,10 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
           ? 'Prijs is herkend als exclusief btw.'
           : 'Btw status kon niet betrouwbaar worden herkend, controleer die handmatig.'
 
-      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}`)
+      const discoveryText = payload.ean
+        ? ' EAN is herkend, na opslaan zoekt Prysight automatisch concurrenten in de gekozen markt.'
+        : ' EAN is niet gevonden, vul die handmatig in voor de betrouwbaarste concurrentherkenning.'
+      setMessage(`Product herkend, ${applied} velden zijn ingevuld. ${vatText}${discoveryText}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
     } finally {
@@ -112,13 +115,21 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
           </div>
 
           <p className="mt-3 max-w-3xl text-[11px] leading-5 text-[#6f7d90]">
-            Prysight leest de productpagina uit en vult waar mogelijk productnaam, SKU, EAN, merk, model, productgroep, prijs, valuta, voorraad, verpakking en btw status automatisch in.
+            Prysight leest de productpagina uit en vult waar mogelijk productnaam, SKU, EAN, merk, prijs, valuta en btw status in. Als een EAN wordt gevonden, wordt die na opslaan automatisch gebruikt voor concurrentherkenning.
           </p>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <input
               value={url}
+              autoFocus
               onChange={(event) => setUrl(event.target.value)}
+              onPaste={(event) => {
+                const pasted = event.clipboardData.getData('text').trim()
+                if (!/^https?:\/\//i.test(pasted)) return
+                event.preventDefault()
+                setUrl(pasted)
+                void recognize(pasted)
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault()
@@ -150,7 +161,7 @@ export function ProductUrlQuickStart({ formId }: { formId: string }) {
             <div className="mt-3 flex flex-wrap gap-2">
               {preview.ownPrice !== null ? <span className="ps-chip ps-chip-green">Prijs herkend</span> : <span className="ps-chip ps-chip-amber">Prijs controleren</span>}
               {preview.articleNumber ? <span className="ps-chip ps-chip-blue">SKU herkend</span> : null}
-              {preview.ean ? <span className="ps-chip ps-chip-blue">EAN herkend</span> : null}
+              {preview.ean ? <span className="ps-chip ps-chip-green">EAN herkend, AI zoekactie klaar</span> : <span className="ps-chip ps-chip-amber">EAN nog nodig voor beste match</span>}
               {preview.vatIncluded !== null ? <span className="ps-chip ps-chip-blue">{preview.vatIncluded ? 'Incl. btw' : 'Excl. btw'}</span> : <span className="ps-chip ps-chip-amber">Btw status controleren</span>}
             </div>
           ) : null}
