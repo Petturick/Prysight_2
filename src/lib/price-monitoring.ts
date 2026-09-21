@@ -490,6 +490,25 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
   const previousPrice = offer.normalizedPrice
   const previousStockStatus = offer.stockStatus
   const product = offer.productMatch?.product
+  const productMarket = product
+    ? await prisma.productMarket.findUnique({
+        where: {
+          companyId_productId_countryId: {
+            companyId: offer.companyId,
+            productId: product.id,
+            countryId: offer.competitor.countryId,
+          },
+        },
+      })
+    : null
+  const marketOwnPrice = productMarket?.ownPrice ?? product?.ownPrice ?? null
+  const marketVatIncluded = productMarket?.vatIncluded ?? product?.vatIncluded ?? true
+  const marketVatRate = Number(offer.competitor.country.vatRate)
+  const comparableOwnPrice = marketOwnPrice === null
+    ? null
+    : marketVatIncluded
+      ? Number(marketOwnPrice)
+      : Number(marketOwnPrice) * (1 + marketVatRate / 100)
   const trustedProductMapping = offer.productMatch?.matchStatus === MatchStatus.CERTAIN && isManuallyConfirmedMatch(offer.productMatch?.matchEvidence)
   const extractionTarget: PriceExtractionTarget = {
     ean: trustedProductMapping ? null : product?.ean ?? product?.gtin,
@@ -575,7 +594,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       productEan: product?.ean,
       articleNumber: product?.articleNumber,
       productName: product?.name,
-      ownPrice: product?.ownPrice === null || product?.ownPrice === undefined ? null : Number(product.ownPrice),
+      ownPrice: comparableOwnPrice,
       trustedProductMapping,
     })
 
@@ -637,7 +656,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       productName: offer.productMatch?.product.name ?? extracted.productTitle ?? 'Ongekoppeld product',
       previousPrice,
       currentPrice: normalized,
-      ownPrice: offer.productMatch?.product.ownPrice,
+      ownPrice: comparableOwnPrice,
       previousStockStatus,
       currentStockStatus: extracted.stockStatus ?? offer.stockStatus,
     })
