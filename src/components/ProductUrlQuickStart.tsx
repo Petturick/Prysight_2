@@ -89,8 +89,12 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       apply('articleNumber', payload.articleNumber)
       apply('name', payload.name)
       apply('ean', payload.ean)
-      apply('ownPrice', payload.ownPrice)
-      apply('currency', payload.currency, true)
+      if (payload.ownPrice !== null) {
+        window.dispatchEvent(new CustomEvent('prysight:set-market-price', {
+          detail: { price: payload.ownPrice, vatIncluded: payload.vatIncluded },
+        }))
+        applied += 2
+      }
       apply('stockStatus', payload.stockStatus)
       apply('packagingQty', payload.packagingQty)
       apply('brand', payload.brand)
@@ -98,7 +102,6 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       apply('model', payload.model)
       apply('mpn', payload.mpn)
 
-      if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
 
       const eanControl = control(form, 'ean') as HTMLInputElement | null
       const articleControl = control(form, 'articleNumber') as HTMLInputElement | null
@@ -108,8 +111,12 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       const marketCode = marketCodeFromUrl(payload.url || rawUrl)
       const market = marketCode ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK')) : null
       if (market) {
-        apply('countryId', market.id, true)
-        apply('currency', market.currency, true)
+        window.dispatchEvent(new CustomEvent('prysight:set-market-profile', {
+          detail: { countryId: market.id, currency: market.currency },
+        }))
+        applied += 1
+      } else if (payload.currency) {
+        apply('currency', payload.currency, true)
       }
 
       setPreview(payload)
@@ -202,7 +209,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         <div className="border-t border-[#e7edf3] bg-[#f8fafc] p-5 sm:p-6 lg:border-l lg:border-t-0">
           <p className="text-[11px] font-semibold text-[#33465c]">Liever handmatig?</p>
           <p className="mt-1 text-[10px] leading-5 text-[#748296]">
-            Laat de URL leeg en vul hieronder alleen artikelnummer, productnaam, prijs en btw status in. De overige kenmerken zijn optioneel.
+            Laat de URL leeg en vul hieronder de kernvelden in. Kies een markt en vul één van de twee prijsvelden in, de andere prijs wordt automatisch berekend.
           </p>
           <button
             type="button"
