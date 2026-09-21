@@ -10,6 +10,8 @@ import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
+import { MarketPriceFields } from '@/components/MarketPriceFields'
+import { MarketProfileSelector } from '@/components/MarketProfileSelector'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -133,12 +135,12 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
   if (!product) notFound()
 
-  const requestedCountryId = readParam(query.markt)
-  const defaultCountry = countries.find((country) => country.id === requestedCountryId && product.productMarkets.some((market) => market.countryId === country.id))
-    ?? countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id))
+  const requestedCountryId = readParam(query.markt) ?? readParam(query.land)
+  const defaultCountry = countries.find((country) => country.id === requestedCountryId)
+    ?? countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id && market.isActive))
     ?? countries.find((country) => country.code === 'NL')
     ?? countries[0]
-  const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
+  const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id && market.isActive) ?? null : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const marketMatches = defaultCountry
@@ -172,15 +174,16 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const spread = lowestPrice !== null && highestPrice !== null ? highestPrice - lowestPrice : null
   const spreadPct = lowestPrice !== null && lowestPrice > 0 && spread !== null ? (spread / lowestPrice) * 100 : null
   const latestCheck = crawlableMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
-  const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
-  const ownCurrency = selectedMarket?.currency ?? product.currency
+  const ownPrice = numberValue(selectedMarket?.ownPrice ?? (product.productMarkets.length === 0 ? product.ownPrice : null))
+  const ownCurrency = selectedMarket?.currency ?? defaultCountry?.currency ?? product.currency
+  const marketVatIncluded = selectedMarket?.vatIncluded ?? product.vatIncluded
   const vatRate = numberValue(defaultCountry?.vatRate)
-  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
-    ? ownPrice * (1 + vatRate / 100)
+  const comparisonOwnPriceExVat = ownPrice !== null && vatRate !== null
+    ? marketVatIncluded ? ownPrice / (1 + vatRate / 100) : ownPrice
     : ownPrice
-  const comparisonOwnPriceExVat = comparisonOwnPrice !== null && vatRate !== null
-    ? comparisonOwnPrice / (1 + vatRate / 100)
-    : null
+  const comparisonOwnPrice = ownPrice !== null && vatRate !== null
+    ? marketVatIncluded ? ownPrice : ownPrice * (1 + vatRate / 100)
+    : ownPrice
   const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const automaticMatches = crawlableMatches.filter((match) => match.competitorOffer.competitor.checkFrequencyHours < 876000)
   const automaticDue = automaticMatches.filter((match) => isCrawlDue(
