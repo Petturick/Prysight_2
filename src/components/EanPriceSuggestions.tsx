@@ -46,8 +46,11 @@ export function EanPriceSuggestions({
   useEffect(() => {
     if (!ean || !countryId) return
     const controller = new AbortController()
-    setPending(true)
-    setError(null)
+    void Promise.resolve().then(() => {
+      if (controller.signal.aborted) return
+      setPending(true)
+      setError(null)
+    })
     fetch(`/api/producten/${encodeURIComponent(productId)}/prijs-suggesties`, {
       method: 'POST',
       cache: 'no-store',
