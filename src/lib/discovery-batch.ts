@@ -12,7 +12,7 @@ export async function runDiscoveryBatch(companyId: string, limit = 8, prefetched
     prisma.product.findMany({
       where: { companyId, isActive: true },
       select: {
-        id: true, productGroupId: true, ean: true, gtin: true,
+        id: true, articleNumber: true, productGroupId: true, ean: true, gtin: true,
         productMarkets: { where: { companyId, isActive: true }, select: { countryId: true }, take: 1 },
         matches: { where: { companyId, matchStatus: MatchStatus.CERTAIN }, select: { id: true }, take: 2 },
       },
@@ -33,7 +33,7 @@ export async function runDiscoveryBatch(companyId: string, limit = 8, prefetched
   const retryAfterMs = 7 * 24 * 60 * 60 * 1000
   const now = Date.now()
   const due = products.filter((product) => {
-    if (product.matches.length >= 2 || !(product.ean || product.gtin || mpnMap.get(product.id))) return false
+    if (product.matches.length >= 2 || !(product.ean || product.gtin || mpnMap.get(product.id) || product.articleNumber)) return false
     const last = resolve(product.id, product.productGroupId).lastDiscoveryAt
     return !last || now - last.getTime() >= retryAfterMs
   }).slice(0, Math.min(Math.max(limit, 1), 20))
