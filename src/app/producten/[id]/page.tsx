@@ -127,7 +127,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const latestCheck = crawlableMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
   const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
   const ownCurrency = selectedMarket?.currency ?? product.currency
-  const averageDifferencePct = ownPrice !== null && averagePrice !== null && averagePrice > 0 ? ((ownPrice - averagePrice) / averagePrice) * 100 : null
+  const vatRate = numberValue(defaultCountry?.vatRate)
+  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
+    ? ownPrice * (1 + vatRate / 100)
+    : ownPrice
+  const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
   const measurementQuality = confirmedMatches.length >= 3 && staleSources === 0 && failedLatestChecks === 0
@@ -143,7 +147,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const recommendedPrice = recommendation?.recommendedPrice ?? null
   const expectedMargin = recommendation?.marginAfterPct ?? null
   const currentMargin = recommendation?.marginBeforePct ?? null
-  const marketPosition = recommendation?.marketPosition ?? (ownPrice !== null && prices.length ? prices.filter((price) => price < ownPrice).length + 1 : null)
+  const marketPosition = recommendation?.marketPosition ?? (comparisonOwnPrice !== null && prices.length ? prices.filter((price) => price < comparisonOwnPrice).length + 1 : null)
   const competitorCount = recommendation?.competitorCount ?? pricedMatches.length
   const guardrailMin = recommendation?.minimumAllowedPrice ?? null
   const guardrailMax = recommendation?.maximumAllowedPrice ?? null
@@ -220,7 +224,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
           <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
             <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#7b8999]">{selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
+            <p className="mt-1 text-[10px] text-[#7b8999]">{product.vatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
             {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voeg eerst je eigen prijs toe om marktverschillen en prijsadvies correct te berekenen.</p> : null}
           </div>
           <div className="p-5 sm:p-6">
@@ -235,6 +239,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
                   </div>
                 </label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(product.vatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
                 {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
                 <div className="md:col-span-2 flex justify-end">
@@ -258,7 +263,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
 
         <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-          <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Eigen prijs</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(ownPrice, ownCurrency)}</p></div>
+          <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Eigen prijs voor vergelijking</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p><p className="mt-1 text-[9px] text-[#8793a3]">{product.vatIncluded ? 'Prijs inclusief btw' : 'Genormaliseerd naar inclusief btw'}</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Markt</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{formatCurrency(marketBenchmark)}</p><p className="mt-1 text-[10px] text-[#8793a3]">{competitorCount} gemeten</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Advies</p><p className={`mt-1 text-[23px] font-semibold ${adviceTone}`}>{formatCurrency(recommendedPrice)}</p><p className={`mt-1 text-[10px] font-medium ${adviceTone}`}>{actionLabel(recommendation?.action)}{adviceChange !== null ? ` · ${adviceChange > 0 ? '+' : ''}${formatNumber(adviceChange, 1)}%` : ''}</p></div>
           <div className="px-5 py-4"><p className="text-[11px] font-medium text-[#8290a1]">Positie</p><p className="mt-1 text-[23px] font-semibold text-[#21364d]">{marketPosition === null ? '—' : `${marketPosition} / ${competitorCount + 1}`}</p></div>
@@ -295,7 +300,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 {comparisonMatches.map((match, index) => {
                   const offer = match.competitorOffer
                   const price = numberValue(offer.normalizedPrice)
-                  const ownDeltaPct = ownPrice !== null && price !== null && ownPrice > 0 ? ((price - ownPrice) / ownPrice) * 100 : null
+                  const ownDeltaPct = comparisonOwnPrice !== null && price !== null && comparisonOwnPrice > 0 ? ((price - comparisonOwnPrice) / comparisonOwnPrice) * 100 : null
                   const latestSourceCheck = offer.priceChecks[0]
                   const sourceIssue = sourceIssueLabel(latestSourceCheck?.errorMessage)
 
