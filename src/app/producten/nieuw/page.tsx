@@ -56,7 +56,7 @@ export default async function NewProductPage() {
             <div className="flex items-center gap-3">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf4ff] text-[11px] font-bold text-[#3d73d4]">1</span>
               <div>
-                <h2 className="text-[15px] font-semibold text-[#21364d]">Welk product wil je volgen?</h2>
+                <h2 className="text-[15px] font-semibold text-[#21364d]">Controleer de productgegevens</h2>
                 <p className="mt-0.5 text-[11px] text-[#7b8999]">Artikelnummer en productnaam zijn verplicht. Met een geldig EAN zoekt Prysight automatisch concurrenten zodra je opslaat.</p>
               </div>
             </div>
@@ -83,7 +83,7 @@ export default async function NewProductPage() {
             <div className="flex items-center gap-3">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf4ff] text-[11px] font-bold text-[#3d73d4]">2</span>
               <div>
-                <h2 className="text-[15px] font-semibold text-[#21364d]">Wat is jouw verkoopprijs?</h2>
+                <h2 className="text-[15px] font-semibold text-[#21364d]">Prijs en markt</h2>
                 <p className="mt-0.5 text-[11px] text-[#7b8999]">Deze prijs is het referentiepunt waarmee Prysight de markt vergelijkt. Je kunt hem later altijd aanpassen op het product.</p>
               </div>
             </div>
