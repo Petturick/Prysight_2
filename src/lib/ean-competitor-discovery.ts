@@ -139,7 +139,7 @@ async function searchBing(query: string): Promise<SearchCandidate[]> {
   }
 }
 
-async function webSearch(query: string): Promise<SearchResult> {
+export async function webSearch(query: string): Promise<SearchResult> {
   const serper = await searchWithSerper(query)
   if (serper.length) return { candidates: serper, provider: 'Serper' }
   const brave = await searchWithBrave(query)
