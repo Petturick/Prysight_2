@@ -6,6 +6,7 @@ import { requireWritableUser } from '@/lib/authz'
 import type { BulkProductRow } from '@/lib/bulk-product-import'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
+import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -115,6 +116,8 @@ export async function processBulkProductImportAction(payload: unknown) {
   const warnings: string[] = []
   let processed = 0
   let marketCount = 0
+  let suggestionCount = 0
+  const discoveryTargets: Array<{ productId: string; countryId: string; articleNumber: string }> = []
 
   try {
     const groups = await Promise.all(groupNames.map((name) => prisma.productGroup.upsert({
@@ -178,6 +181,7 @@ export async function processBulkProductImportAction(payload: unknown) {
             create: { companyId, productId: product.id, countryId: country.id, ownPrice, currency: row.currency || country.currency, ownUrl: row.ownUrl || undefined, stockStatus: 'Onbekend', isActive: true },
           })
           marketCount += 1
+          discoveryTargets.push({ productId: product.id, countryId: country.id, articleNumber: row.articleNumber.trim() })
         } else {
           warnings.push(`${row.articleNumber}: markt ${row.country || 'NL'} is niet actief of niet herkend.`)
         }
@@ -186,6 +190,29 @@ export async function processBulkProductImportAction(payload: unknown) {
         errors.push(`${row.articleNumber}: ${error instanceof Error ? error.message : 'onbekende fout'}`)
       }
     })
+
+    if (user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')) {
+      const uniqueTargets = [...new Map(discoveryTargets.map((target) => [`${target.productId}:${target.countryId}`, target])).values()]
+      const immediateTargets = uniqueTargets.slice(0, 8)
+
+      await inChunks(immediateTargets, 2, async (target) => {
+        try {
+          const discovery = await discoverProductCandidates({
+            companyId,
+            productId: target.productId,
+            countryId: target.countryId,
+          })
+          suggestionCount += discovery.created
+        } catch (error) {
+          warnings.push(`${target.articleNumber}: AI concurrentsuggesties konden niet direct worden opgebouwd, dit wordt later opnieuw geprobeerd.`)
+          console.error('Bulk product competitor discovery failed', { companyId, productId: target.productId, error })
+        }
+      })
+
+      if (uniqueTargets.length > immediateTargets.length) {
+        warnings.push(`Voor ${uniqueTargets.length - immediateTargets.length} extra producten worden concurrentsuggesties automatisch via de achtergrondcontrole aangevuld.`)
+      }
+    }
 
     await prisma.importTask.update({
       where: { id: task.id },
@@ -197,7 +224,7 @@ export async function processBulkProductImportAction(payload: unknown) {
       action: 'BULK_PRODUCT_IMPORT',
       entityType: 'ImportTask',
       entityId: task.id,
-      newValue: { companyId, filename: parsed.data.filename, profile: parsed.data.profile, products: processed, markets: marketCount, groups: groupNames.length, errors: errors.length },
+      newValue: { companyId, filename: parsed.data.filename, profile: parsed.data.profile, products: processed, markets: marketCount, groups: groupNames.length, suggestions: suggestionCount, errors: errors.length },
     })
 
     for (const path of ['/import', '/import/bulk', '/producten', '/dashboard', '/productmatches']) revalidatePath(path)
@@ -207,11 +234,11 @@ export async function processBulkProductImportAction(payload: unknown) {
       message: errors.length ? `${processed} producten verwerkt, ${errors.length} regels met fouten.` : `${processed} producten succesvol geïmporteerd.`,
       errors,
       warnings,
-      summary: { products: processed, markets: marketCount, groups: groupNames.length },
+      summary: { products: processed, markets: marketCount, groups: groupNames.length, suggestions: suggestionCount },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Bulkimport is onverwacht gestopt.'
     await prisma.importTask.update({ where: { id: task.id }, data: { status: ImportStatus.FAILED, processedRows: processed, errorRows: Math.max(1, errors.length), errors: [...errors, message], warnings } })
-    return { ok: false, message, errors: [...errors, message], warnings, summary: { products: processed, markets: marketCount, groups: groupNames.length } }
+    return { ok: false, message, errors: [...errors, message], warnings, summary: { products: processed, markets: marketCount, groups: groupNames.length, suggestions: suggestionCount } }
   }
 }
