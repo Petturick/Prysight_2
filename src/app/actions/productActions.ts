@@ -98,6 +98,13 @@ export async function createProductAction(formData: FormData) {
     try {
       const discovery = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId: product.id, countryId: country.id })
       suggestionCount = discovery.created
+      if (discovery.created > 0) {
+        try {
+          await runDuePriceChecks({ companyId: user.companyId, productId: product.id, limit: 4, force: true })
+        } catch (checkError) {
+          console.error('Automatic price and shipping check failed after EAN discovery', { companyId: user.companyId, productId: product.id, error: checkError })
+        }
+      }
     } catch (error) { console.error('Automatic EAN competitor discovery failed', error) }
   }
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath('/feeds'); revalidatePath('/productmatches')
@@ -233,6 +240,13 @@ export async function updateProductIdentifiersAction(formData: FormData) {
     await requireLicensedCountry(user.companyId, countryId)
     try {
       discovery = await discoverProductCandidates({ companyId: user.companyId, productId, countryId })
+      if (discovery.created > 0) {
+        try {
+          await runDuePriceChecks({ companyId: user.companyId, productId, limit: 4, force: true })
+        } catch (checkError) {
+          console.error('Automatic price and shipping check failed after product identifier discovery', { companyId: user.companyId, productId, error: checkError })
+        }
+      }
     } catch (error) {
       console.error('Product identifier discovery failed', { companyId: user.companyId, productId, error })
       discovery = { created: 0, found: 0, reason: 'Productgegevens zijn opgeslagen, maar concurrentherkenning kon niet direct worden afgerond.' }
