@@ -63,8 +63,6 @@ export function FeedSourceManager({ initialSources, canManage }: { initialSource
   const [notice, setNotice] = useState<{ id: string; error: boolean; text: string } | null>(null)
   const [form, setForm] = useState({ name: '', url: '', countryCode: 'GLOBAL', syncFrequencyHours: 24 })
 
-  useEffect(() => { setSources(initialSources) }, [initialSources])
-
   useEffect(() => {
     const running = sources.filter((source) => source.lastRunStatus === 'RUNNING')
     if (!running.length) return
