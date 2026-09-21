@@ -8,6 +8,7 @@ import { requirePermission } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
+import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
@@ -347,16 +348,27 @@ export async function discoverCompetitorUrlsAction(formData: FormData) {
   const user = await requirePermission('competitors.write')
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
-  if (!productId || !countryId) throw new Error('Product en land zijn verplicht voor EAN onderzoek.')
+  if (!productId || !countryId) throw new Error('Product en markt zijn verplicht voor concurrentonderzoek.')
   await requireLicensedCountry(user.companyId, countryId)
-  const result = await discoverCompetitorUrlsByEan({ companyId: user.companyId, productId, countryId })
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true, ean: true },
+  })
+  if (!product) throw new Error('Product niet gevonden.')
+
+  const result = await discoverProductCandidates({ companyId: user.companyId, productId, countryId })
+  const alreadyLinked = 'alreadyLinked' in result ? Number(result.alreadyLinked ?? 0) : 0
+  const provider = 'provider' in result ? String(result.provider ?? '') : ''
+  const queryMode = 'queryMode' in result ? String(result.queryMode ?? '') : product.ean ? 'EAN' : 'PRODUCT'
+
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath(`/producten/${productId}`); revalidatePath('/productmatches'); revalidatePath('/concurrenten')
   const params = new URLSearchParams({
     suggesties: String(result.created),
     gevonden: String(result.found),
-    algekoppeld: String(result.alreadyLinked ?? 0),
-    zoekbron: result.provider ?? '',
-    zoekmodus: result.queryMode ?? '',
+    algekoppeld: String(alreadyLinked),
+    zoekbron: provider,
+    zoekmodus: queryMode,
     reden: result.reason ?? '',
   })
   redirect(`/producten/${productId}?${params.toString()}#concurrenten-vinden`)
