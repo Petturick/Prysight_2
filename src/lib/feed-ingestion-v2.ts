@@ -64,6 +64,24 @@ function qty(value: unknown, fallback = 1) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : fallback
 }
 
+function isUsableProductName(value: unknown) {
+  const candidate = String(value ?? '').trim()
+  if (!candidate) return false
+  if (/^[☐☑☒□■✓✔✕✖xX0-1]+$/.test(candidate)) return false
+  if (/^(ja|nee|yes|no|true|false)$/i.test(candidate)) return false
+  return candidate.length >= 3
+}
+
+function productNamePriority(sourceColumn: string) {
+  const key = normalizeHeader(sourceColumn)
+  if (key.includes('nieuwe titel') || key.includes('new title')) return 100
+  if (key.includes('oude titel') || key.includes('old title')) return 80
+  if (key.includes('meta title') || key.includes('meta_title')) return 70
+  if (key === 'name' || key.includes('product name')) return 60
+  if (key.includes('product titel') || key.includes('product title')) return 40
+  return 20
+}
+
 function bool(value: unknown, fallback = true) {
   if (typeof value === 'boolean') return value
   const normalized = String(value ?? '').trim().toLowerCase()
@@ -76,15 +94,23 @@ function bool(value: unknown, fallback = true) {
 
 function mapRow(row: Record<string, string>, mappings: Mapping[]): CanonicalFeedProduct {
   const mapped: CanonicalFeedProduct = {}
+  let selectedNamePriority = -1
   for (const mapping of mappings) {
     if (!mapping.targetField) continue
     const value = row[mapping.sourceColumn]
     if (value === undefined || value === '') continue
     if (mapping.targetField === 'ownPrice' && mapped.ownPrice && normalizeHeader(mapping.sourceColumn) === 'price') continue
-    if (mapping.targetField === 'name' && mapped.name) continue
+    if (mapping.targetField === 'name') {
+      if (!isUsableProductName(value)) continue
+      const priority = productNamePriority(mapping.sourceColumn)
+      if (priority <= selectedNamePriority) continue
+      mapped.name = value
+      selectedNamePriority = priority
+      continue
+    }
     mapped[mapping.targetField] = value
   }
-  if (!text(mapped.name) && text(mapped.description)) mapped.name = mapped.description
+  if (!isUsableProductName(mapped.name) && isUsableProductName(mapped.description)) mapped.name = mapped.description
   return mapped
 }
 
@@ -128,10 +154,12 @@ async function syncMarket(
   const ownUrl = text(mapped.ownUrl)
   const stockStatus = text(mapped.stockStatus)
   const active = bool(mapped.isActive, true)
+  const marketVatIncluded = bool(mapped.vatIncluded, true)
   await prisma.productMarket.upsert({
     where: { companyId_productId_countryId: { companyId, productId, countryId: country.id } },
     update: {
       ...(ownPrice ? { ownPrice } : {}),
+      vatIncluded: marketVatIncluded,
       currency,
       ...(ownUrl ? { ownUrl } : {}),
       ...(stockStatus ? { stockStatus } : {}),
@@ -142,6 +170,7 @@ async function syncMarket(
       productId,
       countryId: country.id,
       ownPrice: ownPrice ?? undefined,
+      vatIncluded: marketVatIncluded,
       currency,
       ownUrl: ownUrl ?? undefined,
       stockStatus: stockStatus ?? 'Onbekend',
