@@ -115,7 +115,7 @@ const getProductPriceHistory = unstable_cache(
   { revalidate: 60 },
 )
 
-export async function ProductPriceHistoryPanel({ companyId, productId }: { companyId: string; productId: string }) {
+export async function ProductPriceHistoryPanel({ companyId, productId, highlightedCompetitorId }: { companyId: string; productId: string; highlightedCompetitorId?: string | null }) {
   const { data, series } = await getProductPriceHistory(companyId, productId)
 
   if (data.length === 0) {
@@ -127,5 +127,5 @@ export async function ProductPriceHistoryPanel({ companyId, productId }: { compa
     )
   }
 
-  return <PriceChart data={data} series={series} />
+  return <PriceChart data={data} series={series} highlightedCompetitorId={highlightedCompetitorId} />
 }
