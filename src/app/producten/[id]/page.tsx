@@ -509,8 +509,21 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
 
         <div className="surface-card p-5">
-          <h2 className="text-[14px] font-semibold text-[#252a37]">Markten</h2>
-          <div className="mt-4 space-y-2">{product.productMarkets.length === 0 ? <p className="rounded-[12px] bg-[#eef1f7] px-3 py-4 text-[11px] text-[#697386]">Nog geen landspecifieke productdata.</p> : product.productMarkets.map((market) => <div key={market.id} className="flex items-center justify-between gap-3 rounded-[11px] bg-[#f4f6fa] px-3 py-3"><div><p className="text-[11px] font-semibold text-[#303647]">{market.country.name}</p><p className="mt-0.5 text-[10px] text-[#697386]">{market.stockStatus ?? 'Voorraad onbekend'}</p></div><div className="text-right"><p className="text-[11px] font-semibold text-[#303647]">{formatCurrency(market.ownPrice, market.currency)}</p>{market.ownUrl ? <a href={market.ownUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[10px] font-semibold text-[#2f6edb]">Webshop</a> : null}</div></div>)}</div>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[14px] font-semibold text-[#252a37]">Marktprofielen</h2>
+            <span className="text-[10px] font-semibold text-[#7b8999]">{product.productMarkets.length}</span>
+          </div>
+          <div className="mt-3 space-y-2">{product.productMarkets.length === 0 ? <p className="rounded-[10px] bg-[#eef1f7] px-3 py-3 text-[10px] text-[#697386]">Nog geen marktprofielen.</p> : product.productMarkets.map((market) => {
+            const marketPrice = numberValue(market.ownPrice)
+            const marketVatRate = numberValue(market.country.vatRate)
+            const marketExVat = marketPrice !== null && marketVatRate !== null
+              ? market.vatIncluded ? marketPrice / (1 + marketVatRate / 100) : marketPrice
+              : marketPrice
+            const marketIncVat = marketPrice !== null && marketVatRate !== null
+              ? market.vatIncluded ? marketPrice : marketPrice * (1 + marketVatRate / 100)
+              : marketPrice
+            return <Link key={market.id} href={`/producten/${product.id}?land=${market.countryId}`} className={`flex items-center justify-between gap-3 rounded-[10px] px-3 py-3 transition ${defaultCountry?.id === market.countryId ? 'bg-[#edf4ff]' : 'bg-[#f4f6fa] hover:bg-[#eef2f7]'}`}><div><p className="text-[11px] font-semibold text-[#303647]">{market.country.name}</p><p className="mt-0.5 text-[9px] text-[#697386]">{market.stockStatus ?? 'Voorraad onbekend'}</p></div><div className="text-right"><p className="text-[10px] font-semibold text-[#303647]">{formatCurrency(marketExVat, market.currency)} <span className="text-[8px] font-medium text-[#8793a3]">excl.</span></p><p className="mt-0.5 text-[10px] font-semibold text-[#53677f]">{formatCurrency(marketIncVat, market.currency)} <span className="text-[8px] font-medium text-[#8793a3]">incl.</span></p></div></Link>
+          })}</div>
         </div>
       </section>
     </div>
