@@ -425,15 +425,15 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-[#253149]">Concurrenten vinden</h2>
-            <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Bij het opvoeren van een product zoekt Prysight automatisch op EAN binnen de gekozen markt. Hier kun je opnieuw zoeken, een suggestie direct gebruiken of met het kruis verwijderen.</p>
+            <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">{product.ean ? 'Prysight zoekt eerst op de EAN binnen de gekozen markt. Hier kun je opnieuw zoeken, een suggestie direct gebruiken of met het kruis verwijderen.' : 'Dit product heeft geen EAN. Prysight kan zoeken op GTIN, MPN, artikelnummer en productcontext, maar een EAN geeft betrouwbaardere matches.'}</p>
           </div>
-          {product.ean && defaultCountry ? (
+          {defaultCountry ? (
             <form action={discoverCompetitorUrlsAction} className="flex shrink-0 flex-wrap items-center gap-2">
               <input type="hidden" name="productId" value={product.id} />
               <select name="countryId" defaultValue={defaultCountry.id} className="toolbar-control min-w-[150px]">{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select>
-              <PriceFetchSubmitButton idleLabel="Opnieuw concurrenten zoeken" pendingLabel="Concurrenten zoeken…" />
+              <PriceFetchSubmitButton idleLabel={reviewMatches.length ? "Opnieuw zoeken" : "Concurrenten zoeken"} pendingLabel="Concurrenten zoeken…" />
             </form>
-          ) : <span className="text-[11px] font-medium text-[#8a6a2a]">{product.ean ? 'Geen actieve markt beschikbaar.' : 'EAN ontbreekt.'}</span>}
+          ) : <span className="text-[11px] font-medium text-[#8a6a2a]">Geen actieve markt beschikbaar.</span>}
         </div>
 
         {discoveryAttempted ? (
