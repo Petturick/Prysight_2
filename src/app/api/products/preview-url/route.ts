@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
 import { extractOfferSnapshot } from '@/lib/price-monitoring'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
+import { detectVatInclusion } from '@/lib/vat-detection'
 
 const MAX_HTML_BYTES = 4 * 1024 * 1024
 
@@ -131,6 +132,7 @@ export async function POST(request: Request) {
 
       const offer = extractOfferSnapshot(html)
       const details = structuredProductDetails(html)
+      const vat = detectVatInclusion(html, offer.price)
       if (!offer.productTitle && !offer.sku && !offer.ean && !offer.price) {
         return NextResponse.json({
           error: 'Prysight kon nog geen productgegevens herkennen. Vul de ontbrekende velden handmatig in.',
@@ -149,6 +151,9 @@ export async function POST(request: Request) {
         stockStatus: offer.stockStatus,
         packagingQty: offer.packagingQty,
         extractionMethod: offer.method,
+        vatIncluded: vat.vatIncluded,
+        vatConfidence: vat.confidence,
+        vatEvidence: vat.evidence,
         brand: details.brand,
         productGroup: details.category,
         model: details.model,
