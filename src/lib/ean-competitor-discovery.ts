@@ -11,13 +11,21 @@ function hostnameLabel(url: string) {
   return base.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function scoreCandidate(candidate: SearchCandidate, ean: string, productName: string) {
+function marketDomainSuffix(code: string) {
+  const normalized = code.trim().toUpperCase()
+  if (normalized === 'GB' || normalized === 'UK') return '.uk'
+  return normalized ? `.${normalized.toLowerCase()}` : ''
+}
+
+function scoreCandidate(candidate: SearchCandidate, ean: string, productName: string, countryCode: string) {
   const haystack = `${candidate.title} ${candidate.url} ${candidate.snippet ?? ''}`.toLowerCase()
   const productTokens = productName.toLowerCase().split(/\s+/).filter((token) => token.length >= 4).slice(0, 6)
   let score = haystack.includes(ean.toLowerCase()) ? 72 : 48
   score += Math.min(18, productTokens.filter((token) => haystack.includes(token)).length * 4)
   if (/product|artikel|item|shop|catalog|p\//i.test(candidate.url)) score += 6
-  return Math.min(96, score)
+  const suffix = marketDomainSuffix(countryCode)
+  if (suffix && new URL(candidate.url).hostname.toLowerCase().endsWith(suffix)) score += 6
+  return Math.min(98, score)
 }
 
 async function searchWithSerper(query: string): Promise<SearchCandidate[]> {
@@ -78,12 +86,16 @@ async function webSearch(query: string) {
 }
 
 export async function discoverCompetitorUrlsByEan({ companyId, productId, countryId }: { companyId: string; productId: string; countryId: string }) {
-  const product = await prisma.product.findFirst({ where: { id: productId, companyId, isActive: true } })
+  const [product, country, companyWebshops] = await Promise.all([
+    prisma.product.findFirst({ where: { id: productId, companyId, isActive: true } }),
+    prisma.country.findUnique({ where: { id: countryId } }),
+    prisma.webshop.findMany({ where: { companyId, isActive: true }, select: { url: true } }),
+  ])
   if (!product?.ean) return { found: 0, created: 0, reason: 'EAN ontbreekt' }
+  if (!country) return { found: 0, created: 0, reason: 'Markt ontbreekt' }
 
-  const companyWebshops = await prisma.webshop.findMany({ where: { companyId, isActive: true }, select: { url: true } })
   const ownHosts = new Set(companyWebshops.flatMap((shop) => { try { return [new URL(shop.url).hostname.replace(/^www\./, '')] } catch { return [] } }))
-  const results = await webSearch(`"${product.ean}" ${product.name}`)
+  const results = await webSearch(`"${product.ean}" ${product.name} ${country.name} ${country.code}`)
   const unique = new Map<string, SearchCandidate>()
 
   for (const result of results) {
@@ -99,7 +111,7 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   }
 
   const ranked = [...unique.values()]
-    .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, product.ean!, product.name) }))
+    .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, product.ean!, product.name, country.code) }))
     .filter((candidate) => candidate.score >= 55)
     .sort((a, b) => b.score - a.score)
     .slice(0, 6)
@@ -125,7 +137,7 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
         competitorOfferId: offer.id,
         confidenceScore: candidate.score,
         matchStatus: MatchStatus.REVIEW,
-        matchEvidence: { source: 'ean-web-discovery', ean: product.ean, title: candidate.title, snippet: candidate.snippet ?? null, reason: 'Webresultaat gevonden op exacte EAN en gerangschikt als concurrentsuggestie' },
+        matchEvidence: { source: 'ai-market-discovery', ean: product.ean, market: country.code, title: candidate.title, snippet: candidate.snippet ?? null, reason: 'Slimme marktsuggestie op basis van exacte EAN, productcontext en gekozen markt' },
       },
     })
     created += 1
