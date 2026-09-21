@@ -29,9 +29,11 @@ function euro(value: unknown) {
 }
 
 export function PriceChart({ data, series }: { data: PricePoint[]; series: PriceChartSeries[] }) {
-  const visibleSeries = series.filter((item) => data.some((point) => point[item.key] !== null && point[item.key] !== undefined))
-  const ownSeries = visibleSeries.find((item) => item.kind === 'own')
-  const competitorSeries = visibleSeries.filter((item) => item.kind === 'competitor')
+  const hasData = (key: string) => data.some((point) => point[key] !== null && point[key] !== undefined)
+  const ownSeries = series.find((item) => item.kind === 'own')
+  const ownSeriesHasData = ownSeries ? hasData(ownSeries.key) : false
+  const allCompetitorSeries = series.filter((item) => item.kind === 'competitor')
+  const competitorSeries = allCompetitorSeries.filter((item) => hasData(item.key))
 
   return (
     <section className="surface-card overflow-hidden">
@@ -43,17 +45,20 @@ export function PriceChart({ data, series }: { data: PricePoint[]; series: Price
           </div>
           <div className="flex max-w-3xl flex-wrap gap-x-4 gap-y-2 text-[10px] font-medium text-[#5f7084]">
             {ownSeries ? (
-              <span className="inline-flex items-center gap-1.5">
+              <span className={`inline-flex items-center gap-1.5 ${ownSeriesHasData ? '' : 'opacity-45'}`} title={ownSeriesHasData ? ownSeries.name : `${ownSeries.name}, nog geen historie`}>
                 <span className="h-2.5 w-2.5 rounded-full bg-[#111827]" />
                 {ownSeries.name}
               </span>
             ) : null}
-            {competitorSeries.map((item, index) => (
-              <span key={item.key} className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: competitorColors[index % competitorColors.length] }} />
-                {item.name}
-              </span>
-            ))}
+            {allCompetitorSeries.map((item, index) => {
+              const itemHasData = hasData(item.key)
+              return (
+                <span key={item.key} className={`inline-flex items-center gap-1.5 ${itemHasData ? '' : 'opacity-45'}`} title={itemHasData ? item.name : `${item.name}, nog geen geldige historische meting`}>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: competitorColors[index % competitorColors.length] }} />
+                  {item.name}
+                </span>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -75,7 +80,7 @@ export function PriceChart({ data, series }: { data: PricePoint[]; series: Price
               labelStyle={{ fontWeight: 700, color: '#26384d', marginBottom: 6 }}
               formatter={(value, name) => [euro(value), String(name)]}
             />
-            {ownSeries ? (
+            {ownSeries && ownSeriesHasData ? (
               <Line
                 type="monotone"
                 dataKey={ownSeries.key}
@@ -87,8 +92,9 @@ export function PriceChart({ data, series }: { data: PricePoint[]; series: Price
                 activeDot={{ r: 5 }}
               />
             ) : null}
-            {competitorSeries.map((item, index) => {
-              const color = competitorColors[index % competitorColors.length]
+            {competitorSeries.map((item) => {
+              const fullIndex = allCompetitorSeries.findIndex((candidate) => candidate.key === item.key)
+              const color = competitorColors[Math.max(fullIndex, 0) % competitorColors.length]
               return (
                 <Line
                   key={item.key}
