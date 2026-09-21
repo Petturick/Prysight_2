@@ -13,8 +13,9 @@ type CompetitorDailyRow = {
 type CompetitorSeriesRow = { competitorId: string; competitorName: string }
 
 const getProductPriceHistory = unstable_cache(
-  async (companyId: string, productId: string) => {
+  async (companyId: string, productId: string, countryId?: string | null) => {
     const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    const selectedCountryId = countryId ?? null
     const [ownRows, competitorRows, competitorSeriesRows] = await Promise.all([
       prisma.$queryRaw<OwnDailyRow[]>(Prisma.sql`
         select date_trunc('day', recorded_at) as day,
@@ -41,6 +42,7 @@ const getProductPriceHistory = unstable_cache(
           and pm.company_id = ${companyId}
           and pm.product_id = ${productId}
           and pm.match_status = 'CERTAIN'
+          and (${selectedCountryId}::text is null or c.country_id = ${selectedCountryId})
           and ph.recorded_at >= ${since}
         group by 1, c.id, c.name
         order by 1 asc, c.name asc
@@ -55,6 +57,7 @@ const getProductPriceHistory = unstable_cache(
           and c.company_id = ${companyId}
           and pm.product_id = ${productId}
           and pm.match_status = 'CERTAIN'
+          and (${selectedCountryId}::text is null or c.country_id = ${selectedCountryId})
           and co.is_active = true
           and c.is_active = true
         order by c.name asc
@@ -115,8 +118,8 @@ const getProductPriceHistory = unstable_cache(
   { revalidate: 60 },
 )
 
-export async function ProductPriceHistoryPanel({ companyId, productId }: { companyId: string; productId: string }) {
-  const { data, series } = await getProductPriceHistory(companyId, productId)
+export async function ProductPriceHistoryPanel({ companyId, productId, countryId, highlightedCompetitorId }: { companyId: string; productId: string; countryId?: string | null; highlightedCompetitorId?: string | null }) {
+  const { data, series } = await getProductPriceHistory(companyId, productId, countryId)
 
   if (data.length === 0) {
     return (
@@ -127,5 +130,5 @@ export async function ProductPriceHistoryPanel({ companyId, productId }: { compa
     )
   }
 
-  return <PriceChart data={data} series={series} />
+  return <PriceChart data={data} series={series} highlightedCompetitorId={highlightedCompetitorId} />
 }
