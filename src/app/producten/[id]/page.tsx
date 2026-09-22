@@ -296,6 +296,24 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       </section>
 
+      <nav className="ps-panel flex flex-wrap items-center gap-2 px-4 py-3" aria-label="Productnavigatie">
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8a97a6]">Ga naar</span>
+        <a href="#ean-prijssuggesties" className="ps-chip ps-chip-blue">Prijsherkenning</a>
+        <a href="#eigen-prijs" className="ps-chip">Eigen prijs</a>
+        <a href="#concurrentieprijzen" className="ps-chip">Prijsvergelijking</a>
+        <a href="#historie" className="ps-chip">Historie</a>
+        <a href="#product-identiteit" className="ps-chip">Productdata</a>
+      </nav>
+
+      <EanPriceSuggestions
+        productId={product.id}
+        ean={product.ean || product.gtin}
+        countryId={defaultCountry?.id ?? null}
+        currency={ownCurrency}
+        sourceKey={marketMatches.map((match) => match.competitorOffer.id).join(',')}
+        canEditProduct={canEditProduct}
+      />
+
       <details id="product-identiteit" open={!product.ean} className="ps-panel scroll-mt-24 overflow-hidden">
         <summary className="cursor-pointer px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -324,14 +342,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       </details>
 
-      <EanPriceSuggestions
-        productId={product.id}
-        ean={product.ean || product.gtin}
-        countryId={defaultCountry?.id ?? null}
-        currency={ownCurrency}
-        sourceKey={marketMatches.map((match) => match.competitorOffer.id).join(',')}
-        canEditProduct={canEditProduct}
-      />
 
       <section id="eigen-prijs" className="ps-panel scroll-mt-24 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
