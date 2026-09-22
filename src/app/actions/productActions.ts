@@ -12,6 +12,7 @@ import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
+import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { findExistingProduct } from '@/lib/product-duplicate'
 
@@ -60,8 +61,10 @@ export async function createProductAction(formData: FormData) {
   const name = text(formData, 'name')
   const ean = text(formData, 'ean')
   const productGroup = text(formData, 'productGroup') || 'Onbekend'
-  const ownPrice = text(formData, 'ownPrice')
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
+  const rawOwnPrice = text(formData, 'ownPrice')
+  const ownShippingCost = parseOptionalShipping(text(formData, 'ownShippingCost'))
+  const ownShippingVatIncluded = text(formData, 'ownShippingVatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const packagingUnit = text(formData, 'packagingUnit') || 'stuks'
   const packagingQty = positiveInteger(text(formData, 'packagingQty'))
@@ -70,6 +73,7 @@ export async function createProductAction(formData: FormData) {
   if (!articleNumber || !name) throw new Error('Artikelnummer en productnaam zijn verplicht.')
   const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
   const currency = text(formData, 'currency') || country?.currency || 'EUR'
+  const ownPrice = String(validateVatPricePair({primary:rawOwnPrice,opposite:text(formData,'ownPriceOther'),vatIncluded,vatRate:country?Number(country.vatRate):null}))
   const existingProduct = await findExistingProduct({
     companyId: user.companyId,
     articleNumber,
@@ -93,6 +97,10 @@ export async function createProductAction(formData: FormData) {
   })
   const product = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId: user.companyId, articleNumber } } })
   if (!product) throw new Error('Product is verwerkt, maar kon niet opnieuw worden geladen.')
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({where:{id:product.id},data:{ownShippingCost,ownShippingVatIncluded}})
+    if(country) await tx.productMarket.updateMany({where:{companyId:user.companyId,productId:product.id,countryId:country.id},data:{vatIncluded,ownShippingCost,ownShippingVatIncluded}})
+  })
   let suggestionCount = 0
   if (product.ean && country && user.permissions.includes('competitors.write')) {
     try {
@@ -117,8 +125,9 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   const user = await requirePermission('products.write')
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
-  const ownPrice = requiredPrice(text(formData, 'ownPrice'))
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
+  const ownShippingCost = parseOptionalShipping(text(formData, 'ownShippingCost'))
+  const ownShippingVatIncluded = text(formData, 'ownShippingVatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const ownUrl = text(formData, 'ownUrl')
   if (!productId) throw new Error('Product ontbreekt.')
@@ -130,6 +139,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   if (!product) throw new Error('Product niet gevonden.')
 
   const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
+  const ownPrice = validateVatPricePair({primary:text(formData,'ownPrice'),opposite:text(formData,'ownPriceOther'),vatIncluded,vatRate:country?Number(country.vatRate):null})
   const currency = text(formData, 'currency') || country?.currency || product.currency || 'EUR'
   const companyCountry = countryId
     ? await prisma.companyCountry.findFirst({
@@ -140,11 +150,13 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     if (country) {
-      await tx.product.update({ where: { id: productId }, data: { vatIncluded } })
       await tx.productMarket.upsert({
         where: { companyId_productId_countryId: { companyId: user.companyId, productId, countryId: country.id } },
         update: {
           ownPrice,
+          vatIncluded,
+          ownShippingCost,
+          ownShippingVatIncluded,
           currency,
           stockStatus,
           ownUrl: ownUrl || null,
@@ -155,6 +167,9 @@ export async function updateProductOwnPriceAction(formData: FormData) {
           productId,
           countryId: country.id,
           ownPrice,
+          vatIncluded,
+          ownShippingCost,
+          ownShippingVatIncluded,
           currency,
           stockStatus,
           ownUrl: ownUrl || null,
@@ -167,13 +182,13 @@ export async function updateProductOwnPriceAction(formData: FormData) {
       if (companyCountry?.isDefault || product.ownPrice === null) {
         await tx.product.update({
           where: { id: productId },
-          data: { ownPrice, currency, stockStatus },
+          data: { ownPrice, currency, stockStatus, vatIncluded, ownShippingCost, ownShippingVatIncluded },
         })
       }
     } else {
       await tx.product.update({
         where: { id: productId },
-        data: { ownPrice, currency, stockStatus, vatIncluded },
+        data: { ownPrice, currency, stockStatus, vatIncluded, ownShippingCost, ownShippingVatIncluded },
       })
       await tx.ownPriceHistory.create({
         data: { companyId: user.companyId, productId, countryId: null, recordedAt: new Date(), price: ownPrice, currency },
