@@ -50,6 +50,41 @@ function meaningfulText(value: string | null | undefined) {
   return /[a-zà-ÿ]{2,}/i.test(cleaned) ? cleaned : ''
 }
 
+function jsonRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function feedSearchContext(value: unknown) {
+  const record = jsonRecord(value)
+  if (!record) return { name: '', description: '' }
+
+  const nameKeys = ['Nieuwe Titel', 'Oude titel', 'Product naam', 'Product Name', 'Title', 'catalog_product_attribute.meta_title NEW', 'catalog_product_attribute.meta_title']
+  const descriptionKeys = ['catalog_product_attribute.meta_description NEW', 'Engels Nieuwe omschrijving', 'description', 'Omschrijving']
+
+  let name = ''
+  let description = ''
+  for (const key of nameKeys) {
+    name = meaningfulText(String(record[key] ?? ''))
+    if (name) break
+  }
+  for (const key of descriptionKeys) {
+    description = meaningfulText(String(record[key] ?? ''))
+    if (description) break
+  }
+
+  return { name, description }
+}
+
+function compactSearchContext(value: string) {
+  const stop = new Set(['voor', 'van', 'met', 'een', 'het', 'de', 'en', 'aan', 'this', 'that', 'with', 'the', 'and'])
+  return value
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stop.has(token.toLowerCase()))
+    .slice(0, 14)
+    .join(' ')
+}
+
 function productContext(input: { name: string; articleNumber: string; ownUrl?: string | null }) {
   const name = meaningfulText(input.name)
   const urlContext = meaningfulText(readableUrlContext(input.ownUrl))
@@ -215,13 +250,18 @@ function rankCandidates(
 }
 
 export async function discoverCompetitorUrlsByEan({ companyId, productId, countryId }: { companyId: string; productId: string; countryId: string }) {
-  const [product, country, companyWebshops] = await Promise.all([
+  const [product, country, companyWebshops, feedItem] = await Promise.all([
     prisma.product.findFirst({
       where: { id: productId, companyId, isActive: true },
       include: { productMarkets: { where: { companyId, countryId, isActive: true }, select: { ownUrl: true } } },
     }),
     prisma.country.findUnique({ where: { id: countryId } }),
     prisma.webshop.findMany({ where: { companyId, isActive: true, competitorId: null }, select: { url: true } }),
+    prisma.feedItem.findFirst({
+      where: { companyId, importedProductId: productId },
+      orderBy: { updatedAt: 'desc' },
+      select: { rawData: true, mappedData: true },
+    }),
   ])
 
   if (!product) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Product ontbreekt', provider: null, queryMode: null }
@@ -238,19 +278,24 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
     } catch {}
   }
 
+  const feedRaw = feedSearchContext(feedItem?.rawData)
+  const feedMapped = feedSearchContext(feedItem?.mappedData)
+  const preferredName = feedRaw.name || feedMapped.name || product.name
+  const feedDescription = feedRaw.description || feedMapped.description
   const context = productContext({
-    name: product.name,
+    name: preferredName,
     articleNumber: product.articleNumber,
     ownUrl: product.productMarkets[0]?.ownUrl,
   })
-  const identity = { ean, articleNumber: product.articleNumber, context }
+  const genericContext = compactSearchContext([preferredName, feedDescription, readableUrlContext(product.productMarkets[0]?.ownUrl)].filter(Boolean).join(' '))
+  const identity = { ean, articleNumber: product.articleNumber, context: [context, genericContext].filter(Boolean).join(' ') }
 
   const queryVariants = [
     `"${ean}"`,
     `"${ean}" prijs`,
     `"${ean}" ${country.name}`,
-    product.articleNumber ? `"${product.articleNumber}" ${context}` : '',
-    context ? `${context} ${country.name}` : '',
+    product.articleNumber ? `"${product.articleNumber}" ${preferredName}` : '',
+    genericContext ? `${genericContext} ${country.name}` : '',
   ].filter(Boolean)
 
   const searchResults: SearchCandidate[][] = []
@@ -268,13 +313,25 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   }
 
   let ranked = rankCandidates(dedupeCandidates(searchResults), identity, country.code)
-  if (ranked.length === 0 && context) {
+  if (ranked.length === 0 && genericContext) {
     queryMode = 'PRODUCT'
-    const fallback = await webSearch(context)
-    fallback.provider.split(' + ').forEach((provider) => {
-      if (provider && provider !== 'Geen zoekprovider met resultaten') providerNames.add(provider)
-    })
-    ranked = rankCandidates(fallback.candidates, identity, country.code)
+    const fallbackQueries = [
+      genericContext,
+      `${genericContext} prijs`,
+      `${genericContext} webshop`,
+    ]
+
+    const fallbackGroups: SearchCandidate[][] = []
+    for (const query of fallbackQueries) {
+      const fallback = await webSearch(query)
+      if (fallback.candidates.length) fallbackGroups.push(fallback.candidates)
+      fallback.provider.split(' + ').forEach((provider) => {
+        if (provider && provider !== 'Geen zoekprovider met resultaten') providerNames.add(provider)
+      })
+      const provisional = rankCandidates(dedupeCandidates(fallbackGroups), identity, country.code)
+      if (provisional.length >= 5) break
+    }
+    ranked = rankCandidates(dedupeCandidates(fallbackGroups), identity, country.code)
   }
 
   const safeRanked: Array<SearchCandidate & { score: number }> = []
@@ -364,10 +421,10 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
           title: candidate.title,
           snippet: candidate.snippet ?? null,
           searchMode: queryMode,
-          searchContext: context,
+          searchContext: genericContext || context,
           reason: queryMode === 'EAN'
             ? 'Concurrentkandidaat gevonden op EAN, artikelnummer en productcontext'
-            : 'EAN leverde geen directe kandidaat op, productcontext en markt zijn als fallback gebruikt',
+            : 'Vergelijkbare marktbron gevonden op producttitel, kenmerken en markt, controleer de match voor commercieel gebruik',
         },
       },
     })
