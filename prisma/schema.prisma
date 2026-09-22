@@ -353,6 +353,8 @@ model Product {
   name            String
   productGroupId  String            @map("product_group_id")
   ownPrice        Decimal?          @map("own_price")
+  ownShippingCost Decimal?          @map("own_shipping_cost")
+  ownShippingVatIncluded Boolean?   @map("own_shipping_vat_included")
   vatIncluded     Boolean           @default(true) @map("vat_included")
   packagingUnit   String?           @map("packaging_unit")
   packagingQty    Int               @default(1) @map("packaging_qty")
@@ -532,6 +534,9 @@ model ProductMarket {
   productId   String   @map("product_id")
   countryId   String   @map("country_id")
   ownPrice    Decimal? @map("own_price")
+  vatIncluded Boolean? @map("vat_included")
+  ownShippingCost Decimal? @map("own_shipping_cost")
+  ownShippingVatIncluded Boolean? @map("own_shipping_vat_included")
   currency    String
   ownUrl      String?  @map("own_url")
   stockStatus String?  @map("stock_status")
