@@ -188,8 +188,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const lowestPrice = prices.length ? Math.min(...prices) : null
   const highestPrice = prices.length ? Math.max(...prices) : null
   const averagePrice = prices.length ? prices.reduce((sum, value) => sum + value, 0) / prices.length : null
-  const spread = lowestPrice !== null && highestPrice !== null ? highestPrice - lowestPrice : null
-  const spreadPct = lowestPrice !== null && lowestPrice > 0 && spread !== null ? (spread / lowestPrice) * 100 : null
   const latestCheck = crawlableMatches.map((match) => match.competitorOffer.lastCheckedAt).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
   const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
   const ownCurrency = selectedMarket?.currency ?? product.currency
@@ -203,7 +201,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   })
   const comparisonOwnPrice = ownAmounts.priceInc
   const comparisonOwnPriceExVat = ownAmounts.priceEx
-  const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const automaticMatches = crawlableMatches.filter((match) => match.competitorOffer.competitor.checkFrequencyHours < 876000)
   const automaticDue = automaticMatches.filter((match) => isCrawlDue(
     match.competitorOffer.lastCheckedAt,
@@ -212,12 +209,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const competitorOutOfStock = confirmedMatches.filter((match) => isOutOfStock(match.competitorOffer.stockStatus)).length
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
-  const measurementQuality = confirmedMatches.length >= 3 && staleSources === 0 && failedLatestChecks === 0
-    ? 'Sterk'
-    : confirmedMatches.length >= 2 && failedLatestChecks === 0
-      ? 'Redelijk'
-      : 'Beperkt'
-
   const recommendation = pricing.recommendations.find((item) => item.productId === product.id && defaultCountry && item.countryId === defaultCountry.id)
     ?? pricing.recommendations.find((item) => item.productId === product.id)
     ?? null
@@ -253,9 +244,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const duplicateRedirect = readParam(query.dubbel) === '1'
   const sourceUpdated = readParam(query.bron) === 'bijgewerkt'
   const intelligenceUpdated = readParam(query.intelligence) === 'updated'
-  const intelligenceFound = Number(readParam(query.gevonden) ?? '0') || 0
   const intelligenceCreated = Number(readParam(query.nieuw) ?? '0') || 0
-  const intelligenceLinked = Number(readParam(query.gekoppeld) ?? '0') || 0
   const intelligencePrices = Number(readParam(query.prijzen) ?? '0') || 0
   const intelligenceErrors = Number(readParam(query.fouten) ?? '0') || 0
   const controlSummaryText = controlSummary(controlMessage)
