@@ -120,7 +120,7 @@ async function pricingContext(companyId: string, productId: string, countryId: s
       vatIncluded: true,
       productMarkets: countryId ? {
         where: { companyId, countryId, isActive: true },
-        select: { countryId: true, ownPrice: true, currency: true },
+        select: { countryId: true, ownPrice: true, vatIncluded: true, currency: true },
       } : false,
       matches: {
         where: { companyId, matchStatus: 'CERTAIN' },
@@ -132,6 +132,7 @@ async function pricingContext(companyId: string, productId: string, countryId: s
 
   const country = countryId ? await requireLicensedCountry(companyId, countryId) : null
   const market = countryId && Array.isArray(product.productMarkets) ? product.productMarkets[0] : null
+  const marketVatIncluded = market?.vatIncluded ?? product.vatIncluded
   const currentPrice = num(market?.ownPrice) ?? num(product.ownPrice)
   if (currentPrice === null || currentPrice <= 0) throw new Error('Eigen verkoopprijs ontbreekt voor deze markt.')
   const currency = market?.currency ?? product.currency
@@ -140,7 +141,7 @@ async function pricingContext(companyId: string, productId: string, countryId: s
   const rule = resolvePricingRule(rules, { productId, productGroupId: product.productGroupId, countryId })
   const costPrice = guardrails?.costPrice ?? null
   const minimumMarginPct = highest([guardrails?.minimumMarginPct, rule?.minimumMarginPct])
-  const floorFromMargin = marginFloor(costPrice, minimumMarginPct, product.vatIncluded, country ? Number(country.vatRate) : null)
+  const floorFromMargin = marginFloor(costPrice, minimumMarginPct, marketVatIncluded, country ? Number(country.vatRate) : null)
   const minimumAllowedPrice = highest([guardrails?.minimumPrice, rule?.minimumPrice, floorFromMargin])
   const maximumAllowedPrice = lowest([guardrails?.maximumPrice, rule?.maximumPrice])
 
@@ -158,7 +159,7 @@ async function pricingContext(companyId: string, productId: string, countryId: s
     : null
 
   return {
-    product,
+    product: { ...product, vatIncluded: marketVatIncluded },
     country,
     currentPrice,
     currency,
@@ -166,7 +167,7 @@ async function pricingContext(companyId: string, productId: string, countryId: s
     minimumMarginPct,
     minimumAllowedPrice,
     maximumAllowedPrice,
-    marginBeforePct: grossMarginPct(currentPrice, costPrice, product.vatIncluded, country ? Number(country.vatRate) : null),
+    marginBeforePct: grossMarginPct(currentPrice, costPrice, marketVatIncluded, country ? Number(country.vatRate) : null),
     rule,
     competitorCount: competitorPrices.length,
     marketLowest: competitorPrices[0] ?? null,
@@ -282,8 +283,8 @@ async function syncLocalPrice(request: RequestRow, product: { vatIncluded: boole
   if (request.country_id) {
     await prisma.productMarket.upsert({
       where: { companyId_productId_countryId: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id } },
-      update: { ownPrice: new Prisma.Decimal(localPrice), currency: request.currency, isActive: true },
-      create: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id, ownPrice: new Prisma.Decimal(localPrice), currency: request.currency, isActive: true },
+      update: { ownPrice: new Prisma.Decimal(localPrice), vatIncluded: product.vatIncluded, currency: request.currency, isActive: true },
+      create: { companyId: request.company_id, productId: request.product_id, countryId: request.country_id, ownPrice: new Prisma.Decimal(localPrice), vatIncluded: product.vatIncluded, currency: request.currency, isActive: true },
     })
   } else {
     await prisma.product.updateMany({ where: { companyId: request.company_id, id: request.product_id }, data: { ownPrice: new Prisma.Decimal(localPrice) } })
