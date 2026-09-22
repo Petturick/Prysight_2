@@ -57,6 +57,8 @@ export function FeedSourceManager({ initialSources, canManage }: { initialSource
   const router = useRouter()
   const [sources, setSources] = useState(initialSources)
   const [filter, setFilter] = useState('')
+  const [marketFilter, setMarketFilter] = useState('')
+  const [feedFilter, setFeedFilter] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -86,11 +88,37 @@ export function FeedSourceManager({ initialSources, canManage }: { initialSource
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [sources, router])
 
+  const marketSources = useMemo(
+    () => marketFilter ? sources.filter((source) => source.countryCode === marketFilter) : sources,
+    [marketFilter, sources],
+  )
+
+  const selectableFeeds = useMemo(
+    () => marketSources.slice().sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name, 'nl-NL')),
+    [marketSources],
+  )
+
+  const effectiveFeedFilter = feedFilter && selectableFeeds.some((source) => source.id === feedFilter)
+    ? feedFilter
+    : ''
+
   const visible = useMemo(() => {
     const search = filter.toLocaleLowerCase('nl-NL').trim()
-    if (!search) return sources
-    return sources.filter((source) => [source.name, source.url, source.countryCode, source.sourceType].some((value) => value?.toLocaleLowerCase('nl-NL').includes(search)))
-  }, [filter, sources])
+    return marketSources.filter((source) => {
+      if (effectiveFeedFilter && source.id !== effectiveFeedFilter) return false
+      if (!search) return true
+      return [source.name, source.url, source.countryCode, source.sourceType]
+        .some((value) => value?.toLocaleLowerCase('nl-NL').includes(search))
+    })
+  }, [effectiveFeedFilter, filter, marketSources])
+
+  const marketCounts = useMemo(
+    () => new Map(markets.map(([code]) => [
+      code,
+      sources.filter((source) => source.countryCode === code).length,
+    ])),
+    [sources],
+  )
 
   function openEdit(source: ManageableFeed) {
     setDeletingId(null)
@@ -164,8 +192,50 @@ export function FeedSourceManager({ initialSources, canManage }: { initialSource
         <span className="rounded-full bg-[#f2f5fa] px-3 py-1.5 text-[10px] font-semibold text-[#526176]">{sources.length} bronnen</span>
       </div>
 
+      <div className="border-b border-[#e4e9f1] bg-[#f8fafc] px-5 py-3.5">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end">
+          <label className="min-w-[210px] text-[10px] font-semibold text-[#536174]">
+            Land
+            <select
+              value={marketFilter}
+              onChange={(event) => {
+                setMarketFilter(event.target.value)
+                setFeedFilter('')
+              }}
+              className="toolbar-control mt-1.5 w-full"
+            >
+              <option value="">Alle landen</option>
+              {markets.map(([code, label]) => {
+                const count = marketCounts.get(code) ?? 0
+                return count > 0 ? <option key={code} value={code}>{label} ({count})</option> : null
+              })}
+            </select>
+          </label>
+
+          <label className="min-w-[260px] flex-1 text-[10px] font-semibold text-[#536174]">
+            Feed
+            <select
+              value={effectiveFeedFilter}
+              onChange={(event) => setFeedFilter(event.target.value)}
+              className="toolbar-control mt-1.5 w-full"
+            >
+              <option value="">Alle feeds in deze selectie</option>
+              {selectableFeeds.map((source) => (
+                <option key={source.id} value={source.id}>
+                  {source.name} · {source.isActive ? 'actief' : 'gepauzeerd'}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="rounded-[9px] border border-[#dfe6ee] bg-white px-3 py-2.5 text-[10px] leading-4 text-[#6b788b] lg:max-w-[300px]">
+            Kies eerst het land en daarna de feed. Zo werk je per markt zonder dat alle bronnen tegelijk in beeld staan.
+          </div>
+        </div>
+      </div>
+
       {sources.length > 4 ? <div className="border-b border-[#e4e9f1] px-5 py-3">
-        <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Zoek op naam, URL of land" aria-label="Zoek feedbronnen" className="toolbar-control w-full max-w-lg" />
+        <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Zoek binnen de gekozen feedselectie" aria-label="Zoek feedbronnen" className="toolbar-control w-full max-w-lg" />
       </div> : null}
 
       {notice && !notice.id ? <p role="status" className="mx-5 mt-4 rounded-lg bg-[#e7f4ec] px-3 py-2 text-[11px] text-[#17603a]">{notice.text}</p> : null}
