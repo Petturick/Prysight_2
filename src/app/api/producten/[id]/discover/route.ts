@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
+import { requireLicensedCountry } from '@/lib/company-countries'
 import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requirePermission('competitors.write')
     const { id } = await params
@@ -21,9 +22,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     })
 
     if (!product) return NextResponse.json({ error: 'Product niet gevonden.' }, { status: 404 })
-    if (!product.ean) return NextResponse.json({ skipped: true, reason: 'EAN ontbreekt' })
+    if (!product.ean?.trim() && !product.gtin?.trim()) return NextResponse.json({ skipped: true, reason: 'EAN of GTIN ontbreekt' })
 
-    const marketCountry = product.productMarkets[0]?.country
+    const body = await request.json().catch(() => ({})) as { countryId?: unknown }
+    const countryOverride = typeof body.countryId === 'string' && body.countryId.trim()
+      ? await requireLicensedCountry(user.companyId, body.countryId.trim())
+      : null
+
+    const marketCountry = countryOverride ?? product.productMarkets[0]?.country
     const fallbackCompanyCountry = marketCountry ? null : await prisma.companyCountry.findFirst({
       where: { companyId: user.companyId, isActive: true, country: { isActive: true } },
       include: { country: true },
