@@ -28,7 +28,7 @@ type ExtractedOffer = ExtractedOfferCore & {
   shippingMethod: string | null
 }
 type JsonRecord = Record<string, unknown>
-type FetchMode = 'HTTP' | 'BROWSER'
+type FetchMode = 'HTTP' | 'BROWSER' | 'API'
 export type PriceExtractionTarget = {
   ean?: string | null
   sku?: string | null
@@ -38,6 +38,7 @@ export type PriceExtractionTarget = {
 
 const robotsCache = new Map<string, { checkedAt: number; disallow: string[] }>()
 const MAX_FETCH_ATTEMPTS = 3
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36'
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -325,6 +326,166 @@ export function extractOfferSnapshot(html: string, target?: PriceExtractionTarge
   }
 }
 
+function productSlug(targetUrl: string) {
+  try {
+    const url = new URL(targetUrl)
+    return decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() ?? '').replace(/\.[a-z0-9]+$/i, '')
+  } catch {
+    return ''
+  }
+}
+
+async function fetchMagentoGraphqlOffer(targetUrl: string, target?: PriceExtractionTarget): Promise<ExtractedOffer | null> {
+  const url = new URL(targetUrl)
+  const slug = productSlug(targetUrl)
+  const filters: Array<{ field: 'url_key' | 'sku'; value: string }> = []
+  if (slug) filters.push({ field: 'url_key', value: slug })
+  if (target?.sku?.trim()) filters.push({ field: 'sku', value: target.sku.trim() })
+
+  for (const filter of filters) {
+    try {
+      const query = `query PrysightPrice($value: String!) {
+        products(filter: { ${filter.field}: { eq: $value } }, pageSize: 1) {
+          items {
+            sku
+            name
+            price_range {
+              minimum_price {
+                final_price { value currency }
+              }
+            }
+          }
+        }
+      }`
+      const response = await safeRemoteFetch(new URL('/graphql', url.origin).toString(), {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'User-Agent': BROWSER_UA,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.7',
+        },
+        body: JSON.stringify({ query, variables: { value: filter.value } }),
+      })
+      if (!response.ok) continue
+      const payload = await response.json() as {
+        data?: { products?: { items?: Array<{ sku?: string; name?: string; price_range?: { minimum_price?: { final_price?: { value?: number; currency?: string } } } }> } }
+      }
+      const item = payload.data?.products?.items?.[0]
+      const price = Number(item?.price_range?.minimum_price?.final_price?.value)
+      if (!Number.isFinite(price) || price <= 0) continue
+      return {
+        price,
+        currency: item?.price_range?.minimum_price?.final_price?.currency ?? null,
+        stockStatus: null,
+        productTitle: item?.name ?? null,
+        sku: item?.sku ?? null,
+        ean: null,
+        packagingQty: null,
+        method: 'MAGENTO',
+        shippingCost: null,
+        shippingCurrency: null,
+        shippingLabel: null,
+        shippingMethod: null,
+      }
+    } catch {}
+  }
+
+  return null
+}
+
+async function fetchWooCommerceStoreOffer(targetUrl: string): Promise<ExtractedOffer | null> {
+  try {
+    const url = new URL(targetUrl)
+    const slug = productSlug(targetUrl)
+    if (!slug) return null
+    const endpoint = new URL('/wp-json/wc/store/v1/products', url.origin)
+    endpoint.searchParams.set('slug', slug)
+    const response = await safeRemoteFetch(endpoint.toString(), {
+      cache: 'no-store',
+      headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json' },
+    })
+    if (!response.ok) return null
+    const items = await response.json() as Array<{
+      name?: string
+      sku?: string
+      prices?: { price?: string; currency_code?: string; currency_minor_unit?: number }
+      is_in_stock?: boolean
+    }>
+    const item = items[0]
+    const raw = Number(item?.prices?.price)
+    const minor = Number(item?.prices?.currency_minor_unit ?? 2)
+    if (!Number.isFinite(raw) || raw <= 0 || !Number.isInteger(minor) || minor < 0 || minor > 6) return null
+    return {
+      price: raw / Math.pow(10, minor),
+      currency: item?.prices?.currency_code ?? null,
+      stockStatus: item?.is_in_stock === true ? 'Op voorraad' : item?.is_in_stock === false ? 'Niet op voorraad' : null,
+      productTitle: item?.name ?? null,
+      sku: item?.sku ?? null,
+      ean: null,
+      packagingQty: null,
+      method: 'META',
+      shippingCost: null,
+      shippingCurrency: null,
+      shippingLabel: null,
+      shippingMethod: null,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function fetchShopifyProductOffer(targetUrl: string): Promise<ExtractedOffer | null> {
+  try {
+    const url = new URL(targetUrl)
+    if (!/\/products\//i.test(url.pathname)) return null
+    const endpoint = `${url.origin}${url.pathname.replace(/\/$/, '')}.js`
+    const response = await safeRemoteFetch(endpoint, {
+      cache: 'no-store',
+      headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json' },
+    })
+    if (!response.ok) return null
+    const item = await response.json() as {
+      title?: string
+      price?: number
+      variants?: Array<{ price?: number; sku?: string; available?: boolean }>
+    }
+    const firstVariant = item.variants?.find((variant) => Number(variant.price) > 0) ?? item.variants?.[0]
+    const raw = Number(firstVariant?.price ?? item.price)
+    if (!Number.isFinite(raw) || raw <= 0) return null
+    return {
+      price: raw / 100,
+      currency: null,
+      stockStatus: firstVariant?.available === true ? 'Op voorraad' : firstVariant?.available === false ? 'Niet op voorraad' : null,
+      productTitle: item.title ?? null,
+      sku: firstVariant?.sku ?? null,
+      ean: null,
+      packagingQty: null,
+      method: 'META',
+      shippingCost: null,
+      shippingCurrency: null,
+      shippingLabel: null,
+      shippingMethod: null,
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function fetchCommerceApiSnapshot(targetUrl: string, target?: PriceExtractionTarget): Promise<ExtractedOffer | null> {
+  const magento = await fetchMagentoGraphqlOffer(targetUrl, target)
+  if (magento?.price) return magento
+
+  const woo = await fetchWooCommerceStoreOffer(targetUrl)
+  if (woo?.price) return woo
+
+  const shopify = await fetchShopifyProductOffer(targetUrl)
+  if (shopify?.price) return shopify
+
+  return null
+}
+
 async function robotsRules(targetUrl: string) {
   const url = new URL(targetUrl)
   const origin = url.origin
@@ -376,7 +537,7 @@ async function fetchHtmlOnce(targetUrl: string) {
       signal: controller.signal,
       cache: 'no-store',
       headers: {
-        'User-Agent': 'PrysightPriceMonitor/2.0 (+pricing intelligence)',
+        'User-Agent': BROWSER_UA,
         Accept: 'text/html,application/xhtml+xml',
         'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.7',
       },
@@ -531,10 +692,27 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
 
   try {
     let fetchMode: FetchMode = 'HTTP'
-    let page = await fetchOfferPage(offer.url)
-    let extracted = extractOfferSnapshot(page.html, extractionTarget)
+    let page: { html: string; statusCode: number } = { html: '', statusCode: 200 }
+    let extracted: ExtractedOffer | null = null
+    let directFetchError: unknown = null
 
-    if (!extracted.price && browserRendererConfigured()) {
+    try {
+      page = await fetchOfferPage(offer.url)
+      extracted = extractOfferSnapshot(page.html, extractionTarget)
+    } catch (error) {
+      directFetchError = error
+    }
+
+    if (!extracted?.price) {
+      const commerceApi = await fetchCommerceApiSnapshot(offer.url, extractionTarget).catch(() => null)
+      if (commerceApi?.price) {
+        extracted = commerceApi
+        page = { html: '', statusCode: 200 }
+        fetchMode = 'API'
+      }
+    }
+
+    if (!extracted?.price && browserRendererConfigured()) {
       try {
         const renderedPage = await fetchRenderedOfferPage(offer.url)
         const renderedExtraction = extractOfferSnapshot(renderedPage.html, extractionTarget)
@@ -552,10 +730,16 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       }
     }
 
-    if (!extracted.price) throw new Error('Geen betrouwbare prijs gevonden op de productpagina.')
+    if (!extracted?.price) {
+      if (directFetchError) throw directFetchError
+      throw new Error('Geen betrouwbare prijs gevonden op de productpagina.')
+    }
+
     const currency = (extracted.currency ?? offer.currency ?? offer.competitor.country.currency).toUpperCase()
     const packagingQty = extracted.packagingQty ?? offer.packagingQty ?? 1
-    const detectedVat = detectVatInclusion(page.html, extracted.price)
+    const detectedVat = fetchMode === 'API'
+      ? { vatIncluded: offer.vatIncluded }
+      : detectVatInclusion(page.html, extracted.price)
     const sourceVatIncluded = detectedVat.vatIncluded ?? offer.vatIncluded
 
     const shippingCurrency = (extracted.shippingCurrency ?? currency).toUpperCase()
