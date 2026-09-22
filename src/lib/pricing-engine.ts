@@ -229,7 +229,7 @@ export async function getPricingRecommendations(
     }
 
     if (marketMap.size === 0) {
-      marketMap.set('default', { countryId: null, countryCode: null, countryName: null, vatRate: null, ownPrice: numeric(product.ownPrice) })
+      marketMap.set('default', { countryId: null, countryCode: null, countryName: null, vatRate: null, ownPrice: numeric(product.ownPrice), vatIncluded: product.vatIncluded })
     }
 
     for (const market of marketMap.values()) {
