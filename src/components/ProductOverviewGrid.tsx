@@ -13,6 +13,8 @@ export type ProductGridRow = {
   markets: string
   ownEx: string
   ownInc: string
+  ownShipping: string
+  ownDelivered: string
   marketEx: string
   marketInc: string
   shipping: string
@@ -26,7 +28,7 @@ export type ProductGridRow = {
   detailHref: string
 }
 
-type Column = 'articleNumber' | 'name' | 'ean' | 'group' | 'markets' | 'ownEx' | 'ownInc' | 'marketEx' | 'marketInc' | 'shipping' | 'delivered' | 'difference' | 'sources' | 'lastChecked' | 'status'
+type Column = 'articleNumber' | 'name' | 'ean' | 'group' | 'markets' | 'ownEx' | 'ownInc' | 'ownShipping' | 'ownDelivered' | 'marketEx' | 'marketInc' | 'shipping' | 'delivered' | 'difference' | 'sources' | 'lastChecked' | 'status'
 const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
   { key: 'articleNumber', label: 'Artikelnummer' },
   { key: 'name', label: 'Product' },
@@ -35,6 +37,8 @@ const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
   { key: 'markets', label: 'Markten' },
   { key: 'ownEx', label: 'Eigen excl. btw', align: 'right' },
   { key: 'ownInc', label: 'Eigen incl. btw', align: 'right' },
+  { key: 'ownShipping', label: 'Eigen verzending incl. btw', align: 'right' },
+  { key: 'ownDelivered', label: 'Eigen totaal incl. btw', align: 'right' },
   { key: 'marketEx', label: 'Laagste excl. btw', align: 'right' },
   { key: 'marketInc', label: 'Laagste incl. btw', align: 'right' },
   { key: 'shipping', label: 'Verzendkosten', align: 'right' },
@@ -231,6 +235,7 @@ export function ProductOverviewGrid({
                   <div className="grid gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
                     {([
                       ['Productgroep', row.group], ['Eigen excl. btw', row.ownEx], ['Eigen incl. btw', row.ownInc],
+                      ['Eigen verzendkosten incl. btw', row.ownShipping], ['Eigen totaal incl. btw', row.ownDelivered],
                       ['Laagste excl. btw', row.marketEx], ['Laagste incl. btw', row.marketInc], ['Verzendkosten', row.shipping],
                       ['Totaal incl. verzending', row.delivered], ['Prijsverschil', row.difference], ['Bronnen', String(row.sources)],
                       ['Laatste meting', row.lastChecked], ['EAN / GTIN', row.ean || 'Ontbreekt'],
