@@ -18,11 +18,12 @@ export function EanAutoDiscovery() {
     if (!match || match[1] === 'nieuw') return null
     return decodeURIComponent(match[1])
   }, [pathname])
+  const countryId = searchParams.get('markt')
   const serverDiscoveryDone = searchParams.has('suggesties') || searchParams.has('gevonden')
 
   useEffect(() => {
     if (!productId) return
-    const storageKey = `prysight:ean-discovery:${productId}`
+    const storageKey = `prysight:ean-discovery:${productId}:${countryId || 'default'}`
     const now = Date.now()
     if (serverDiscoveryDone) {
       window.localStorage.setItem(storageKey, String(now))
@@ -38,11 +39,13 @@ export function EanAutoDiscovery() {
 
     const runDiscovery = () => {
       if (cancelled) return
-      window.localStorage.setItem(storageKey, String(Date.now()))
       setState('searching')
       setMessage('AI zoekt automatisch concurrent URLs op basis van EAN…')
 
-      fetch(`/api/producten/${encodeURIComponent(productId)}/discover`, { method: 'POST', signal: controller.signal })
+      fetch(`/api/producten/${encodeURIComponent(productId)}/discover`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ countryId }), signal: controller.signal,
+      })
         .then(async (response) => {
           const data = await response.json() as DiscoveryResult
           if (!response.ok) throw new Error(data.error || 'EAN discovery mislukt')
@@ -51,6 +54,7 @@ export function EanAutoDiscovery() {
         .then((data) => {
           if (cancelled) return
           if (data.skipped) { setState('idle'); return }
+          window.localStorage.setItem(storageKey, String(Date.now()))
           if ((data.created ?? 0) > 0) {
             setState('found')
             setMessage(`${data.created} nieuwe concurrent URL suggestie${data.created === 1 ? '' : 's'} gevonden via ${data.provider ?? 'web search'}.`)
@@ -81,7 +85,7 @@ export function EanAutoDiscovery() {
       window.clearTimeout(startTimer)
       if (hideTimer) window.clearTimeout(hideTimer)
     }
-  }, [productId, router, serverDiscoveryDone])
+  }, [countryId, productId, router, serverDiscoveryDone])
 
   if (!productId || state === 'idle') return null
 

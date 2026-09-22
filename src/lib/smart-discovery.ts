@@ -50,7 +50,7 @@ export async function discoverProductCandidates(input:{companyId:string;productI
   const [product,country,companyWebshops]=await Promise.all([
     prisma.product.findFirst({where:{id:input.productId,companyId:input.companyId,isActive:true}}),
     prisma.country.findUnique({where:{id:input.countryId}}),
-    prisma.webshop.findMany({where:{companyId:input.companyId,isActive:true},select:{url:true}}),
+    prisma.webshop.findMany({where:{companyId:input.companyId,isActive:true,competitorId:null},select:{url:true}}),
   ])
   if(!product)return{found:0,created:0,reason:'Product ontbreekt'}
   if(!country)return{found:0,created:0,reason:'Markt ontbreekt'}

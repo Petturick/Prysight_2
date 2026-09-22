@@ -170,24 +170,28 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   const [product, country, companyWebshops] = await Promise.all([
     prisma.product.findFirst({ where: { id: productId, companyId, isActive: true } }),
     prisma.country.findUnique({ where: { id: countryId } }),
-    prisma.webshop.findMany({ where: { companyId, isActive: true }, select: { url: true } }),
+    prisma.webshop.findMany({ where: { companyId, isActive: true, competitorId: null }, select: { url: true } }),
   ])
-  if (!product?.ean) return { found: 0, created: 0, alreadyLinked: 0, reason: 'EAN ontbreekt', provider: null, queryMode: null }
+  if (!product) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Product ontbreekt', provider: null, queryMode: null }
+  const ean = product.ean?.trim() || product.gtin?.trim()
+  if (!ean) return { found: 0, created: 0, alreadyLinked: 0, reason: 'EAN of GTIN ontbreekt', provider: null, queryMode: null }
   if (!country) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Markt ontbreekt', provider: null, queryMode: null }
 
   const ownHosts = new Set(companyWebshops.flatMap((shop) => {
     try { return [new URL(shop.url).hostname.replace(/^www\./, '')] } catch { return [] }
   }))
 
-  const exactSearch = await webSearch(`"${product.ean}" ${product.name} ${country.name} ${country.code}`)
-  let ranked = rankCandidates(exactSearch.candidates, { ean: product.ean, name: product.name }, country.code)
+  // A strict search combining EAN, product name and market often returns zero results;
+  // the exact identifier is the primary signal and the market is used for ranking.
+  const exactSearch = await webSearch(`"${ean}"`)
+  let ranked = rankCandidates(exactSearch.candidates, { ean: ean, name: product.name }, country.code)
   let provider = exactSearch.provider
   let queryMode: 'EAN' | 'PRODUCT' = 'EAN'
 
   if (ranked.length === 0) {
     const cleanName = product.name.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
     const fallbackSearch = await webSearch(`${cleanName} ${country.name} ${country.code}`)
-    ranked = rankCandidates(fallbackSearch.candidates, { ean: product.ean, name: product.name }, country.code)
+    ranked = rankCandidates(fallbackSearch.candidates, { ean: ean, name: product.name }, country.code)
     provider = fallbackSearch.provider
     queryMode = 'PRODUCT'
   }
@@ -274,7 +278,7 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
         matchStatus: MatchStatus.REVIEW,
         matchEvidence: {
           source: 'ai-market-discovery',
-          ean: product.ean,
+          ean: ean,
           market: country.code,
           title: candidate.title,
           snippet: candidate.snippet ?? null,

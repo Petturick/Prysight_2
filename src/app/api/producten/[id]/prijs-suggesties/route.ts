@@ -132,7 +132,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const product = await prisma.product.findFirst({
       where: { id, companyId: actor.companyId, isActive: true },
       select: {
-        id: true, ean: true, articleNumber: true, name: true, ownPrice: true, currency: true, vatIncluded: true,
+        id: true, ean: true, gtin: true, articleNumber: true, name: true, ownPrice: true, currency: true, vatIncluded: true,
         productMarkets: { where: { companyId: actor.companyId, countryId: country.id, isActive: true }, select: { ownUrl: true, ownPrice: true } },
         matches: {
           where: { companyId: actor.companyId, matchStatus: { in: ['REVIEW', 'CERTAIN'] } },
@@ -142,7 +142,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
     })
     if (!product) return NextResponse.json({ error: 'Product niet gevonden.' }, { status: 404 })
-    if (!product.ean || !/^\d{8}(?:\d{4,6})?$/.test(product.ean)) return NextResponse.json({ error: 'Een geldige EAN of GTIN is vereist.' }, { status: 422 })
+    const identifier = product.ean?.trim() || product.gtin?.trim()
+    if (!identifier || !/^\d{8}(?:\d{4,6})?$/.test(identifier)) return NextResponse.json({ error: 'Een geldige EAN of GTIN is vereist.' }, { status: 422 })
     let ownUrl = product.productMarkets[0]?.ownUrl ?? null
     let ownUrlDiscovered = false
     if (!ownUrl) {
@@ -155,7 +156,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       for (const shop of shops) {
         try {
           const host = new URL(shop.url).hostname.toLowerCase().replace(/^www\./, '')
-          const search = await webSearch(`"${product.ean}" site:${host}`)
+          const search = await webSearch(`"${identifier}" site:${host}`)
           const hit = search.candidates.find((candidate) => {
             try {
               const candidateHost = new URL(candidate.url).hostname.toLowerCase().replace(/^www\./, '')
@@ -175,9 +176,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const competitors = product.matches.filter((match) => match.competitorOffer.isActive && match.competitorOffer.competitor.isActive && match.competitorOffer.competitor.countryId === country.id).slice(0, 4)
     for (const match of competitors) sources.push({ id: match.competitorOffer.id, matchId: match.id, kind: 'COMPETITOR', name: match.competitorOffer.competitor.name, url: match.competitorOffer.url, trusted: match.matchStatus === 'CERTAIN' })
     const ownPrice = product.productMarkets[0]?.ownPrice ?? product.ownPrice
-    const info = { ean: product.ean, articleNumber: product.articleNumber, name: product.name, ownPrice: ownPrice === null ? null : Number(ownPrice) }
+    const info = { ean: identifier, articleNumber: product.articleNumber, name: product.name, ownPrice: ownPrice === null ? null : Number(ownPrice) }
     const results = await Promise.all(sources.map((source) => previewSource(source, info, Number(country.vatRate), country.currency, country.code)))
-    return NextResponse.json({ ean: product.ean, market: country.code, countryId: country.id, suggestions: results, hasOwnUrl: Boolean(ownUrl), hasCompetitors: competitors.length > 0 })
+    return NextResponse.json({ ean: identifier, market: country.code, countryId: country.id, suggestions: results, hasOwnUrl: Boolean(ownUrl), hasCompetitors: competitors.length > 0 })
   } catch (error) {
     console.error('EAN price suggestion preview failed', error)
     return NextResponse.json({ error: 'Prijssuggesties konden niet worden opgehaald.' }, { status: 500 })

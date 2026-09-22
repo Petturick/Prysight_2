@@ -93,7 +93,7 @@ export function EanPriceSuggestions({
       <div className="p-5 sm:px-6">
         {error ? <p role="alert" className="rounded-[10px] bg-[#fff1f2] px-4 py-3 text-[12px] text-[#a83f4b]">{error}</p> : null}
         {pending && !result ? <p role="status" className="text-[12px] text-[#60758d]">Prysight controleert nu de beschikbare productbronnen op EAN, prijs en verzendkosten.</p> : null}
-        {result && !result.hasOwnUrl ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">De eigen product URL ontbreekt voor deze markt. Voeg die hierboven bij jouw verkoopprijs toe, zodat ook de eigen webshopprijs live gecontroleerd kan worden.</p> : null}
+        {result && !result.hasOwnUrl ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">Geen eigen product URL gevonden voor deze markt. Koppel eenmalig de eigen webshop voor automatische EAN herkenning, of vul de URL op de productpagina in. <a href="/beheer/webshops" className="font-semibold underline">Eigen webshop instellen</a></p> : null}
         {result && !result.hasCompetitors ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">Nog geen concurrentbronnen beschikbaar. Prysight zoekt automatisch naar EAN kandidaten. Je kunt ook hieronder opnieuw naar concurrenten zoeken.</p> : null}
         {items.length ? (
           <div className="grid gap-3 lg:grid-cols-2">

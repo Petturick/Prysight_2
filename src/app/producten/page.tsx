@@ -240,6 +240,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       <ProductOverviewGrid
         rows={rows}
         totalCount={totalCount}
+        countryId={selectedCountry?.id}
         canCrawl={canCrawl}
         canDelete={canDelete}
         deleteAction={deleteSelectedProductsAction}
