@@ -16,6 +16,7 @@ const tabs: Array<{ href: string; label: string; permission?: Permission; superA
   { href: '/integraties', label: 'Integraties', permission: 'settings.manage' },
   { href: '/instellingen/licentie', label: 'Licentie en facturatie', permission: 'billing.manage' },
   { href: '/instellingen/systeem', label: 'Systeem', permission: 'settings.manage' },
+  { href: '/instellingen/data', label: 'Data beheer', superAdminOnly: true },
   { href: '/instellingen/profiel', label: 'Mijn profiel' },
 ]
 
