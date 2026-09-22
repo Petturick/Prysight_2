@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+import Link from 'next/link'
 import { deleteCompetitorAdminAction, saveCompetitorAdminAction } from '@/app/actions/adminActions'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
@@ -18,7 +19,10 @@ export default async function BeheerConcurrentenPage() {
   return (
     <div className="space-y-6">
       {!result.available && <DatabaseNotice />}
-      <h1 className="text-3xl font-semibold">Concurrenten beheer</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold">Concurrenten beheer</h1>
+        {actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-xl border border-rose-300 bg-white px-3 py-2 text-xs font-medium text-rose-700">Alle concurrenten verwijderen</Link> : null}
+      </div>
       <form action={saveCompetitorAdminAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
         <fieldset disabled={!result.available || countries.length === 0} className="contents disabled:opacity-50">
         <input name="name" placeholder="Naam" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" required />
