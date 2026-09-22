@@ -107,9 +107,28 @@ export async function deleteSelectedProductsAction(formData: FormData) {
     const chunkSize = 5000
     for (let offset = 0; offset < ids.length; offset += chunkSize) {
       const chunk = ids.slice(offset, offset + chunkSize)
+      const matches = await tx.productMatch.findMany({
+        where: { companyId: actor.companyId, productId: { in: chunk } },
+        select: { competitorOfferId: true },
+      })
+      const offerIds = matches.map((match) => match.competitorOfferId)
+
+      await tx.alert.deleteMany({
+        where: { companyId: actor.companyId, productId: { in: chunk } },
+      })
+      if (offerIds.length) {
+        await tx.alert.deleteMany({
+          where: { companyId: actor.companyId, competitorOfferId: { in: offerIds } },
+        })
+      }
       await tx.productMatch.deleteMany({
         where: { companyId: actor.companyId, productId: { in: chunk } },
       })
+      if (offerIds.length) {
+        await tx.competitorOffer.deleteMany({
+          where: { companyId: actor.companyId, id: { in: offerIds } },
+        })
+      }
       await tx.product.deleteMany({
         where: { companyId: actor.companyId, id: { in: chunk } },
       })
@@ -138,5 +157,7 @@ export async function deleteSelectedProductsAction(formData: FormData) {
   revalidatePath('/producten')
   revalidatePath('/productmatches')
   revalidatePath('/concurrenten')
+  revalidatePath('/waarschuwingen')
+  revalidatePath('/monitoring')
   redirect(`/producten?verwijderd=${ids.length}`)
 }

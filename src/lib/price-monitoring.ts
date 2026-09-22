@@ -873,6 +873,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     ])
 
     await evaluateMonitoringAlerts({
+      companyId: offer.companyId,
       competitorOfferId: offer.id,
       competitorId: offer.competitorId,
       countryId: offer.competitor.countryId,

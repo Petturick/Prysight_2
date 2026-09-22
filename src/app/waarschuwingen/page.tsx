@@ -46,11 +46,30 @@ export default async function WaarschuwingenPage({ searchParams }: { searchParam
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  const activeProductAlertWhere = {
+    companyId,
+    product: { is: { companyId, isActive: true } },
+  } as const
+  const activeProductOfferWhere = {
+    companyId,
+    isActive: true,
+    productMatch: {
+      is: {
+        companyId,
+        product: { is: { companyId, isActive: true } },
+      },
+    },
+  } as const
+  const activeProductCheckWhere = {
+    companyId,
+    competitorOffer: { is: activeProductOfferWhere },
+  } as const
+
   const result = await safeDatabaseQuery(async () => {
     const [alerts, products, activeOffers, checks, totalAlerts, criticalAlerts, todayAlerts, failedChecks] = await Promise.all([
       prisma.alert.findMany({
         where: {
-          companyId,
+          ...activeProductAlertWhere,
           severity: severity || undefined,
           type: type || undefined,
           productId: productId || undefined,
@@ -60,12 +79,12 @@ export default async function WaarschuwingenPage({ searchParams }: { searchParam
         take: 100,
       }),
       prisma.product.count({ where: { companyId, isActive: true } }),
-      prisma.competitorOffer.count({ where: { companyId, isActive: true } }),
-      prisma.priceCheck.count({ where: { companyId } }),
-      prisma.alert.count({ where: { companyId } }),
-      prisma.alert.count({ where: { companyId, severity: AlertSeverity.CRITICAL } }),
-      prisma.alert.count({ where: { companyId, createdAt: { gte: today } } }),
-      prisma.priceCheck.count({ where: { companyId, isSuccess: false } }),
+      prisma.competitorOffer.count({ where: activeProductOfferWhere }),
+      prisma.priceCheck.count({ where: activeProductCheckWhere }),
+      prisma.alert.count({ where: activeProductAlertWhere }),
+      prisma.alert.count({ where: { ...activeProductAlertWhere, severity: AlertSeverity.CRITICAL } }),
+      prisma.alert.count({ where: { ...activeProductAlertWhere, createdAt: { gte: today } } }),
+      prisma.priceCheck.count({ where: { ...activeProductCheckWhere, isSuccess: false } }),
     ])
     return { alerts, products, activeOffers, checks, totalAlerts, criticalAlerts, todayAlerts, failedChecks }
   }, { alerts: [], products: 0, activeOffers: 0, checks: 0, totalAlerts: 0, criticalAlerts: 0, todayAlerts: 0, failedChecks: 0 })
