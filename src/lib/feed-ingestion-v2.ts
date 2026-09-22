@@ -52,6 +52,41 @@ function text(value: unknown) {
   return result || null
 }
 
+function usableProductText(value: unknown) {
+  const candidate = text(value)
+  if (!candidate) return null
+  const cleaned = candidate
+    .replace(/[☐☑☒✓✔✕✖×]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned || !/[a-zà-ÿ]{2,}/i.test(cleaned)) return null
+  return candidate
+}
+
+function fallbackProductName(row: Record<string, string>) {
+  const priorityPatterns = [
+    /^nieuwe?\s*titel$/i,
+    /^product\s*naam$/i,
+    /^product\s*name$/i,
+    /^title$/i,
+    /^name$/i,
+    /^oude\s*titel$/i,
+    /^product\s*titel$/i,
+    /meta.*titel/i,
+    /meta.*title/i,
+  ]
+
+  for (const pattern of priorityPatterns) {
+    for (const [key, value] of Object.entries(row)) {
+      if (!pattern.test(key.trim())) continue
+      const usable = usableProductText(value)
+      if (usable) return usable
+    }
+  }
+
+  return null
+}
+
 function dec(value: unknown) {
   const raw = text(value)
   if (!raw) return null
@@ -81,10 +116,14 @@ function mapRow(row: Record<string, string>, mappings: Mapping[]): CanonicalFeed
     const value = row[mapping.sourceColumn]
     if (value === undefined || value === '') continue
     if (mapping.targetField === 'ownPrice' && mapped.ownPrice && normalizeHeader(mapping.sourceColumn) === 'price') continue
-    if (mapping.targetField === 'name' && mapped.name) continue
+    if (mapping.targetField === 'name' && usableProductText(mapped.name)) continue
     mapped[mapping.targetField] = value
   }
-  if (!text(mapped.name) && text(mapped.description)) mapped.name = mapped.description
+
+  if (!usableProductText(mapped.name)) {
+    mapped.name = fallbackProductName(row) ?? usableProductText(mapped.description) ?? mapped.name
+  }
+
   return mapped
 }
 
@@ -159,8 +198,8 @@ async function importProduct(
   context: ProcessContext,
 ) {
   const articleNumber = text(mapped.articleNumber)
-  const name = text(mapped.name)
-  if (!articleNumber || !name) throw new Error('Artikelnummer/SKU en productnaam zijn verplicht.')
+  const name = usableProductText(mapped.name)
+  if (!articleNumber || !name) throw new Error('Artikelnummer/SKU en een leesbare productnaam zijn verplicht.')
 
   const groupName = text(mapped.productGroup) ?? 'Onbekend'
   const group = context.groupCache.get(groupName)
