@@ -460,6 +460,7 @@ export function FeedSourceManager({
                     <td className="px-3 py-3 text-[#667085]">{formatRun(source.lastRunAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap justify-end gap-1.5">
+                        <Link href={`/producten?feed=${encodeURIComponent(source.id)}`} className="secondary-action min-h-[30px] px-2.5 py-1.5 text-[9px]">Producten</Link>
                         {source.sourceType === 'URL' ? (
                           <button type="button" onClick={() => void sync(source)} disabled={!canManage || !source.isActive || running || Boolean(busyId) || bulkBusy} className="secondary-action min-h-[30px] px-2.5 py-1.5 text-[9px] disabled:opacity-40">{running ? 'Bezig…' : 'Synchroniseren'}</button>
                         ) : null}

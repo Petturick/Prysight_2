@@ -33,6 +33,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     countryId: readParam(params.land) || undefined,
     competitorId: readParam(params.concurrent) || undefined,
     identifierStatus: readParam(params.identificatie) || undefined,
+    feedSourceId: readParam(params.feed) || undefined,
   }
   const requestedPageSize = Number(readParam(params.aantal) || '25')
   const pageSize = requestedPageSize === 50 ? 50 : 25
@@ -59,11 +60,12 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           ? { OR: [{ ean: { not: null } }, { gtin: { not: null } }] }
           : {},
       filters.competitorId ? { matches: { some: { companyId: actor.companyId, competitorOffer: { competitorId: filters.competitorId, isActive: true } } } } : {},
+      filters.feedSourceId ? { feedLinks: { some: { companyId: actor.companyId, feedSourceId: filters.feedSourceId, feedSource: { companyId: actor.companyId } } } } : {},
     ],
   }
 
   const result = await safeDatabaseQuery(async () => {
-    const [products, totalCount, filterOptions] = await Promise.all([
+    const [products, totalCount, filterOptions, feedOptions] = await Promise.all([
       prisma.product.findMany({
         relationLoadStrategy: 'join',
         where,
@@ -96,11 +98,13 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       }),
       prisma.product.count({ where }),
       getFilterOptions(actor.companyId),
+      prisma.feedSource.findMany({ where: { companyId: actor.companyId }, select: { id: true, name: true, countryCode: true }, orderBy: [{ countryCode: 'asc' }, { name: 'asc' }] }),
     ])
-    return { products, totalCount, filterOptions }
-  }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] } })
+    return { products, totalCount, filterOptions, feedOptions }
+  }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] }, feedOptions: [] as Array<{ id: string; name: string; countryCode: string }> })
 
-  const { products, totalCount, filterOptions } = result.data
+  const { products, totalCount, filterOptions, feedOptions } = result.data
+  const selectedFeed = feedOptions.find((feed) => feed.id === filters.feedSourceId)
   const selectedCountry = filterOptions.countries.find((country) => country.id === filters.countryId)
   const rows: ProductGridRow[] = products.map((product) => {
     const metrics = deriveProductMetrics(product, filters)
@@ -178,6 +182,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   if (filters.countryId) queryParams.set('land', filters.countryId)
   if (filters.competitorId) queryParams.set('concurrent', filters.competitorId)
   if (filters.identifierStatus) queryParams.set('identificatie', filters.identifierStatus)
+  if (filters.feedSourceId) queryParams.set('feed', filters.feedSourceId)
   queryParams.set('aantal', String(pageSize))
   function pageHref(nextPage: number) {
     const copy = new URLSearchParams(queryParams)
@@ -204,7 +209,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/import/bulk" className="secondary-action">Importeren</Link>
-          <Link href="/feeds" className="secondary-action">Feed koppelen</Link>
+          <Link href="/instellingen/feedbeheer" className="secondary-action">Feedbeheer</Link>
           <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
         </div>
       </section>
@@ -215,6 +220,10 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[125px] flex-1">
             <option value="">Alle markten</option>
             {filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
+          </select>
+          <select name="feed" aria-label="Productfeed" defaultValue={filters.feedSourceId || ''} className="toolbar-control min-w-[140px] flex-1">
+            <option value="">Alle feeds</option>
+            {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}
           </select>
           <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
             <option value="">Alle productgroepen</option>
@@ -248,6 +257,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <button type="submit" className="primary-action">Toepassen</button>
           <Link href="/producten" className="secondary-action">Wissen</Link>
         </form>
+        {selectedFeed ? <p className="mt-2 text-[10px] font-semibold text-[#365b96]">Producten gekoppeld aan feed {selectedFeed.name}, {selectedFeed.countryCode}. Selecteer alle resultaten om producten uit deze feed te beheren. <Link href="/instellingen/feedbeheer" className="underline">Terug naar feedbeheer</Link></p> : null}
         {selectedCountry ? <p className="mt-2 text-[10px] text-[#748296]">Marktprofiel, {selectedCountry.name}. Prijzen en concurrenten worden voor dit land weergegeven.</p> : <p className="mt-2 text-[10px] text-[#748296]">Alle markten, selecteer een land voor een landspecifieke prijsvergelijking.</p>}
       </section>
 

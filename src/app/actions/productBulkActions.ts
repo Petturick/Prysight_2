@@ -19,6 +19,7 @@ function filteredProductWhere(actorCompanyId: string, formData: FormData): Prism
   const countryId = text(formData, 'filterCountryId') || undefined
   const competitorId = text(formData, 'filterCompetitorId') || undefined
   const identifierStatus = text(formData, 'filterIdentifierStatus') || undefined
+  const feedSourceId = text(formData, 'filterFeedSourceId') || undefined
 
   return {
     companyId: actorCompanyId,
@@ -61,6 +62,9 @@ function filteredProductWhere(actorCompanyId: string, formData: FormData): Prism
           },
         },
       } : {},
+      feedSourceId ? {
+        feedLinks: { some: { companyId: actorCompanyId, feedSourceId, feedSource: { companyId: actorCompanyId } } },
+      } : {},
     ],
   }
 }
@@ -91,6 +95,11 @@ export async function deleteSelectedProductsAction(formData: FormData) {
   }
 
   if (products.length === 0) redirect('/producten?selectie=ongeldig')
+
+  const expectedCount = Number(text(formData, 'expectedCount'))
+  if (!Number.isSafeInteger(expectedCount) || expectedCount !== products.length) {
+    throw new Error('De selectie is veranderd. Vernieuw het productenoverzicht en bevestig opnieuw voordat je verwijdert.')
+  }
 
   const ids = products.map((product) => product.id)
 

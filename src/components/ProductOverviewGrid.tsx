@@ -78,6 +78,7 @@ export function ProductOverviewGrid({
     countryId?: string
     competitorId?: string
     identifierStatus?: string
+    feedSourceId?: string
   }
 }) {
   const [selected, setSelected] = useState<string[]>([])
@@ -173,6 +174,8 @@ export function ProductOverviewGrid({
       <input type="hidden" name="filterCountryId" value={filters.countryId ?? ''} />
       <input type="hidden" name="filterCompetitorId" value={filters.competitorId ?? ''} />
       <input type="hidden" name="filterIdentifierStatus" value={filters.identifierStatus ?? ''} />
+      <input type="hidden" name="filterFeedSourceId" value={filters.feedSourceId ?? ''} />
+      <input type="hidden" name="expectedCount" value={selectionCount} />
       <section className="ps-panel">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e7edf3] px-3 py-2.5 sm:px-4">
           <div className="flex flex-wrap items-center gap-2">
