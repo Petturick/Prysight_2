@@ -181,7 +181,9 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
     try { return [new URL(shop.url).hostname.replace(/^www\./, '')] } catch { return [] }
   }))
 
-  const exactSearch = await webSearch(`"${ean}" ${product.name} ${country.name} ${country.code}`)
+  // A strict search combining EAN, product name and market often returns zero results;
+  // the exact identifier is the primary signal and the market is used for ranking.
+  const exactSearch = await webSearch(`"${ean}"`)
   let ranked = rankCandidates(exactSearch.candidates, { ean: ean, name: product.name }, country.code)
   let provider = exactSearch.provider
   let queryMode: 'EAN' | 'PRODUCT' = 'EAN'
