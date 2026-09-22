@@ -326,7 +326,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
       <EanPriceSuggestions
         productId={product.id}
-        ean={product.ean}
+        ean={product.ean || product.gtin}
         countryId={defaultCountry?.id ?? null}
         currency={ownCurrency}
         sourceKey={marketMatches.map((match) => match.competitorOffer.id).join(',')}
