@@ -211,6 +211,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <Link href="/import/bulk" className="secondary-action">Importeren</Link>
           <Link href="/instellingen/feedbeheer" className="secondary-action">Feedbeheer</Link>
           <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
+          {actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-[9px] border border-[#e5b5bd] bg-white px-3 py-2 text-[10px] font-semibold text-[#a12d40]">Alle producten verwijderen</Link> : null}
         </div>
       </section>
 
