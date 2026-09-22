@@ -27,6 +27,22 @@ function numberValue(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null
 }
 
+function readableProductText(value: unknown) {
+  const text = String(value ?? '').trim()
+  if (!text || !/[a-zà-ÿ]{2,}/i.test(text)) return null
+  return text
+}
+
+function feedDisplayName(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  for (const key of ['Nieuwe Titel', 'Product naam', 'Product Name', 'Title', 'Oude titel', 'catalog_product_attribute.meta_title NEW', 'catalog_product_attribute.meta_title']) {
+    const candidate = readableProductText(record[key])
+    if (candidate) return candidate
+  }
+  return null
+}
+
 function isStalePriceSource(value: Date | null | undefined, hours = 72) {
   if (!value) return true
   return Date.now() - value.getTime() > hours * 60 * 60 * 1000
@@ -99,7 +115,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const { id } = await params
   const query = await searchParams
 
-  const [product, countries, pricing] = await Promise.all([
+  const [product, countries, pricing, feedContext] = await Promise.all([
     prisma.product.findFirst({
       relationLoadStrategy: 'join',
       where: { id, companyId: user.companyId },
@@ -123,6 +139,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       console.error('Pricing cockpit recommendation failed', { companyId: user.companyId, productId: id, error })
       return { recommendations: [] }
     }),
+    prisma.feedItem.findFirst({
+      where: { companyId: user.companyId, importedProductId: id },
+      orderBy: { updatedAt: 'desc' },
+      select: { rawData: true, mappedData: true },
+    }),
   ])
 
   if (!product) notFound()
@@ -136,7 +157,9 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const hasReadableProductName = /[a-zà-ÿ]{2,}/i.test(product.name)
-  const displayProductName = hasReadableProductName ? product.name : `Artikel ${product.articleNumber}`
+  const feedName = feedDisplayName(feedContext?.rawData) ?? feedDisplayName(feedContext?.mappedData)
+  const displayProductName = hasReadableProductName ? product.name : feedName ?? `Artikel ${product.articleNumber}`
+  const productNameNeedsAttention = !hasReadableProductName && !feedName
   const marketMatches = defaultCountry
     ? product.matches.filter((match) => match.competitorOffer.competitor.countryId === defaultCountry.id)
     : product.matches
@@ -240,9 +263,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
   return (
     <div className="space-y-4">
-      {intelligenceUpdated ? (
-        <div className={`rounded-[12px] border px-4 py-3 text-[11px] font-medium ${intelligencePrices > 0 || intelligenceCreated > 0 ? 'border-[#8bc9a7] bg-[#eef9f2] text-[#176a42]' : 'border-[#e8d3a2] bg-[#fff8e9] text-[#76591d]'}`}>
-          Scan afgerond, {intelligenceFound} bronnen gevonden, {intelligenceCreated} nieuw, {intelligenceLinked} al gekoppeld, {intelligencePrices} prijs{intelligencePrices === 1 ? '' : 'en'} bijgewerkt{intelligenceErrors ? `, ${intelligenceErrors} controle${intelligenceErrors === 1 ? '' : 's'} mislukt` : ''}.
+      {intelligenceUpdated && (intelligencePrices > 0 || intelligenceCreated > 0 || intelligenceErrors > 0) ? (
+        <div className={`rounded-[10px] border px-4 py-2.5 text-[10px] font-medium ${intelligencePrices > 0 || intelligenceCreated > 0 ? 'border-[#b9ddc8] bg-[#f4fbf7] text-[#176a42]' : 'border-[#e8d3a2] bg-[#fff8e9] text-[#76591d]'}`}>
+          {intelligencePrices > 0 || intelligenceCreated > 0
+            ? `${intelligenceCreated} nieuwe bron${intelligenceCreated === 1 ? '' : 'nen'}, ${intelligencePrices} prijs${intelligencePrices === 1 ? '' : 'en'} bijgewerkt.`
+            : `${intelligenceErrors} prijscontrole${intelligenceErrors === 1 ? '' : 's'} mislukt.`}
         </div>
       ) : null}
       {duplicateRedirect ? <div className="rounded-[12px] border border-[#e8d3a2] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#76591d]">Dit product bestond al in Prysight. Daarom is geen duplicaat aangemaakt. Je kunt het bestaande product hier verder beheren.</div> : null}
@@ -263,46 +288,22 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       ) : null}
 
-      <section className="strong-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+      <section className="ps-panel px-5 py-4 sm:px-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#788698]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[#7d8b9a]">
               <span>Artikel {product.articleNumber}</span>
-              {product.ean ? <span>· EAN {product.ean}</span> : null}
-              <span>· {product.productGroup.name}</span>
-              <span className={`ps-chip ${measurementQuality === 'Sterk' ? 'ps-chip-green' : measurementQuality === 'Redelijk' ? 'ps-chip-amber' : 'ps-chip-red'}`}>Data {measurementQuality.toLowerCase()}</span>
+              {product.ean ? <span>EAN {product.ean}</span> : null}
+              {defaultCountry ? <span>{defaultCountry.name}</span> : null}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2"><h1 className="text-[26px] font-semibold tracking-[-0.025em] text-[#18273a]">{displayProductName}</h1>{!hasReadableProductName ? <span className="ps-chip ps-chip-amber">Productnaam controleren</span> : null}</div>
-            <p className="mt-1 text-[11px] text-[#788698]">{product.packagingQty} {product.packagingUnit ?? 'stuks'} · {product.stockStatus ?? 'Voorraad onbekend'}</p>
-            {product.productMarkets.length > 1 ? (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-[10px] font-semibold text-[#8793a3]">Markt</span>
-                {product.productMarkets.map((market) => (
-                  <Link
-                    key={market.id}
-                    href={`/producten/${product.id}?markt=${market.countryId}`}
-                    className={`ps-chip ${defaultCountry?.id === market.countryId ? 'ps-chip-blue' : ''}`}
-                  >
-                    {market.country.code}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <h1 className="text-[22px] font-semibold tracking-[-0.025em] text-[#18273a]">{displayProductName}</h1>
+              {productNameNeedsAttention ? <span className="ps-chip ps-chip-amber">Productnaam controleren</span> : null}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/producten" className="secondary-action">Terug</Link>
-            <a href="#eigen-prijs" className="secondary-action">Handmatig aanpassen</a>
-          </div>
+          <Link href="/producten" className="secondary-action shrink-0">Terug naar producten</Link>
         </div>
       </section>
-
-      <nav className="ps-panel flex flex-wrap items-center gap-2 px-4 py-3" aria-label="Productnavigatie">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8a97a6]">Product</span>
-        <a href="#ean-prijssuggesties" className="ps-chip ps-chip-blue">Prijzen en concurrenten</a>
-        <a href="#concurrentieprijzen" className="ps-chip">Prijsvergelijking</a>
-        <a href="#historie" className="ps-chip">Historie</a>
-        <a href="#eigen-prijs" className="ps-chip">Instellingen</a>
-      </nav>
 
       <EanPriceSuggestions
         productId={product.id}
@@ -315,43 +316,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         canRefresh={canEditCompetitors}
       />
 
-      <details id="product-identiteit" open={!product.ean} className="ps-panel scroll-mt-24 overflow-hidden">
-        <summary className="cursor-pointer px-5 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[13px] font-semibold text-[#30465d]">Productherkenning</p>
-              <p className="mt-1 text-[10px] text-[#7d8b9a]">EAN is de sterkste sleutel voor automatische concurrentherkenning.</p>
-            </div>
-            <span className={`ps-chip ${product.ean ? 'ps-chip-green' : 'ps-chip-amber'}`}>{product.ean ? 'EAN aanwezig' : 'EAN ontbreekt'}</span>
-          </div>
-        </summary>
-        <div className="border-t border-[#e7edf3] p-5 sm:p-6">
-          {canEditProduct ? (
-            <form action={updateProductIdentifiersAction} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-              <input type="hidden" name="productId" value={product.id} />
-              {defaultCountry ? <input type="hidden" name="countryId" value={defaultCountry.id} /> : null}
-              <label className="text-[11px] font-semibold text-[#4f5869]">EAN
-                <input name="ean" inputMode="numeric" defaultValue={product.ean ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld 8712345678901" />
-              </label>
-              <label className="text-[11px] font-semibold text-[#4f5869]">GTIN
-                <input name="gtin" inputMode="numeric" defaultValue={product.gtin ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Optioneel" />
-              </label>
-              <button type="submit" className="primary-action min-h-[44px] whitespace-nowrap">{defaultCountry && canEditCompetitors ? 'Opslaan en concurrenten zoeken' : 'Opslaan'}</button>
-            </form>
-          ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen-lezen toegang tot productidentificatie.</p>}
-          {!product.ean ? <p className="mt-3 rounded-[10px] bg-[#fff7e8] px-3 py-2 text-[10px] leading-5 text-[#815d1d]">Zonder EAN kan Prysight nog zoeken op GTIN, artikelnummer en productcontext, maar de kans op een exacte match is lager.</p> : null}
-        </div>
-      </details>
-
-
       <details id="eigen-prijs" className="ps-panel scroll-mt-24 overflow-hidden">
         <summary className="cursor-pointer px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-[13px] font-semibold text-[#30465d]">Handmatig aanpassen</p>
-              <p className="mt-1 text-[10px] text-[#7d8b9a]">Alleen nodig als automatische herkenning niet voldoende is.</p>
+              <p className="text-[13px] font-semibold text-[#30465d]">Productinstellingen</p>
+              <p className="mt-1 text-[10px] text-[#7d8b9a]">Alleen openen als je productdata, prijs of bron handmatig wilt aanpassen.</p>
             </div>
-            <span className="ps-chip">{formatCurrency(ownPrice, ownCurrency)}</span>
+            <span className="text-[10px] font-semibold text-[#60758d]">Open instellingen</span>
           </div>
         </summary>
         <div className="border-t border-[#e7edf3]">
@@ -396,6 +368,22 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
         </div>
 
+        </div>
+
+        <div className="border-t border-[#e7edf3] p-5 sm:p-6">
+          <div className="mb-3">
+            <p className="text-[11px] font-semibold text-[#34495f]">Productidentificatie</p>
+            <p className="mt-1 text-[10px] text-[#7d8b9a]">EAN en GTIN worden gebruikt voor automatische bronherkenning.</p>
+          </div>
+          {canEditProduct ? (
+            <form action={updateProductIdentifiersAction} className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <input type="hidden" name="productId" value={product.id} />
+              {defaultCountry ? <input type="hidden" name="countryId" value={defaultCountry.id} /> : null}
+              <label className="text-[10px] font-semibold text-[#4f5869]">EAN<input name="ean" inputMode="numeric" defaultValue={product.ean ?? ''} className="toolbar-control mt-1.5 w-full" /></label>
+              <label className="text-[10px] font-semibold text-[#4f5869]">GTIN<input name="gtin" inputMode="numeric" defaultValue={product.gtin ?? ''} className="toolbar-control mt-1.5 w-full" /></label>
+              <button type="submit" className="secondary-action min-h-[42px]">Productdata opslaan</button>
+            </form>
+          ) : null}
         </div>
       </details>
 
