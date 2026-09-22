@@ -507,7 +507,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                       {price !== null && index === 0 ? <span className="ps-chip ps-chip-green">Laagste</span> : null}
                     </div>
                     <p className="mt-1 text-[9px] text-[#8a98a9]">{offer.competitor.country.name} · <a href={offer.url} target="_blank" rel="noreferrer" className="font-semibold text-[#2f6edb]">Bekijk bron</a></p>
-                    <p className="mt-1 text-[9px] text-[#8793a3]">{offer.lastCheckedAt ? `Gecontroleerd ${formatDate(offer.lastCheckedAt)}` : 'Nog niet gecontroleerd'} · {frequencyLabel(frequencyHours)}</p>
+                    <p className="mt-1 text-[9px] text-[#8793a3]">{latestSourceCheck?.checkMethod === 'MANUAL' ? `Handmatig ingevoerd ${formatDate(offer.lastCheckedAt)}` : offer.lastCheckedAt ? `Gecontroleerd ${formatDate(offer.lastCheckedAt)}` : 'Nog niet gecontroleerd'} · {frequencyLabel(frequencyHours)}</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -578,6 +578,16 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                   <label className="text-[10px] font-semibold text-[#5f7084]">Prijs bevat btw
                     <select name="vatIncluded" defaultValue={selectedOffer.vatIncluded ? 'true' : 'false'} className="toolbar-control mt-1.5 w-full"><option value="true">Ja</option><option value="false">Nee</option></select>
                   </label>
+                  <div className="md:col-span-2 rounded-xl border border-[#dce7f0] bg-white p-3">
+                    <p className="text-[11px] font-semibold text-[#30465d]">Handmatige prijs en verzending (optioneel)</p>
+                    <p className="mt-1 text-[10px] text-[#788a9e]">Laat leeg om alleen de bron te wijzigen. Handmatige waarden worden herkenbaar opgeslagen en bij een volgende succesvolle controle door actuele brondata vervangen.</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="text-[10px] font-semibold text-[#5f7084]">Productprijs, {selectedOffer.currency}<input name="manualPrice" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld 121,00" /></label>
+                      <label className="text-[10px] font-semibold text-[#5f7084]">Prijs in andere btw variant<input name="manualPriceOther" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Optioneel, ter controle" /></label>
+                      <label className="text-[10px] font-semibold text-[#5f7084]">Verzendkosten, {selectedOffer.currency}<input name="manualShippingCost" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Leeg is onbekend, 0 is gratis" /></label>
+                      <label className="text-[10px] font-semibold text-[#5f7084]">Btw op verzendkosten<select name="manualShippingVatIncluded" defaultValue="true" className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
+                    </div>
+                  </div>
                   <input type="hidden" name="packagingUnit" value={selectedOffer.packagingUnit ?? product.packagingUnit ?? 'stuks'} />
                   <input type="hidden" name="packagingQty" value={selectedOffer.packagingQty ?? product.packagingQty ?? 1} />
                   <div className="md:col-span-2 flex justify-end gap-2"><Link href={`/producten/${product.id}#concurrentieprijzen`} className="secondary-action">Sluiten</Link><button type="submit" className="primary-action">Opslaan</button></div>
