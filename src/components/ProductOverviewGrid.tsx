@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export type ProductGridRow = {
@@ -44,13 +45,14 @@ const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
   { key: 'status', label: 'Status' },
 ]
 const DEFAULT_COLUMNS: Column[] = [
-  'articleNumber', 'name', 'ean', 'markets', 'ownEx', 'ownInc',
-  'marketInc', 'shipping', 'delivered', 'difference', 'sources', 'lastChecked', 'status',
+  'articleNumber', 'name', 'ean', 'markets', 'ownInc',
+  'marketInc', 'difference', 'sources', 'status',
 ]
 
 export function ProductOverviewGrid({
   rows,
   totalCount,
+  countryId,
   canCrawl,
   canDelete,
   deleteAction,
@@ -59,6 +61,7 @@ export function ProductOverviewGrid({
 }: {
   rows: ProductGridRow[]
   totalCount: number
+  countryId?: string
   canCrawl: boolean
   canDelete: boolean
   deleteAction: (data: FormData) => Promise<void>
@@ -68,6 +71,9 @@ export function ProductOverviewGrid({
   const [selected, setSelected] = useState<string[]>([])
   const [visible, setVisible] = useState<Column[]>(DEFAULT_COLUMNS)
   const [compact, setCompact] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [sourceLookup, setSourceLookup] = useState<{ running: boolean; done: number; total: number; created: number; errors: number; message: string } | null>(null)
+  const router = useRouter()
   const selectAllRef = useRef<HTMLInputElement>(null)
   const rowIds = useMemo(() => rows.map((row) => row.id), [rows])
   const selectedSet = useMemo(() => new Set(selected), [selected])
@@ -91,13 +97,46 @@ export function ProductOverviewGrid({
   }
 
   const chosenColumns = COLUMNS.filter((column) => visible.includes(column.key))
-  const cellPadding = compact ? 'px-3 py-2' : 'px-3 py-3.5'
+  const cellPadding = compact ? 'px-2.5 py-2' : 'px-3 py-3.5'
+
+  async function discoverSources(ids: string[]) {
+    if (sourceLookup?.running) return
+    const products = rows.filter((row) => ids.includes(row.id) && row.ean.trim())
+    if (!products.length) {
+      setSourceLookup({ running: false, done: 0, total: 0, created: 0, errors: 0, message: 'Selecteer minimaal één product met EAN of GTIN.' })
+      return
+    }
+    let created = 0
+    let errors = 0
+    setSourceLookup({ running: true, done: 0, total: products.length, created: 0, errors: 0, message: 'Product URLs en concurrenten worden gezocht…' })
+    // Work through the selected page without launching dozens of concurrent searches.
+    for (let index = 0; index < products.length; index++) {
+      try {
+        const response = await fetch(`/api/producten/${encodeURIComponent(products[index].id)}/discover`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countryId }),
+        })
+        const payload = await response.json() as { created?: number; error?: string; skipped?: boolean; reason?: string }
+        if (!response.ok) throw new Error(payload.error || 'Zoeken mislukt')
+        if (payload.skipped) errors += 1
+        created += payload.created ?? 0
+      } catch { errors += 1 }
+      setSourceLookup({ running: true, done: index + 1, total: products.length, created, errors, message: `EAN bronnen controleren, ${index + 1} van ${products.length} verwerkt…` })
+    }
+    setSourceLookup({ running: false, done: products.length, total: products.length, created, errors, message: `${created} nieuwe URL suggesties om te beoordelen.${errors ? ` ${errors} producten konden niet worden gecontroleerd.` : ''}` })
+    router.refresh()
+  }
+
+  function displayName(row: ProductGridRow) {
+    const value = row.name.replace(/<[^>]*>/g, '').trim()
+    return value && /[\p{L}\p{N}]/u.test(value) ? value : `Naam ontbreekt, artikel ${row.articleNumber}`
+  }
 
   function renderValue(row: ProductGridRow, key: Column) {
     if (key === 'name') return (
-      <div className="min-w-[180px] max-w-[360px]">
-        <Link href={row.detailHref} className="block truncate font-semibold text-[#23364d] hover:text-[#346ed6]" title={row.name}>{row.name}</Link>
-        {row.review > 0 ? <span className="mt-0.5 block text-[10px] font-semibold text-[#a16b16]">{row.review} suggesties te beoordelen</span> : null}
+      <div className="min-w-[150px] max-w-[245px]">
+        <Link href={row.detailHref} className="block truncate font-semibold text-[#23364d] hover:text-[#346ed6]" title={displayName(row)}>{displayName(row)}</Link>
+        {row.review > 0 ? <span className="mt-0.5 block text-[10px] font-semibold text-[#a16b16]">{row.review} URL suggesties</span> : null}
+        {row.sources === 0 && row.review === 0 && row.ean ? <button type="button" onClick={() => void discoverSources([row.id])} disabled={sourceLookup?.running} className="mt-0.5 text-[10px] font-semibold text-[#346ed6] disabled:opacity-40">Zoek product en concurrent URLs</button> : null}
       </div>
     )
     if (key === 'difference') return <span className={row.differencePct === null ? 'text-[#8895a5]' : row.differencePct > 0 ? 'font-semibold text-[#b6414d]' : row.differencePct < 0 ? 'font-semibold text-[#20814d]' : 'font-semibold text-[#586a7e]'}>{row.difference}</span>
@@ -117,6 +156,7 @@ export function ProductOverviewGrid({
             <button type="button" className="secondary-action min-h-[32px] px-2.5 py-1.5 text-[10px]" disabled={!selected.length} onClick={() => setSelected([])}>Deselecteer</button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => void discoverSources(selected)} disabled={!selected.some((id) => rows.some((row) => row.id === id && row.ean)) || sourceLookup?.running} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">{sourceLookup?.running ? `URLs zoeken ${sourceLookup.done}/${sourceLookup.total}` : 'EAN en URLs zoeken'}</button>
             {canCrawl ? <button type="submit" formAction={refreshPricesAction} disabled={!selected.length} className="primary-action min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">Prijzen ophalen ({selected.length})</button> : null}
             {canDelete ? <button type="submit" disabled={!selected.length} onClick={(event) => {
               if (!window.confirm('Je verwijdert ' + selected.length + ' geselecteerde producten en hun koppelingen definitief. Doorgaan?')) event.preventDefault()
@@ -136,33 +176,52 @@ export function ProductOverviewGrid({
             <button type="button" onClick={() => setCompact((value) => !value)} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px]">{compact ? 'Ruimer' : 'Compacter'}</button>
           </div>
         </div>
-        <div className="max-h-[68vh] overflow-auto overscroll-contain" role="region" aria-label="Productenoverzicht" tabIndex={0}>
-          <table className="w-max min-w-full border-separate border-spacing-0 text-left text-[11px]">
+        {sourceLookup ? <div role="status" aria-live="polite" className="border-b border-[#e7edf3] bg-[#f3f8ff] px-4 py-2 text-[11px] font-medium text-[#315fa7]">{sourceLookup.message} {sourceLookup.created > 0 ? <Link href="/productmatches" className="ml-2 font-semibold underline">Bekijk suggesties</Link> : null}</div> : null}
+        <div className="w-full overflow-x-auto" role="region" aria-label="Productenoverzicht" tabIndex={0}>
+          <table className="w-full min-w-[1030px] table-auto border-separate border-spacing-0 text-left text-[11px]">
             <thead className="sticky top-0 z-20 bg-[#f6f8fb] text-[10px] font-semibold text-[#67788c]">
               <tr>
                 <th className="sticky left-0 z-30 w-[42px] min-w-[42px] border-b border-r border-[#e4eaf1] bg-[#f6f8fb] px-3 py-2">
                   <input ref={selectAllRef} type="checkbox" checked={allSelected} onChange={(event) => setSelected(event.target.checked ? rowIds : [])} disabled={!rowIds.length} aria-label="Selecteer alle producten op deze pagina" className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
                 </th>
-                {chosenColumns.map((column) => <th key={column.key} scope="col" className={cellPadding + ' whitespace-nowrap border-b border-r border-[#e4eaf1] bg-[#f6f8fb] ' + (column.align === 'right' ? 'text-right ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-20 min-w-[220px] ' : '')}>{column.label}</th>)}
+                {chosenColumns.map((column) => <th key={column.key} scope="col" className={cellPadding + ' whitespace-nowrap border-b border-r border-[#e4eaf1] bg-[#f6f8fb] ' + (column.align === 'right' ? 'text-right ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-20 min-w-[170px] ' : '')}>{column.label}</th>)}
                 <th className={cellPadding + ' whitespace-nowrap border-b border-[#e4eaf1] bg-[#f6f8fb] text-right'}>Acties</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => <tr key={row.id} className={selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white hover:bg-[#f8fbff]'}>
-                <td className={'sticky left-0 z-10 w-[42px] min-w-[42px] border-b border-r border-[#edf1f5] px-3 ' + (selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white')}>
-                  <input type="checkbox" name="productIds" value={row.id} checked={selectedSet.has(row.id)} onChange={(event) => toggleRow(row.id, event.target.checked)} aria-label={'Selecteer ' + row.articleNumber} className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
-                </td>
-                {chosenColumns.map((column) => <td key={column.key} className={cellPadding + ' border-b border-r border-[#edf1f5] ' + (column.align === 'right' ? 'text-right tabular-nums ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-10 ' + (selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white') : '')}>{renderValue(row, column.key)}</td>)}
-                <td className={cellPadding + ' whitespace-nowrap border-b border-[#edf1f5] text-right'}>
-                  <Link href={row.detailHref} className="secondary-action min-h-[30px] px-2.5 py-1.5 text-[10px]">Openen</Link>
-                  {canCrawl && row.sources > 0 ? <button type="submit" name="singleProductId" value={row.id} formAction={refreshSinglePriceAction} className="ml-2 text-[10px] font-semibold text-[#346ed6]">Nu crawlen</button> : null}
-                </td>
-              </tr>)}
+              {rows.map((row) => <Fragment key={row.id}>
+                <tr className={selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white hover:bg-[#f8fbff]'}>
+                  <td className={'sticky left-0 z-10 w-[42px] min-w-[42px] border-b border-r border-[#edf1f5] px-3 ' + (selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white')}>
+                    <input type="checkbox" name="productIds" value={row.id} checked={selectedSet.has(row.id)} onChange={(event) => toggleRow(row.id, event.target.checked)} aria-label={'Selecteer ' + row.articleNumber} className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
+                  </td>
+                  {chosenColumns.map((column) => <td key={column.key} className={cellPadding + ' border-b border-r border-[#edf1f5] ' + (column.align === 'right' ? 'text-right tabular-nums ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-10 ' + (selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white') : '')}>{renderValue(row, column.key)}</td>)}
+                  <td className={cellPadding + ' whitespace-nowrap border-b border-[#edf1f5] text-right'}>
+                    <button type="button" onClick={() => setExpandedId((current) => current === row.id ? null : row.id)} aria-expanded={expandedId === row.id} className="mr-2 text-[10px] font-semibold text-[#346ed6]">{expandedId === row.id ? 'Minder' : 'Details'}</button>
+                    <Link href={row.detailHref} className="secondary-action min-h-[30px] px-2.5 py-1.5 text-[10px]">Openen</Link>
+                    {canCrawl && row.sources > 0 ? <button type="submit" name="singleProductId" value={row.id} formAction={refreshSinglePriceAction} className="ml-2 text-[10px] font-semibold text-[#346ed6]">Nu crawlen</button> : null}
+                  </td>
+                </tr>
+                {expandedId === row.id ? <tr className="bg-[#f7faff]"><td colSpan={chosenColumns.length + 2} className="border-b border-[#dfe8f5] px-5 py-4">
+                  <div className="grid gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
+                    {([
+                      ['Productgroep', row.group], ['Eigen excl. btw', row.ownEx], ['Eigen incl. btw', row.ownInc],
+                      ['Laagste excl. btw', row.marketEx], ['Laagste incl. btw', row.marketInc], ['Verzendkosten', row.shipping],
+                      ['Totaal incl. verzending', row.delivered], ['Prijsverschil', row.difference], ['Bronnen', String(row.sources)],
+                      ['Laatste meting', row.lastChecked], ['EAN / GTIN', row.ean || 'Ontbreekt'],
+                      ['Markten', row.markets], ['Status', row.status],
+                    ] as Array<[string, string]>).map(([label, value]) => <div key={label}><p className="text-[10px] text-[#697a90]">{label}</p><p className="mt-1 text-[12px] font-semibold text-[#23364d]">{value}</p></div>)}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    {row.ean ? <button type="button" onClick={() => void discoverSources([row.id])} disabled={sourceLookup?.running} className="secondary-action min-h-[30px] px-3 py-1 text-[11px] disabled:opacity-40">Zoek EAN en concurrent URLs</button> : <span className="text-[11px] text-[#a16b16]">EAN ontbreekt, vul deze eerst aan.</span>}
+                    <Link href={row.detailHref} className="text-[11px] font-semibold text-[#346ed6]">Open product en prijssuggesties</Link>
+                  </div>
+                </td></tr> : null}
+              </Fragment>)}
               {rows.length === 0 ? <tr><td colSpan={chosenColumns.length + 2} className="px-6 py-12 text-center text-[12px] text-[#78889b]">Geen producten gevonden, pas de filters aan of voeg een product toe.</td></tr> : null}
             </tbody>
           </table>
         </div>
-        <p className="px-4 py-2 text-[10px] text-[#7d8b9b]">Selecties gelden voor de huidige pagina. Gebruik de horizontale schuifbalk om aanvullende kolommen te bekijken.</p>
+        <p className="px-4 py-2 text-[10px] text-[#7d8b9b]">Selecties gelden voor de huidige pagina. De belangrijkste kolommen staan direct in beeld. Klik op Details voor alle productprijzen en broninformatie, of kies extra kolommen via Kolommen.</p>
       </section>
     </form>
   )
