@@ -9,6 +9,7 @@ import { requirePermission } from '@/lib/authz'
 import { deriveProductMetrics, getFilterOptions } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
+import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 function readParam(value: string | string[] | undefined) {
@@ -112,10 +113,19 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           : null
     const validOwnRate = ownVatRate !== null && Number.isFinite(ownVatRate)
     const ownPrice = metrics.ownPrice
-    const ownEx = ownPrice === null || !validOwnRate
-      ? null : metrics.vatIncluded ? ownPrice / (1 + ownVatRate / 100) : ownPrice
-    const ownInc = ownPrice === null || !validOwnRate
-      ? null : metrics.vatIncluded ? ownPrice : ownPrice * (1 + ownVatRate / 100)
+    const ownShippingAmount = selectedCountry && metrics.selectedMarket
+      ? metrics.selectedMarket.ownShippingCost
+      : metrics.selectedMarket
+        ? metrics.selectedMarket.ownShippingCost
+        : product.ownShippingCost
+    const ownShipping = ownShippingAmount === null ? null : Number(ownShippingAmount)
+    const ownAmounts = calculateDeliveredAmounts({
+      price: ownPrice, priceVatIncluded: metrics.vatIncluded, shipping: ownShipping,
+      shippingVatIncluded: metrics.selectedMarket?.ownShippingVatIncluded ?? product.ownShippingVatIncluded ?? true,
+      vatRate: validOwnRate ? ownVatRate : null,
+    })
+    const ownEx = ownAmounts.priceEx
+    const ownInc = ownAmounts.priceInc
     const lowestOffer = metrics.lowestOffer?.competitorOffer
     const lowestRate = lowestOffer ? Number(lowestOffer.competitor.country.vatRate) : null
     const marketEx = metrics.lowestPrice !== null && lowestRate !== null && Number.isFinite(lowestRate)
@@ -124,8 +134,10 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       ? null : Number(lowestOffer.normalizedShippingCost)
     const delivered = lowestOffer?.deliveredPrice === null || lowestOffer?.deliveredPrice === undefined
       ? null : Number(lowestOffer.deliveredPrice)
-    const delta = metrics.difference.pctDiff === null || metrics.difference.pctDiff === undefined
-      ? null : Number(metrics.difference.pctDiff)
+    const deliveryDelta = metrics.ownCurrency === 'EUR' && ownAmounts.totalInc !== null && delivered !== null && delivered > 0
+      ? (ownAmounts.totalInc - delivered) / delivered * 100 : null
+    const delta = deliveryDelta ?? (metrics.difference.pctDiff === null || metrics.difference.pctDiff === undefined
+      ? null : Number(metrics.difference.pctDiff))
     const checked = metrics.lastCheckedAt ? formatDate(metrics.lastCheckedAt) : 'Nog niet'
     const lastCheckFailed = metrics.lowestOffer?.competitorOffer.priceChecks[0]?.isSuccess === false
     const stock = metrics.selectedMarket?.stockStatus ?? product.stockStatus
@@ -143,6 +155,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       markets: product.productMarkets.map((market) => market.country.code).join(', ') || '—',
       ownEx: price(ownEx, metrics.ownCurrency),
       ownInc: price(ownInc, metrics.ownCurrency),
+      ownShipping: ownShipping === 0 ? 'Gratis' : price(ownAmounts.shippingInc, metrics.ownCurrency),
+      ownDelivered: price(ownAmounts.totalInc, metrics.ownCurrency),
       marketEx: price(marketEx),
       marketInc: price(metrics.lowestPrice),
       shipping: shipping === 0 ? 'Gratis' : price(shipping),
