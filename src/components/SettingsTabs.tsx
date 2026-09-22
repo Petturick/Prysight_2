@@ -9,7 +9,7 @@ import type { Permission } from '@/lib/authz'
 const tabs: Array<{ href: string; label: string; permission?: Permission; superAdminOnly?: boolean }> = [
   { href: '/instellingen/organisaties', label: 'Organisaties', superAdminOnly: true },
   { href: '/instellingen/markten', label: 'Markten', permission: 'settings.manage' },
-  { href: '/feeds', label: 'Databronnen', permission: 'feeds.read' },
+  { href: '/instellingen/feedbeheer', label: 'Feedbeheer', permission: 'feeds.read' },
   { href: '/instellingen/team', label: 'Team', permission: 'users.manage' },
   { href: '/instellingen/rollen', label: 'Rollen en rechten', superAdminOnly: true },
   { href: '/integraties', label: 'Integraties', permission: 'settings.manage' },
