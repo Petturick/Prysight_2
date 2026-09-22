@@ -11,6 +11,7 @@ const tabs: Array<{ href: string; label: string; permission?: Permission; superA
   { href: '/instellingen/markten', label: 'Markten', permission: 'settings.manage' },
   { href: '/instellingen/feedbeheer', label: 'Feedbeheer', permission: 'feeds.read' },
   { href: '/instellingen/team', label: 'Team', permission: 'users.manage' },
+  { href: '/instellingen/gebruikers', label: 'Gebruikers', permission: 'users.manage' },
   { href: '/instellingen/rollen', label: 'Rollen en rechten', superAdminOnly: true },
   { href: '/integraties', label: 'Integraties', permission: 'settings.manage' },
   { href: '/instellingen/licentie', label: 'Licentie en facturatie', permission: 'billing.manage' },
