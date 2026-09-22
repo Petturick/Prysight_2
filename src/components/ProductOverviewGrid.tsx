@@ -102,7 +102,11 @@ export function ProductOverviewGrid({
   }
 
   function toggleRow(id: string, checked: boolean) {
-    setAllResultsSelected(false)
+    if (allResultsSelected) {
+      setAllResultsSelected(false)
+      setSelected(checked ? rowIds : rowIds.filter((value) => value !== id))
+      return
+    }
     setSelected((current) => checked ? [...new Set([...current, id])] : current.filter((value) => value !== id))
   }
 
@@ -209,12 +213,14 @@ export function ProductOverviewGrid({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => <Fragment key={row.id}>
-                <tr className={selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white hover:bg-[#f8fbff]'}>
-                  <td className={'sticky left-0 z-10 w-[42px] min-w-[42px] border-b border-r border-[#edf1f5] px-3 ' + (selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white')}>
-                    <input type="checkbox" name="productIds" value={row.id} checked={selectedSet.has(row.id)} onChange={(event) => toggleRow(row.id, event.target.checked)} aria-label={'Selecteer ' + row.articleNumber} className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
+              {rows.map((row) => {
+                const rowSelected = allResultsSelected || selectedSet.has(row.id)
+                return <Fragment key={row.id}>
+                <tr className={rowSelected ? 'bg-[#eef5ff]' : 'bg-white hover:bg-[#f8fbff]'}>
+                  <td className={'sticky left-0 z-10 w-[42px] min-w-[42px] border-b border-r border-[#edf1f5] px-3 ' + (rowSelected ? 'bg-[#eef5ff]' : 'bg-white')}>
+                    <input type="checkbox" name="productIds" value={row.id} checked={rowSelected} onChange={(event) => toggleRow(row.id, event.target.checked)} aria-label={'Selecteer ' + row.articleNumber} className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
                   </td>
-                  {chosenColumns.map((column) => <td key={column.key} className={cellPadding + ' border-b border-r border-[#edf1f5] ' + (column.align === 'right' ? 'text-right tabular-nums ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-10 ' + (selectedSet.has(row.id) ? 'bg-[#eef5ff]' : 'bg-white') : '')}>{renderValue(row, column.key)}</td>)}
+                  {chosenColumns.map((column) => <td key={column.key} className={cellPadding + ' border-b border-r border-[#edf1f5] ' + (column.align === 'right' ? 'text-right tabular-nums ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-10 ' + (rowSelected ? 'bg-[#eef5ff]' : 'bg-white') : '')}>{renderValue(row, column.key)}</td>)}
                   <td className={cellPadding + ' whitespace-nowrap border-b border-[#edf1f5] text-right'}>
                     <button type="button" onClick={() => setExpandedId((current) => current === row.id ? null : row.id)} aria-expanded={expandedId === row.id} className="mr-2 text-[10px] font-semibold text-[#346ed6]">{expandedId === row.id ? 'Minder' : 'Details'}</button>
                     <Link href={row.detailHref} className="secondary-action min-h-[30px] px-2.5 py-1.5 text-[10px]">Openen</Link>
@@ -236,7 +242,8 @@ export function ProductOverviewGrid({
                     <Link href={row.detailHref} className="text-[11px] font-semibold text-[#346ed6]">Open product en prijssuggesties</Link>
                   </div>
                 </td></tr> : null}
-              </Fragment>)}
+              </Fragment>
+              })}
               {rows.length === 0 ? <tr><td colSpan={chosenColumns.length + 2} className="px-6 py-12 text-center text-[12px] text-[#78889b]">Geen producten gevonden, pas de filters aan of voeg een product toe.</td></tr> : null}
             </tbody>
           </table>
