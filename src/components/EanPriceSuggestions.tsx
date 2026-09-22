@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { refreshProductIntelligenceAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 
@@ -177,11 +177,9 @@ export function EanPriceSuggestions({
   const ownItem = items.find((item) => item.kind === 'OWN') ?? null
   const competitors = items.filter((item) => item.kind === 'COMPETITOR')
   const competitorsWithPrice = competitors.filter((item) => item.priceInclVat !== null || item.priceExclVat !== null)
-  const lowestCompetitor = useMemo(() => {
-    return competitorsWithPrice
-      .filter((item) => item.priceInclVat !== null)
-      .sort((a, b) => Number(a.priceInclVat) - Number(b.priceInclVat))[0] ?? null
-  }, [competitorsWithPrice])
+  const lowestCompetitor = competitorsWithPrice
+    .filter((item) => item.priceInclVat !== null)
+    .sort((a, b) => Number(a.priceInclVat) - Number(b.priceInclVat))[0] ?? null
 
   const ownIncl = ownItem?.priceInclVat ?? null
   const ownExcl = ownItem?.priceExclVat ?? null
