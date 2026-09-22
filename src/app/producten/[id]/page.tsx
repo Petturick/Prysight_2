@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateCompetitorOfferAction, updateProductIdentifiersAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { approveMatchAction } from '@/app/actions/matchActions'
-import { refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { EanPriceSuggestions } from '@/components/EanPriceSuggestions'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
@@ -83,13 +82,6 @@ function frequencyLabel(hours: number) {
   return `Elke ${hours} uur`
 }
 
-function nextCrawlLabel(lastCheckedAt: Date | null | undefined, hours: number) {
-  if (hours >= 876000) return 'Alleen handmatig'
-  if (!lastCheckedAt) return 'Klaar voor automatische controle'
-  const next = new Date(lastCheckedAt.getTime() + hours * 60 * 60 * 1000)
-  if (next.getTime() <= Date.now()) return 'Klaar voor automatische controle'
-  return `Volgende rond ${next.toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-}
 
 function isCrawlDue(lastCheckedAt: Date | null | undefined, hours: number) {
   if (hours >= 876000) return false
