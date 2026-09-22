@@ -37,19 +37,22 @@ export async function deleteAllProductsAction(formData: FormData) {
     redirect('/instellingen/data?productsDeleted=0#danger-zone')
   }
 
-  const [pausedFeeds, deletedMatches, deletedProducts] = await prisma.$transaction([
-    pauseFeeds
-      ? prisma.feedSource.updateMany({
+  const { pausedFeeds, deletedAlerts, deletedMatches, deletedOffers, deletedProducts } = await prisma.$transaction(async (tx) => {
+    const pausedFeeds = pauseFeeds
+      ? await tx.feedSource.updateMany({
           where: { companyId: actor.companyId, isActive: true },
           data: { isActive: false },
         })
-      : prisma.feedSource.updateMany({
+      : await tx.feedSource.updateMany({
           where: { companyId: actor.companyId, id: '__no_feed__' },
           data: { isActive: false },
-        }),
-    prisma.productMatch.deleteMany({ where: { companyId: actor.companyId } }),
-    prisma.product.deleteMany({ where: { companyId: actor.companyId } }),
-  ])
+        })
+    const deletedAlerts = await tx.alert.deleteMany({ where: { companyId: actor.companyId } })
+    const deletedMatches = await tx.productMatch.deleteMany({ where: { companyId: actor.companyId } })
+    const deletedOffers = await tx.competitorOffer.deleteMany({ where: { companyId: actor.companyId } })
+    const deletedProducts = await tx.product.deleteMany({ where: { companyId: actor.companyId } })
+    return { pausedFeeds, deletedAlerts, deletedMatches, deletedOffers, deletedProducts }
+  })
 
   await createAuditLog({
     companyId: actor.companyId,
@@ -60,6 +63,8 @@ export async function deleteAllProductsAction(formData: FormData) {
     newValue: {
       count: deletedProducts.count,
       productMatchesDeleted: deletedMatches.count,
+      competitorOffersDeleted: deletedOffers.count,
+      alertsDeleted: deletedAlerts.count,
       feedsPaused: pausedFeeds.count,
       explicitConfirmation: PRODUCT_CONFIRMATION,
     },
@@ -71,6 +76,8 @@ export async function deleteAllProductsAction(formData: FormData) {
   revalidatePath('/concurrenten')
   revalidatePath('/instellingen/data')
   revalidatePath('/instellingen/feedbeheer')
+  revalidatePath('/waarschuwingen')
+  revalidatePath('/monitoring')
   redirect(`/instellingen/data?productsDeleted=${deletedProducts.count}&feedsPaused=${pausedFeeds.count}#danger-zone`)
 }
 
@@ -92,23 +99,25 @@ export async function deleteAllCompetitorsAction(formData: FormData) {
     redirect('/instellingen/data?competitorsDeleted=0#danger-zone')
   }
 
-  const [deletedMatches, deletedOffers, deletedCompetitors] = await prisma.$transaction([
-    prisma.productMatch.deleteMany({
+  const { deletedAlerts, deletedMatches, deletedOffers, deletedCompetitors } = await prisma.$transaction(async (tx) => {
+    const deletedAlerts = await tx.alert.deleteMany({ where: { companyId: actor.companyId } })
+    const deletedMatches = await tx.productMatch.deleteMany({
       where: {
         companyId: actor.companyId,
         competitorOffer: {
           competitor: { companyId: actor.companyId },
         },
       },
-    }),
-    prisma.competitorOffer.deleteMany({
+    })
+    const deletedOffers = await tx.competitorOffer.deleteMany({
       where: {
         companyId: actor.companyId,
         competitor: { companyId: actor.companyId },
       },
-    }),
-    prisma.competitor.deleteMany({ where: { companyId: actor.companyId } }),
-  ])
+    })
+    const deletedCompetitors = await tx.competitor.deleteMany({ where: { companyId: actor.companyId } })
+    return { deletedAlerts, deletedMatches, deletedOffers, deletedCompetitors }
+  })
 
   await createAuditLog({
     companyId: actor.companyId,
@@ -120,6 +129,7 @@ export async function deleteAllCompetitorsAction(formData: FormData) {
       count: deletedCompetitors.count,
       competitorOffersDeleted: deletedOffers.count,
       productMatchesDeleted: deletedMatches.count,
+      alertsDeleted: deletedAlerts.count,
       explicitConfirmation: COMPETITOR_CONFIRMATION,
     },
   })
@@ -130,5 +140,7 @@ export async function deleteAllCompetitorsAction(formData: FormData) {
   revalidatePath('/producten')
   revalidatePath('/productmatches')
   revalidatePath('/instellingen/data')
+  revalidatePath('/waarschuwingen')
+  revalidatePath('/monitoring')
   redirect(`/instellingen/data?competitorsDeleted=${deletedCompetitors.count}#danger-zone`)
 }
