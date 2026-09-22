@@ -8,6 +8,7 @@ import { requireLicensedCountry } from '@/lib/company-countries'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
+import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
 import { findExistingProduct } from '@/lib/product-duplicate'
 
 function text(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim() }
@@ -22,10 +23,10 @@ export async function createSmartProductAction(formData: FormData) {
   const country=countryId?await requireLicensedCountry(actor.companyId,countryId):null
   const currency=text(formData,'currency')||country?.currency||'EUR'
   const ean=identifier(text(formData,'ean')), gtin=identifier(text(formData,'gtin')), mpn=text(formData,'mpn')
-  const ownPrice=text(formData,'ownPrice')
   const vatIncluded=text(formData,'vatIncluded') !== 'false'
-  const parsedOwnPrice=Number(ownPrice.replace(',', '.'))
-  if(!ownPrice||!Number.isFinite(parsedOwnPrice)||parsedOwnPrice<=0)throw new Error('Vul een geldige verkoopprijs groter dan 0 in.')
+  const ownPrice=String(validateVatPricePair({primary:text(formData,'ownPrice'),opposite:text(formData,'ownPriceOther'),vatIncluded,vatRate:country?Number(country.vatRate):null}))
+  const ownShippingCost=parseOptionalShipping(text(formData,'ownShippingCost'))
+  const ownShippingVatIncluded=text(formData,'ownShippingVatIncluded') !== 'false'
   const existingProduct=await findExistingProduct({
     companyId:actor.companyId,
     articleNumber,
@@ -79,6 +80,10 @@ export async function createSmartProductAction(formData: FormData) {
   })
   const product=await prisma.product.findUnique({where:{companyId_articleNumber:{companyId:actor.companyId,articleNumber}}})
   if(!product)throw new Error('Product is verwerkt maar kon niet worden geladen.')
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({where:{id:product.id},data:{ownShippingCost,ownShippingVatIncluded}})
+    if(country) await tx.productMarket.updateMany({where:{companyId:actor.companyId,productId:product.id,countryId:country.id},data:{vatIncluded,ownShippingCost,ownShippingVatIncluded}})
+  })
 
   let discovery: {
     created: number
