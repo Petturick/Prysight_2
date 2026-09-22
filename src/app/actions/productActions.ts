@@ -486,6 +486,72 @@ export async function removeCompetitorOfferAction(formData: FormData) {
   revalidatePath('/concurrenten')
 }
 
+export async function refreshProductIntelligenceAction(formData: FormData) {
+  const user = await requirePermission('competitors.write')
+  const productId = text(formData, 'productId')
+  const countryId = text(formData, 'countryId')
+  if (!productId || !countryId) throw new Error('Product en markt zijn verplicht om prijzen en concurrenten op te halen.')
+
+  await requireLicensedCountry(user.companyId, countryId)
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true, ean: true, gtin: true },
+  })
+  if (!product) throw new Error('Product niet gevonden.')
+  if (!product.ean && !product.gtin) throw new Error('Voeg eerst een EAN of GTIN toe om automatisch te kunnen zoeken.')
+
+  let discovery = { found: 0, created: 0, alreadyLinked: 0, reason: null as string | null, provider: null as string | null }
+  try {
+    const result = await discoverProductCandidates({ companyId: user.companyId, productId, countryId })
+    discovery = {
+      found: Number(result.found ?? 0),
+      created: Number(result.created ?? 0),
+      alreadyLinked: 'alreadyLinked' in result ? Number(result.alreadyLinked ?? 0) : 0,
+      reason: result.reason ?? null,
+      provider: 'provider' in result ? String(result.provider ?? '') || null : null,
+    }
+  } catch (error) {
+    discovery.reason = error instanceof Error ? error.message : 'Concurrenten zoeken is niet volledig gelukt.'
+    console.error('Product intelligence discovery failed', { companyId: user.companyId, productId, countryId, error })
+  }
+
+  let successful = 0
+  let failed = 0
+  try {
+    const checks = await runDuePriceChecks({
+      companyId: user.companyId,
+      productId,
+      limit: 12,
+      force: true,
+    })
+    successful = checks.successful
+    failed = checks.failed
+  } catch (error) {
+    failed = 1
+    console.error('Product intelligence price refresh failed', { companyId: user.companyId, productId, countryId, error })
+  }
+
+  revalidatePath('/dashboard')
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/productmatches')
+  revalidatePath('/concurrenten')
+  revalidatePath('/monitoring')
+
+  const params = new URLSearchParams({
+    markt: countryId,
+    intelligence: 'updated',
+    gevonden: String(discovery.found),
+    nieuw: String(discovery.created),
+    gekoppeld: String(discovery.alreadyLinked),
+    prijzen: String(successful),
+    fouten: String(failed),
+  })
+  if (discovery.provider) params.set('zoekbron', discovery.provider)
+  if (discovery.reason) params.set('reden', discovery.reason)
+  redirect(`/producten/${productId}?${params.toString()}#ean-prijssuggesties`)
+}
+
 export async function discoverCompetitorUrlsAction(formData: FormData) {
   const user = await requirePermission('competitors.write')
   const productId = text(formData, 'productId')
