@@ -408,7 +408,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         vatIncluded: true,
         productMarkets: {
           where: { companyId: actor.companyId, countryId: country.id, isActive: true },
-          select: { ownUrl: true, ownPrice: true, currency: true },
+          select: { ownUrl: true, ownPrice: true, vatIncluded: true, currency: true },
         },
         matches: {
           where: { companyId: actor.companyId, matchStatus: { in: ['REVIEW', 'CERTAIN'] } },
@@ -506,6 +506,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     }
 
+    const ownVatIncluded = product.productMarkets[0]?.vatIncluded ?? product.vatIncluded
     const ownPriceRaw = product.productMarkets[0]?.ownPrice ?? product.ownPrice
     const ownPrice = ownPriceRaw === null ? null : Number(ownPriceRaw)
     const marketCurrency = product.productMarkets[0]?.currency ?? country.currency ?? product.currency
@@ -517,13 +518,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (magento) {
       results.push(magento)
     } else if (ownUrl) {
-      const ownSource: Source = { id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: !ownUrlDiscovered, vatIncluded: product.vatIncluded }
+      const ownSource: Source = { id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: !ownUrlDiscovered, vatIncluded: ownVatIncluded }
       const preview = await previewSource(ownSource, info, vatRate, marketCurrency, country.code)
       if (preview.observedPrice === null && ownPrice !== null) {
         results.push(storedOwnPriceSuggestion(
           ownSource,
           ownPrice,
-          product.vatIncluded,
+          ownVatIncluded,
           vatRate,
           marketCurrency,
           `De productbron kon niet worden uitgelezen. De huidige Prysight verkoopprijs is gebruikt. ${preview.reason}`,
@@ -533,9 +534,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     } else if (ownPrice !== null) {
       results.push(storedOwnPriceSuggestion(
-        { id: 'own-data', matchId: null, kind: 'OWN', name: 'Eigen verkoopprijs', url: '/producten/' + product.id, trusted: true, vatIncluded: product.vatIncluded },
+        { id: 'own-data', matchId: null, kind: 'OWN', name: 'Eigen verkoopprijs', url: '/producten/' + product.id, trusted: true, vatIncluded: ownVatIncluded },
         ownPrice,
-        product.vatIncluded,
+        ownVatIncluded,
         vatRate,
         marketCurrency,
         'Huidige verkoopprijs uit Prysight gebruikt omdat nog geen eigen product URL is gekoppeld.',
