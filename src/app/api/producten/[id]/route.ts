@@ -60,7 +60,27 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const actor = await requirePermission('products.write')
     const { id } = await params
     if (!(await scopedProduct(actor.companyId, id))) return NextResponse.json({ error: 'Niet gevonden' }, { status: 404 })
-    await prisma.product.delete({ where: { id, companyId: actor.companyId } })
+    await prisma.$transaction(async (tx) => {
+      const matches = await tx.productMatch.findMany({
+        where: { companyId: actor.companyId, productId: id },
+        select: { competitorOfferId: true },
+      })
+      const offerIds = matches.map((match) => match.competitorOfferId)
+
+      await tx.alert.deleteMany({ where: { companyId: actor.companyId, productId: id } })
+      if (offerIds.length) {
+        await tx.alert.deleteMany({
+          where: { companyId: actor.companyId, competitorOfferId: { in: offerIds } },
+        })
+      }
+      await tx.productMatch.deleteMany({ where: { companyId: actor.companyId, productId: id } })
+      if (offerIds.length) {
+        await tx.competitorOffer.deleteMany({
+          where: { companyId: actor.companyId, id: { in: offerIds } },
+        })
+      }
+      await tx.product.delete({ where: { id, companyId: actor.companyId } })
+    })
     return NextResponse.json({ success: true })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Product verwijderen mislukt.' }, { status: 403 })
