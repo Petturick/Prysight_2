@@ -15,6 +15,7 @@ import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { getPricingRecommendations } from '@/lib/pricing-engine'
 import { prisma } from '@/lib/prisma'
+import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -170,12 +171,15 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const ownPrice = numberValue(selectedMarket?.ownPrice ?? product.ownPrice)
   const ownCurrency = selectedMarket?.currency ?? product.currency
   const vatRate = numberValue(defaultCountry?.vatRate)
-  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
-    ? ownPrice * (1 + vatRate / 100)
-    : ownPrice
-  const comparisonOwnPriceExVat = comparisonOwnPrice !== null && vatRate !== null
-    ? comparisonOwnPrice / (1 + vatRate / 100)
-    : null
+  const ownVatIncluded = selectedMarket?.vatIncluded ?? product.vatIncluded
+  const ownShippingCost = numberValue(selectedMarket ? selectedMarket.ownShippingCost : product.ownShippingCost)
+  const ownShippingVatIncluded = selectedMarket?.ownShippingVatIncluded ?? product.ownShippingVatIncluded ?? true
+  const ownAmounts = calculateDeliveredAmounts({
+    price: ownPrice, priceVatIncluded: ownVatIncluded,
+    shipping: ownShippingCost, shippingVatIncluded: ownShippingVatIncluded, vatRate,
+  })
+  const comparisonOwnPrice = ownAmounts.priceInc
+  const comparisonOwnPriceExVat = ownAmounts.priceEx
   const averageDifferencePct = comparisonOwnPrice !== null && averagePrice !== null && averagePrice > 0 ? ((comparisonOwnPrice - averagePrice) / averagePrice) * 100 : null
   const automaticMatches = crawlableMatches.filter((match) => match.competitorOffer.competitor.checkFrequencyHours < 876000)
   const automaticDue = automaticMatches.filter((match) => isCrawlDue(
@@ -354,7 +358,16 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
           <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
             <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#7b8999]">{product.vatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
+            <p className="mt-1 text-[10px] text-[#7b8999]">{ownVatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
+            <div className="mt-3 space-y-1 text-[11px] text-[#526780]">
+              <p>Product excl. btw, {formatCurrency(ownAmounts.priceEx, ownCurrency)}</p>
+              <p>Product incl. btw, {formatCurrency(ownAmounts.priceInc, ownCurrency)}</p>
+              <p>Verzending excl. btw, {ownShippingCost === null ? 'Onbekend' : formatCurrency(ownAmounts.shippingEx, ownCurrency)}</p>
+              <p>Verzending incl. btw, {ownShippingCost === null ? 'Onbekend' : formatCurrency(ownAmounts.shippingInc, ownCurrency)}</p>
+              <p className="font-semibold">Totaal excl. btw, {formatCurrency(ownAmounts.totalEx, ownCurrency)}</p>
+              <p className="font-semibold">Totaal incl. btw, {formatCurrency(ownAmounts.totalInc, ownCurrency)}</p>
+              {ownShippingCost === null ? <p>Vul verzendkosten in om de volledige totaalprijs te vergelijken. Vul 0 in voor gratis verzending.</p> : null}
+            </div>
             {ownPrice === null ? <p className="mt-3 rounded-[9px] bg-[#fff6e4] px-3 py-2 text-[11px] font-semibold text-[#9a6810]">Voeg eerst je eigen prijs toe om marktverschillen en prijsadvies correct te berekenen.</p> : null}
           </div>
           <div className="p-5 sm:p-6">
@@ -369,7 +382,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
                   </div>
                 </label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(product.vatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Aanvullende prijs, andere btw variant (optioneel)<input name="ownPriceOther" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Controleer beide prijsvarianten" /><span className="mt-1 block text-[10px] font-normal text-[#7b8999]">Bij basisprijs incl. btw vul je de prijs excl. btw in, en omgekeerd.</span></label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Verzendkosten<input name="ownShippingCost" inputMode="decimal" defaultValue={ownShippingCost ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Leeg is onbekend, 0 is gratis" /></label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Btw op verzendkosten<select name="ownShippingVatIncluded" defaultValue={String(ownShippingVatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
+                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(ownVatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
                 {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
                 <div className="md:col-span-2 flex justify-end">
@@ -472,8 +488,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             const priceExVat = price !== null && competitorVatRate !== null ? price / (1 + competitorVatRate / 100) : null
             const normalizedShipping = numberValue(offer.normalizedShippingCost)
             const deliveredPrice = numberValue(offer.deliveredPrice)
-            const deltaAmount = comparisonOwnPrice !== null && price !== null ? price - comparisonOwnPrice : null
-            const ownDeltaPct = comparisonOwnPrice !== null && price !== null && comparisonOwnPrice > 0 ? ((price - comparisonOwnPrice) / comparisonOwnPrice) * 100 : null
+            const competitorShippingEx = normalizedShipping !== null && competitorVatRate !== null ? normalizedShipping / (1 + competitorVatRate / 100) : null
+            const deliveredEx = priceExVat !== null && competitorShippingEx !== null ? priceExVat + competitorShippingEx : null
+            const deliveredDifference = ownCurrency === 'EUR' && ownAmounts.totalInc !== null && deliveredPrice !== null ? deliveredPrice - ownAmounts.totalInc : null
+            const deltaAmount = deliveredDifference ?? (ownCurrency === 'EUR' && comparisonOwnPrice !== null && price !== null ? price - comparisonOwnPrice : null)
+            const ownDeltaPct = deltaAmount === null ? null : deliveredDifference !== null && ownAmounts.totalInc && ownAmounts.totalInc > 0 ? deltaAmount / ownAmounts.totalInc * 100 : comparisonOwnPrice && comparisonOwnPrice > 0 ? deltaAmount / comparisonOwnPrice * 100 : null
             const latestSourceCheck = offer.priceChecks[0]
             const sourceIssue = sourceIssueLabel(latestSourceCheck?.errorMessage)
             const frequencyHours = offer.competitor.checkFrequencyHours
@@ -505,13 +524,15 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                   <div>
                     <p className="text-[9px] font-medium uppercase tracking-[0.06em] text-[#8a97a6]">Verzending</p>
                     <p className="mt-1 text-[12px] font-semibold text-[#42566d]">{normalizedShipping === null ? 'Onbekend' : normalizedShipping === 0 ? 'Gratis' : formatCurrency(normalizedShipping)}</p>
-                    <p className="mt-1 text-[9px] text-[#668072]">{deliveredPrice === null ? 'Totaal onbekend' : `Totaal ${formatCurrency(deliveredPrice)}`}</p>
+                    <p className="mt-1 text-[9px] text-[#668072]">Verzending excl. btw, {formatCurrency(competitorShippingEx)}</p>
+                    <p className="mt-1 text-[9px] text-[#668072]">Totaal incl. btw, {formatCurrency(deliveredPrice)}</p>
+                    <p className="mt-1 text-[9px] text-[#668072]">Totaal excl. btw, {formatCurrency(deliveredEx)}</p>
                   </div>
 
                   <div>
                     <p className="text-[9px] font-medium uppercase tracking-[0.06em] text-[#8a97a6]">Verschil met jou</p>
                     <p className={`mt-1 text-[12px] font-semibold ${deltaTone}`}>{deltaAmount === null || ownDeltaPct === null ? 'Nog niet te berekenen' : `${deltaAmount > 0 ? '+' : ''}${formatCurrency(deltaAmount)} · ${ownDeltaPct > 0 ? '+' : ''}${formatNumber(ownDeltaPct, 1)}%`}</p>
-                    <p className="mt-1 text-[9px] text-[#8a98a9]">{ownDeltaPct === null ? 'Eigen prijs ontbreekt' : ownDeltaPct < 0 ? 'Concurrent goedkoper' : ownDeltaPct > 0 ? 'Concurrent duurder' : 'Gelijke prijs'}</p>
+                    <p className="mt-1 text-[9px] text-[#8a98a9]">{deliveredDifference !== null ? 'Vergelijking incl. btw en verzending' : 'Alleen productprijs, verzendkosten onbekend of valuta verschilt'}</p>
                   </div>
 
                   <div className="flex flex-wrap gap-2 xl:justify-end">
