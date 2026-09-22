@@ -98,19 +98,19 @@ export function FeedSourceManager({ initialSources, canManage }: { initialSource
     [marketSources],
   )
 
-  useEffect(() => {
-    if (feedFilter && !selectableFeeds.some((source) => source.id === feedFilter)) setFeedFilter('')
-  }, [feedFilter, selectableFeeds])
+  const effectiveFeedFilter = feedFilter && selectableFeeds.some((source) => source.id === feedFilter)
+    ? feedFilter
+    : ''
 
   const visible = useMemo(() => {
     const search = filter.toLocaleLowerCase('nl-NL').trim()
     return marketSources.filter((source) => {
-      if (feedFilter && source.id !== feedFilter) return false
+      if (effectiveFeedFilter && source.id !== effectiveFeedFilter) return false
       if (!search) return true
       return [source.name, source.url, source.countryCode, source.sourceType]
         .some((value) => value?.toLocaleLowerCase('nl-NL').includes(search))
     })
-  }, [feedFilter, filter, marketSources])
+  }, [effectiveFeedFilter, filter, marketSources])
 
   const marketCounts = useMemo(
     () => new Map(markets.map(([code]) => [
@@ -215,7 +215,7 @@ export function FeedSourceManager({ initialSources, canManage }: { initialSource
           <label className="min-w-[260px] flex-1 text-[10px] font-semibold text-[#536174]">
             Feed
             <select
-              value={feedFilter}
+              value={effectiveFeedFilter}
               onChange={(event) => setFeedFilter(event.target.value)}
               className="toolbar-control mt-1.5 w-full"
             >
