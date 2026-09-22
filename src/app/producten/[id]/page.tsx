@@ -142,6 +142,8 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
+  const hasReadableProductName = /[a-zà-ÿ]{2,}/i.test(product.name)
+  const displayProductName = hasReadableProductName ? product.name : `Artikel ${product.articleNumber}`
   const marketMatches = defaultCountry
     ? product.matches.filter((match) => match.competitorOffer.competitor.countryId === defaultCountry.id)
     : product.matches
@@ -231,11 +233,22 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const identifiersUpdated = readParam(query.identiteit) === 'bijgewerkt'
   const duplicateRedirect = readParam(query.dubbel) === '1'
   const sourceUpdated = readParam(query.bron) === 'bijgewerkt'
+  const intelligenceUpdated = readParam(query.intelligence) === 'updated'
+  const intelligenceFound = Number(readParam(query.gevonden) ?? '0') || 0
+  const intelligenceCreated = Number(readParam(query.nieuw) ?? '0') || 0
+  const intelligenceLinked = Number(readParam(query.gekoppeld) ?? '0') || 0
+  const intelligencePrices = Number(readParam(query.prijzen) ?? '0') || 0
+  const intelligenceErrors = Number(readParam(query.fouten) ?? '0') || 0
   const controlSummaryText = controlSummary(controlMessage)
   const sourceControlSummaryText = controlSummary(sourceControlMessage)
 
   return (
     <div className="space-y-4">
+      {intelligenceUpdated ? (
+        <div className={`rounded-[12px] border px-4 py-3 text-[11px] font-medium ${intelligencePrices > 0 || intelligenceCreated > 0 ? 'border-[#8bc9a7] bg-[#eef9f2] text-[#176a42]' : 'border-[#e8d3a2] bg-[#fff8e9] text-[#76591d]'}`}>
+          Scan afgerond, {intelligenceFound} bronnen gevonden, {intelligenceCreated} nieuw, {intelligenceLinked} al gekoppeld, {intelligencePrices} prijs{intelligencePrices === 1 ? '' : 'en'} bijgewerkt{intelligenceErrors ? `, ${intelligenceErrors} controle${intelligenceErrors === 1 ? '' : 's'} mislukt` : ''}.
+        </div>
+      ) : null}
       {duplicateRedirect ? <div className="rounded-[12px] border border-[#e8d3a2] bg-[#fff8e9] px-4 py-3 text-[12px] font-semibold text-[#76591d]">Dit product bestond al in Prysight. Daarom is geen duplicaat aangemaakt. Je kunt het bestaande product hier verder beheren.</div> : null}
       {priceUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Verkoopprijs bijgewerkt.</div> : null}
       {identifiersUpdated ? <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Productherkenning bijgewerkt. Prysight heeft de concurrentzoekactie opnieuw uitgevoerd.</div> : null}
@@ -263,7 +276,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               <span>· {product.productGroup.name}</span>
               <span className={`ps-chip ${measurementQuality === 'Sterk' ? 'ps-chip-green' : measurementQuality === 'Redelijk' ? 'ps-chip-amber' : 'ps-chip-red'}`}>Data {measurementQuality.toLowerCase()}</span>
             </div>
-            <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.025em] text-[#18273a]">{product.name}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2"><h1 className="text-[26px] font-semibold tracking-[-0.025em] text-[#18273a]">{displayProductName}</h1>{!hasReadableProductName ? <span className="ps-chip ps-chip-amber">Productnaam controleren</span> : null}</div>
             <p className="mt-1 text-[11px] text-[#788698]">{product.packagingQty} {product.packagingUnit ?? 'stuks'} · {product.stockStatus ?? 'Voorraad onbekend'}</p>
             {product.productMarkets.length > 1 ? (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -282,36 +295,28 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/producten" className="secondary-action">Terug</Link>
-            <a href="#eigen-prijs" className="secondary-action">Prijs aanpassen</a>
-            {crawlableMatches.length > 0 ? (
-              <form action={refreshSingleProductPriceAction}>
-                <input type="hidden" name="singleProductId" value={product.id} />
-                <input type="hidden" name="returnTo" value="detail" />
-                <PriceFetchSubmitButton idleLabel="Prijzen ophalen" pendingLabel="Ophalen…" />
-              </form>
-            ) : defaultCountry && canEditCompetitors ? (
-              <a href="#concurrenten-vinden" className="primary-action">Concurrenten zoeken</a>
-            ) : <a href="#concurrent-bron-toevoegen" className="primary-action">Concurrent koppelen</a>}
+            <a href="#eigen-prijs" className="secondary-action">Handmatig aanpassen</a>
           </div>
         </div>
       </section>
 
       <nav className="ps-panel flex flex-wrap items-center gap-2 px-4 py-3" aria-label="Productnavigatie">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8a97a6]">Ga naar</span>
-        <a href="#ean-prijssuggesties" className="ps-chip ps-chip-blue">Prijsherkenning</a>
-        <a href="#eigen-prijs" className="ps-chip">Eigen prijs</a>
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8a97a6]">Product</span>
+        <a href="#ean-prijssuggesties" className="ps-chip ps-chip-blue">Prijzen en concurrenten</a>
         <a href="#concurrentieprijzen" className="ps-chip">Prijsvergelijking</a>
         <a href="#historie" className="ps-chip">Historie</a>
-        <a href="#product-identiteit" className="ps-chip">Productdata</a>
+        <a href="#eigen-prijs" className="ps-chip">Instellingen</a>
       </nav>
 
       <EanPriceSuggestions
         productId={product.id}
         ean={product.ean || product.gtin}
         countryId={defaultCountry?.id ?? null}
+        countryName={defaultCountry?.name ?? null}
         currency={ownCurrency}
         sourceKey={marketMatches.map((match) => match.competitorOffer.id).join(',')}
         canEditProduct={canEditProduct}
+        canRefresh={canEditCompetitors}
       />
 
       <details id="product-identiteit" open={!product.ean} className="ps-panel scroll-mt-24 overflow-hidden">
@@ -343,13 +348,17 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       </details>
 
 
-      <section id="eigen-prijs" className="ps-panel scroll-mt-24 overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-[16px] font-semibold text-[#21364d]">Eigen verkoopprijs</h2>
+      <details id="eigen-prijs" className="ps-panel scroll-mt-24 overflow-hidden">
+        <summary className="cursor-pointer px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-semibold text-[#30465d]">Handmatig aanpassen</p>
+              <p className="mt-1 text-[10px] text-[#7d8b9a]">Alleen nodig als automatische herkenning niet voldoende is.</p>
+            </div>
+            <span className="ps-chip">{formatCurrency(ownPrice, ownCurrency)}</span>
           </div>
-          {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : <span className="ps-chip">Algemeen</span>}
-        </div>
+        </summary>
+        <div className="border-t border-[#e7edf3]">
         <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
           <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
             <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
@@ -378,74 +387,78 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             ) : <p className="text-[11px] text-[#7b8999]">Je hebt alleen-lezen toegang tot productprijzen.</p>}
           </div>
         </div>
-      </section>
 
-      <section className="ps-panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-[16px] font-semibold text-[#21364d]">Marktpositie</h2>
-            <p className="mt-1 text-[10px] text-[#7f8ea0]">Prijsafstand, verzendkosten, totaalprijs, voorraad en automatische monitoring in één overzicht.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : null}
-            {latestCheck ? <span className="text-[10px] text-[#8793a3]">Laatste meting {formatDate(latestCheck)}</span> : null}
-          </div>
         </div>
+      </details>
 
-        <div className="grid divide-y divide-[#e7edf3] sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Jouw prijs</p>
-            <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#8793a3]">{comparisonOwnPriceExVat === null ? 'Excl. btw onbekend' : `${formatCurrency(comparisonOwnPriceExVat, ownCurrency)} excl. btw`}</p>
-          </div>
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Marktgemiddelde</p>
-            <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{formatCurrency(averagePrice)}</p>
-            <p className="mt-1 text-[10px] text-[#8793a3]">Laag {formatCurrency(lowestPrice)} · Hoog {formatCurrency(highestPrice)}</p>
-          </div>
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Prijspositie</p>
-            <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{marketPosition === null ? '—' : `#${marketPosition}`}</p>
-            <div className="mt-2 flex max-w-[150px] gap-1">
-              {Array.from({ length: Math.min(Math.max(competitorCount + 1, 1), 8) }).map((_, index) => (
-                <span key={index} className={`h-1.5 flex-1 rounded-full ${marketPosition !== null && index + 1 === Math.min(marketPosition, 8) ? 'bg-[#2f6edb]' : 'bg-[#dce4ed]'}`} />
-              ))}
+      {(comparisonOwnPrice !== null || pricedMatches.length > 0) ? (
+        <section className="ps-panel overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-[16px] font-semibold text-[#21364d]">Marktpositie</h2>
+              <p className="mt-1 text-[10px] text-[#7f8ea0]">Prijsafstand, verzendkosten, totaalprijs, voorraad en automatische monitoring in één overzicht.</p>
             </div>
-            <p className="mt-1.5 text-[10px] text-[#8793a3]">{competitorCount} concurrent{competitorCount === 1 ? '' : 'en'} met prijs</p>
-          </div>
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Smart price</p>
-            <p className={`mt-1 text-[24px] font-semibold tracking-[-0.02em] ${adviceTone}`}>{formatCurrency(recommendedPrice)}</p>
-            <p className={`mt-1 text-[10px] font-medium ${adviceTone}`}>{actionLabel(recommendation?.action)}{adviceChange !== null ? ` · ${adviceChange > 0 ? '+' : ''}${formatNumber(adviceChange, 1)}%` : ''}</p>
-          </div>
-          <div className="px-5 py-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Monitoring</p>
-              <span className={`h-2 w-2 rounded-full ${automaticMatches.length ? 'bg-[#2a9d63]' : 'bg-[#b8c2ce]'}`} />
+            <div className="flex flex-wrap items-center gap-2">
+              {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : null}
+              {latestCheck ? <span className="text-[10px] text-[#8793a3]">Laatste meting {formatDate(latestCheck)}</span> : null}
             </div>
-            <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{automaticMatches.length}</p>
-            <p className="mt-1 text-[10px] text-[#8793a3]">{automaticMatches.length ? `${automaticDue} bron${automaticDue === 1 ? '' : 'nen'} nu klaar voor automatische controle` : 'Geen automatische bron ingesteld'}</p>
-            {competitorOutOfStock > 0 ? <p className="mt-1 text-[10px] font-semibold text-[#a44a55]">{competitorOutOfStock} concurrent{competitorOutOfStock === 1 ? '' : 'en'} niet op voorraad</p> : null}
           </div>
-        </div>
 
-        <div className="border-t border-[#e7edf3] px-5 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <details className="max-w-4xl text-[11px] text-[#66778a]">
-              <summary className="cursor-pointer font-semibold text-[#2f6edb]">Prijsadvies en margedetails</summary>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <div><span className="text-[#8793a3]">Huidige marge</span><p className="font-semibold text-[#33485f]">{currentMargin === null ? '—' : `${formatNumber(currentMargin, 1)}%`}</p></div>
-                <div><span className="text-[#8793a3]">Marge na advies</span><p className="font-semibold text-[#33485f]">{expectedMargin === null ? '—' : `${formatNumber(expectedMargin, 1)}%`}</p></div>
-                <div><span className="text-[#8793a3]">Prijsgrenzen</span><p className="font-semibold text-[#33485f]">{guardrailText}</p></div>
+          <div className="grid divide-y divide-[#e7edf3] sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Jouw prijs</p>
+              <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p>
+              <p className="mt-1 text-[10px] text-[#8793a3]">{comparisonOwnPriceExVat === null ? 'Excl. btw onbekend' : `${formatCurrency(comparisonOwnPriceExVat, ownCurrency)} excl. btw`}</p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Marktgemiddelde</p>
+              <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{formatCurrency(averagePrice)}</p>
+              <p className="mt-1 text-[10px] text-[#8793a3]">Laag {formatCurrency(lowestPrice)} · Hoog {formatCurrency(highestPrice)}</p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Prijspositie</p>
+              <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{marketPosition === null ? '—' : `#${marketPosition}`}</p>
+              <div className="mt-2 flex max-w-[150px] gap-1">
+                {Array.from({ length: Math.min(Math.max(competitorCount + 1, 1), 8) }).map((_, index) => (
+                  <span key={index} className={`h-1.5 flex-1 rounded-full ${marketPosition !== null && index + 1 === Math.min(marketPosition, 8) ? 'bg-[#2f6edb]' : 'bg-[#dce4ed]'}`} />
+                ))}
               </div>
-              <p className="mt-3 leading-5">{recommendation?.reason ?? (crawlableMatches.length === 0 ? 'Koppel een concurrentbron voor een marktadvies.' : 'Nog onvoldoende betrouwbare prijsdata voor een advies.')}</p>
-              {recommendation?.guardrailNotes?.length ? <div className="mt-2 space-y-1">{recommendation.guardrailNotes.map((note) => <p key={note}>{note}</p>)}</div> : null}
-            </details>
-            <div className="flex shrink-0 gap-2"><Link href="/prijsregels" className="secondary-action min-h-[36px] px-3 py-2 text-[11px]">Prijsregels</Link><Link href="/prijsstrategie" className="primary-action min-h-[36px] px-3 py-2 text-[11px]">Prijsstrategie</Link></div>
+              <p className="mt-1.5 text-[10px] text-[#8793a3]">{competitorCount} concurrent{competitorCount === 1 ? '' : 'en'} met prijs</p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Smart price</p>
+              <p className={`mt-1 text-[24px] font-semibold tracking-[-0.02em] ${adviceTone}`}>{formatCurrency(recommendedPrice)}</p>
+              <p className={`mt-1 text-[10px] font-medium ${adviceTone}`}>{actionLabel(recommendation?.action)}{adviceChange !== null ? ` · ${adviceChange > 0 ? '+' : ''}${formatNumber(adviceChange, 1)}%` : ''}</p>
+            </div>
+            <div className="px-5 py-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#8391a1]">Monitoring</p>
+                <span className={`h-2 w-2 rounded-full ${automaticMatches.length ? 'bg-[#2a9d63]' : 'bg-[#b8c2ce]'}`} />
+              </div>
+              <p className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#21364d]">{automaticMatches.length}</p>
+              <p className="mt-1 text-[10px] text-[#8793a3]">{automaticMatches.length ? `${automaticDue} bron${automaticDue === 1 ? '' : 'nen'} nu klaar voor automatische controle` : 'Geen automatische bron ingesteld'}</p>
+              {competitorOutOfStock > 0 ? <p className="mt-1 text-[10px] font-semibold text-[#a44a55]">{competitorOutOfStock} concurrent{competitorOutOfStock === 1 ? '' : 'en'} niet op voorraad</p> : null}
+            </div>
           </div>
-          {(staleSources > 0 || failedLatestChecks > 0) ? <div className="mt-3 rounded-[10px] bg-[#fff7e8] px-3 py-2.5 text-[11px] font-medium text-[#815d1d]">Ververs eerst de prijsdata voordat je dit advies commercieel gebruikt, {staleSources} verouderde bron{staleSources === 1 ? '' : 'nen'}, {failedLatestChecks} mislukte laatste controle{failedLatestChecks === 1 ? '' : 's'}.</div> : null}
-        </div>
-      </section>
+
+          <div className="border-t border-[#e7edf3] px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <details className="max-w-4xl text-[11px] text-[#66778a]">
+                <summary className="cursor-pointer font-semibold text-[#2f6edb]">Prijsadvies en margedetails</summary>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div><span className="text-[#8793a3]">Huidige marge</span><p className="font-semibold text-[#33485f]">{currentMargin === null ? '—' : `${formatNumber(currentMargin, 1)}%`}</p></div>
+                  <div><span className="text-[#8793a3]">Marge na advies</span><p className="font-semibold text-[#33485f]">{expectedMargin === null ? '—' : `${formatNumber(expectedMargin, 1)}%`}</p></div>
+                  <div><span className="text-[#8793a3]">Prijsgrenzen</span><p className="font-semibold text-[#33485f]">{guardrailText}</p></div>
+                </div>
+                <p className="mt-3 leading-5">{recommendation?.reason ?? (crawlableMatches.length === 0 ? 'Koppel een concurrentbron voor een marktadvies.' : 'Nog onvoldoende betrouwbare prijsdata voor een advies.')}</p>
+                {recommendation?.guardrailNotes?.length ? <div className="mt-2 space-y-1">{recommendation.guardrailNotes.map((note) => <p key={note}>{note}</p>)}</div> : null}
+              </details>
+              <div className="flex shrink-0 gap-2"><Link href="/prijsregels" className="secondary-action min-h-[36px] px-3 py-2 text-[11px]">Prijsregels</Link><Link href="/prijsstrategie" className="primary-action min-h-[36px] px-3 py-2 text-[11px]">Prijsstrategie</Link></div>
+            </div>
+            {(staleSources > 0 || failedLatestChecks > 0) ? <div className="mt-3 rounded-[10px] bg-[#fff7e8] px-3 py-2.5 text-[11px] font-medium text-[#815d1d]">Ververs eerst de prijsdata voordat je dit advies commercieel gebruikt, {staleSources} verouderde bron{staleSources === 1 ? '' : 'nen'}, {failedLatestChecks} mislukte laatste controle{failedLatestChecks === 1 ? '' : 's'}.</div> : null}
+          </div>
+        </section>
+      ) : null}
 
       <section id="concurrentieprijzen" className="grid scroll-mt-24 gap-4 xl:grid-cols-[1.45fr_0.55fr]">
         <div className="ps-panel overflow-hidden">
