@@ -35,7 +35,7 @@ export function SettingsTabs({ role, permissions = [] }: { role?: AppRole | null
     <nav aria-label="Beheermenu" className="rounded-[10px] border border-[#e2e7ee] bg-white p-2 shadow-[0_2px_8px_rgba(31,49,77,.03)]">
       <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
         {visible.map((tab) => {
-          const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+          const active = pathname === tab.href || (tab.href !== '/instellingen' && pathname.startsWith(`${tab.href}/`))
           return (
             <Link
               key={tab.href}
