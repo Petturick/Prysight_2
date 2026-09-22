@@ -7,6 +7,7 @@ import type { AppRole } from '@/lib/roles'
 import type { Permission } from '@/lib/authz'
 
 const tabs: Array<{ href: string; label: string; permission?: Permission; superAdminOnly?: boolean }> = [
+  { href: '/instellingen', label: 'Beheeroverzicht' },
   { href: '/instellingen/organisaties', label: 'Organisaties', superAdminOnly: true },
   { href: '/instellingen/markten', label: 'Markten', permission: 'settings.manage' },
   { href: '/instellingen/feedbeheer', label: 'Feedbeheer', permission: 'feeds.read' },
@@ -31,8 +32,8 @@ export function SettingsTabs({ role, permissions = [] }: { role?: AppRole | null
   })
 
   return (
-    <div className="overflow-x-auto rounded-[10px] border border-[#e2e7ee] bg-white p-1.5 shadow-[0_2px_8px_rgba(31,49,77,.03)]">
-      <div className="flex min-w-max items-center gap-1">
+    <nav aria-label="Beheermenu" className="rounded-[10px] border border-[#e2e7ee] bg-white p-2 shadow-[0_2px_8px_rgba(31,49,77,.03)]">
+      <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
         {visible.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
           return (
@@ -41,7 +42,7 @@ export function SettingsTabs({ role, permissions = [] }: { role?: AppRole | null
               href={tab.href}
               prefetch={false}
               className={cn(
-                'rounded-[7px] px-3 py-2 text-[10px] font-semibold text-[#6b788b] transition hover:bg-[#f7f9fc] hover:text-[#33445d]',
+                'rounded-[7px] px-3 py-2.5 text-[11px] font-semibold text-[#6b788b] transition hover:bg-[#f7f9fc] hover:text-[#33445d]',
                 active && 'bg-[#edf4ff] text-[#3d73d4]',
               )}
             >
@@ -50,6 +51,6 @@ export function SettingsTabs({ role, permissions = [] }: { role?: AppRole | null
           )
         })}
       </div>
-    </div>
+    </nav>
   )
 }
