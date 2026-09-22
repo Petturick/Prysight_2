@@ -172,7 +172,8 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
     prisma.country.findUnique({ where: { id: countryId } }),
     prisma.webshop.findMany({ where: { companyId, isActive: true, competitorId: null }, select: { url: true } }),
   ])
-  const ean = product?.ean?.trim() || product?.gtin?.trim()
+  if (!product) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Product ontbreekt', provider: null, queryMode: null }
+  const ean = product.ean?.trim() || product.gtin?.trim()
   if (!ean) return { found: 0, created: 0, alreadyLinked: 0, reason: 'EAN of GTIN ontbreekt', provider: null, queryMode: null }
   if (!country) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Markt ontbreekt', provider: null, queryMode: null }
 
