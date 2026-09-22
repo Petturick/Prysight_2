@@ -126,7 +126,7 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
   const ownPrice = decimalToNumber(selectedMarket?.ownPrice ?? product.ownPrice)
   const ownCurrency = selectedMarket?.currency ?? product.currency
   const vatRate = decimalToNumber(selectedMarket?.country.vatRate ?? product.productMarkets.find((market) => market.isActive)?.country.vatRate)
-  const comparisonOwnPrice = ownPrice !== null && !product.vatIncluded && vatRate !== null
+  const comparisonOwnPrice = ownPrice !== null && !(selectedMarket?.vatIncluded ?? product.vatIncluded) && vatRate !== null
     ? ownPrice * (1 + vatRate / 100)
     : ownPrice
   const pricedOffers = relevantMatches.filter((match) => hasVerifiedMeasurement(match, comparisonOwnPrice))
@@ -153,7 +153,7 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
     ownPrice,
     comparisonOwnPrice,
     ownCurrency,
-    vatIncluded: product.vatIncluded,
+    vatIncluded: selectedMarket?.vatIncluded ?? product.vatIncluded,
     lowestPrice,
     averagePrice,
     difference,

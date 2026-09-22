@@ -160,6 +160,7 @@ export async function getPricingRecommendations(
           select: {
             countryId: true,
             ownPrice: true,
+            vatIncluded: true,
             currency: true,
             country: { select: { code: true, name: true, vatRate: true } },
           },
@@ -197,6 +198,7 @@ export async function getPricingRecommendations(
       countryName: string | null
       vatRate: number | null
       ownPrice: number | null
+      vatIncluded: boolean
     }>()
 
     for (const market of product.productMarkets) {
@@ -206,6 +208,7 @@ export async function getPricingRecommendations(
         countryName: market.country.name,
         vatRate: numeric(market.country.vatRate),
         ownPrice: numeric(market.ownPrice) ?? numeric(product.ownPrice),
+        vatIncluded: market.vatIncluded ?? product.vatIncluded,
       })
     }
 
@@ -218,6 +221,7 @@ export async function getPricingRecommendations(
             countryCode: offer.competitor.country.code,
             countryName: offer.competitor.country.name,
             vatRate: numeric(offer.competitor.country.vatRate),
+            vatIncluded: product.vatIncluded,
             ownPrice: numeric(product.ownPrice),
           })
         }
@@ -225,7 +229,7 @@ export async function getPricingRecommendations(
     }
 
     if (marketMap.size === 0) {
-      marketMap.set('default', { countryId: null, countryCode: null, countryName: null, vatRate: null, ownPrice: numeric(product.ownPrice) })
+      marketMap.set('default', { countryId: null, countryCode: null, countryName: null, vatRate: null, ownPrice: numeric(product.ownPrice), vatIncluded: product.vatIncluded })
     }
 
     for (const market of marketMap.values()) {
@@ -258,10 +262,10 @@ export async function getPricingRecommendations(
       const marketAverage = prices.length > 0 ? prices.reduce((sum, price) => sum + price, 0) / prices.length : null
 
       const effectiveMinimumMargin = highest([guardrail?.minimumMarginPct, rule?.minimumMarginPct])
-      const marginFloor = minimumPriceForMargin(guardrail?.costPrice ?? null, effectiveMinimumMargin, product.vatIncluded, market.vatRate)
+      const marginFloor = minimumPriceForMargin(guardrail?.costPrice ?? null, effectiveMinimumMargin, market.vatIncluded, market.vatRate)
       const minimumAllowedPrice = highest([guardrail?.minimumPrice, rule?.minimumPrice, marginFloor])
       const maximumAllowedPrice = lowest([guardrail?.maximumPrice, rule?.maximumPrice])
-      const marginBefore = marginPct(ownPrice, guardrail?.costPrice ?? null, product.vatIncluded, market.vatRate)
+      const marginBefore = marginPct(ownPrice, guardrail?.costPrice ?? null, market.vatIncluded, market.vatRate)
       const baseNotes = [
         `${prices.length} goedgekeurde ${config.onlyInStock ? 'beschikbare' : 'actieve'} concurrentieprijzen gebruikt voor ${market.countryName ?? 'de beschikbare markt'}.`,
         rule ? `Prijsregel toegepast: ${rule.name}.` : 'Geen opgeslagen prijsregel gevonden, veilige standaardconfiguratie gebruikt.',
@@ -319,7 +323,7 @@ export async function getPricingRecommendations(
 
       const changePct = ((recommendedPrice - ownPrice) / ownPrice) * 100
       const action: PricingRecommendation['action'] = Math.abs(changePct) < config.minimumSignalPct ? 'KEEP' : changePct < 0 ? 'LOWER' : 'RAISE'
-      const marginAfter = marginPct(recommendedPrice, guardrail?.costPrice ?? null, product.vatIncluded, market.vatRate)
+      const marginAfter = marginPct(recommendedPrice, guardrail?.costPrice ?? null, market.vatIncluded, market.vatRate)
       const reason = action === 'KEEP'
         ? `Geen actie nodig, verschil blijft binnen ${config.minimumSignalPct.toFixed(1)}%.`
         : `Advies op basis van ${strategyNames[config.strategy]}, begrensd op maximaal ${config.maxChangePct.toFixed(1)}% marktbeweging per besluit en de ingestelde commerciële guardrails.`

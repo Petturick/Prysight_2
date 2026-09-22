@@ -1,6 +1,6 @@
 'use server'
 
-import { FeedSourceType, MatchStatus } from '@/generated/prisma/client'
+import { FeedSourceType, MatchStatus, Prisma } from '@/generated/prisma/client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAuditLog } from '@/lib/audit'
@@ -12,6 +12,9 @@ import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
+import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
+import { normalizePrice } from '@/lib/price-normalization'
+import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { findExistingProduct } from '@/lib/product-duplicate'
 
@@ -60,8 +63,10 @@ export async function createProductAction(formData: FormData) {
   const name = text(formData, 'name')
   const ean = text(formData, 'ean')
   const productGroup = text(formData, 'productGroup') || 'Onbekend'
-  const ownPrice = text(formData, 'ownPrice')
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
+  const rawOwnPrice = text(formData, 'ownPrice')
+  const ownShippingCost = parseOptionalShipping(text(formData, 'ownShippingCost'))
+  const ownShippingVatIncluded = text(formData, 'ownShippingVatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const packagingUnit = text(formData, 'packagingUnit') || 'stuks'
   const packagingQty = positiveInteger(text(formData, 'packagingQty'))
@@ -70,6 +75,7 @@ export async function createProductAction(formData: FormData) {
   if (!articleNumber || !name) throw new Error('Artikelnummer en productnaam zijn verplicht.')
   const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
   const currency = text(formData, 'currency') || country?.currency || 'EUR'
+  const ownPrice = String(validateVatPricePair({primary:rawOwnPrice,opposite:text(formData,'ownPriceOther'),vatIncluded,vatRate:country?Number(country.vatRate):null}))
   const existingProduct = await findExistingProduct({
     companyId: user.companyId,
     articleNumber,
@@ -93,6 +99,10 @@ export async function createProductAction(formData: FormData) {
   })
   const product = await prisma.product.findUnique({ where: { companyId_articleNumber: { companyId: user.companyId, articleNumber } } })
   if (!product) throw new Error('Product is verwerkt, maar kon niet opnieuw worden geladen.')
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({where:{id:product.id},data:{ownShippingCost,ownShippingVatIncluded}})
+    if(country) await tx.productMarket.updateMany({where:{companyId:user.companyId,productId:product.id,countryId:country.id},data:{vatIncluded,ownShippingCost,ownShippingVatIncluded}})
+  })
   let suggestionCount = 0
   if (product.ean && country && user.permissions.includes('competitors.write')) {
     try {
@@ -117,8 +127,9 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   const user = await requirePermission('products.write')
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
-  const ownPrice = requiredPrice(text(formData, 'ownPrice'))
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
+  const ownShippingCost = parseOptionalShipping(text(formData, 'ownShippingCost'))
+  const ownShippingVatIncluded = text(formData, 'ownShippingVatIncluded') !== 'false'
   const stockStatus = text(formData, 'stockStatus') || 'Onbekend'
   const ownUrl = text(formData, 'ownUrl')
   if (!productId) throw new Error('Product ontbreekt.')
@@ -130,6 +141,7 @@ export async function updateProductOwnPriceAction(formData: FormData) {
   if (!product) throw new Error('Product niet gevonden.')
 
   const country = countryId ? await requireLicensedCountry(user.companyId, countryId) : null
+  const ownPrice = validateVatPricePair({primary:text(formData,'ownPrice'),opposite:text(formData,'ownPriceOther'),vatIncluded,vatRate:country?Number(country.vatRate):null})
   const currency = text(formData, 'currency') || country?.currency || product.currency || 'EUR'
   const companyCountry = countryId
     ? await prisma.companyCountry.findFirst({
@@ -140,11 +152,13 @@ export async function updateProductOwnPriceAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     if (country) {
-      await tx.product.update({ where: { id: productId }, data: { vatIncluded } })
       await tx.productMarket.upsert({
         where: { companyId_productId_countryId: { companyId: user.companyId, productId, countryId: country.id } },
         update: {
           ownPrice,
+          vatIncluded,
+          ownShippingCost,
+          ownShippingVatIncluded,
           currency,
           stockStatus,
           ownUrl: ownUrl || null,
@@ -155,6 +169,9 @@ export async function updateProductOwnPriceAction(formData: FormData) {
           productId,
           countryId: country.id,
           ownPrice,
+          vatIncluded,
+          ownShippingCost,
+          ownShippingVatIncluded,
           currency,
           stockStatus,
           ownUrl: ownUrl || null,
@@ -167,13 +184,13 @@ export async function updateProductOwnPriceAction(formData: FormData) {
       if (companyCountry?.isDefault || product.ownPrice === null) {
         await tx.product.update({
           where: { id: productId },
-          data: { ownPrice, currency, stockStatus },
+          data: { ownPrice, currency, stockStatus, vatIncluded, ownShippingCost, ownShippingVatIncluded },
         })
       }
     } else {
       await tx.product.update({
         where: { id: productId },
-        data: { ownPrice, currency, stockStatus, vatIncluded },
+        data: { ownPrice, currency, stockStatus, vatIncluded, ownShippingCost, ownShippingVatIncluded },
       })
       await tx.ownPriceHistory.create({
         data: { companyId: user.companyId, productId, countryId: null, recordedAt: new Date(), price: ownPrice, currency },
@@ -337,6 +354,9 @@ export async function updateCompetitorOfferAction(formData: FormData) {
   const packagingQty = positiveInteger(text(formData, 'packagingQty'))
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
+  const manualPriceText = text(formData, 'manualPrice')
+  const manualShippingText = text(formData, 'manualShippingCost')
+  if (!manualPriceText && manualShippingText) throw new Error('Vul ook de handmatige productprijs in als je de verzendkosten van deze concurrent wilt vastleggen.')
 
   if (!productId || !competitorOfferId || !competitorName || !offerUrl) {
     throw new Error('Concurrent, product en product URL zijn verplicht.')
@@ -348,7 +368,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
       companyId: user.companyId,
       productMatch: { companyId: user.companyId, productId },
     },
-    include: { competitor: true, productMatch: { include: { product: { select: { ean: true, gtin: true } } } } },
+    include: { competitor: { include: { country: true } }, productMatch: { include: { product: { select: { ean: true, gtin: true } } } } },
   })
   if (!existing) throw new Error('Concurrentiebron niet gevonden.')
 
@@ -379,6 +399,41 @@ export async function updateCompetitorOfferAction(formData: FormData) {
   if (duplicateOffer) throw new Error('Deze product URL is al gekoppeld aan dezelfde concurrent.')
 
   const urlChanged = existing.url !== safeOfferUrl
+  if (urlChanged && manualPriceText) throw new Error('Sla de nieuwe product URL eerst op en controleer daarna de handmatige prijs.')
+  const manualPrice = manualPriceText
+    ? validateVatPricePair({
+        primary: manualPriceText, opposite: text(formData, 'manualPriceOther'),
+        vatIncluded, vatRate: Number(existing.competitor.country.vatRate),
+      })
+    : null
+  const manualShipping = manualPrice === null ? null : parseOptionalShipping(manualShippingText)
+  const manualShippingVatIncluded = text(formData, 'manualShippingVatIncluded') !== 'false'
+  const now = new Date()
+  const currency = existing.currency.toUpperCase()
+  const fxSnapshot = manualPrice !== null && currency !== 'EUR' ? await getFxSnapshot() : null
+  // Never silently compare prices in different currencies without a credible rate.
+  if (fxSnapshot?.source === 'FALLBACK') throw new Error('Actuele wisselkoers ontbreekt. Controleer de prijs later opnieuw of voer een EUR prijsbron in.')
+  const fxAmount = (amount: number) => currency === 'EUR' ? amount : convertWithFxSnapshot(amount, currency, 'EUR', fxSnapshot!)
+  const normalizedPrice = manualPrice === null ? null : normalizePrice(
+    new Prisma.Decimal(fxAmount(manualPrice)), vatIncluded, existing.competitor.country.vatRate,
+    'EUR', packagingUnit, packagingQty, true, 'EUR',
+  ).amount
+  const normalizedShipping = manualShipping === null ? null : normalizePrice(
+    new Prisma.Decimal(fxAmount(manualShipping)), manualShippingVatIncluded, existing.competitor.country.vatRate,
+    'EUR', packagingUnit, packagingQty, true, 'EUR',
+  ).amount
+  const deliveredPrice = normalizedPrice === null || normalizedShipping === null ? null : normalizedPrice.add(normalizedShipping)
+  const manualData = manualPrice === null ? {} : {
+    rawPrice: new Prisma.Decimal(manualPrice),
+    normalizedPrice,
+    shippingCost: manualShipping === null ? null : new Prisma.Decimal(manualShipping),
+    normalizedShippingCost: normalizedShipping,
+    deliveredPrice,
+    shippingCurrency: manualShipping === null ? null : currency,
+    shippingLabel: manualShipping === null ? 'Verzendkosten niet vastgesteld' : manualShipping === 0 ? 'Gratis verzending' : 'Handmatig ingevoerde verzendkosten',
+    currency,
+    lastCheckedAt: now,
+  }
   await prisma.$transaction([
     prisma.competitor.update({
       where: { id: existing.competitorId },
@@ -395,6 +450,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
         packagingUnit,
         packagingQty,
         vatIncluded,
+        ...manualData,
         ...(urlChanged
           ? {
               rawPrice: null,
@@ -410,6 +466,24 @@ export async function updateCompetitorOfferAction(formData: FormData) {
           : {}),
       },
     }),
+    ...(manualPrice === null ? [] : [
+      prisma.priceCheck.create({data:{
+        companyId:user.companyId,competitorOfferId:existing.id,checkedAt:now,foundPrice:new Prisma.Decimal(manualPrice),
+        shippingCost:manualShipping===null?null:new Prisma.Decimal(manualShipping),normalizedShippingCost:normalizedShipping,
+        deliveredPrice,shippingCurrency:manualShipping===null?null:currency,
+        shippingLabel:manualShipping===null?'Verzendkosten niet vastgesteld':'Handmatig ingevoerd',
+        currency,checkMethod:'MANUAL',sourceUrl:safeOfferUrl,isSuccess:true,stockStatus:existing.stockStatus,
+        productTitle:null,packagingUnit,
+      }}),
+      prisma.priceHistory.create({data:{
+        companyId:user.companyId,competitorOfferId:existing.id,recordedAt:now,price:new Prisma.Decimal(manualPrice),
+        normalizedPrice,shippingCost:manualShipping===null?null:new Prisma.Decimal(manualShipping),
+        normalizedShippingCost:normalizedShipping,deliveredPrice,
+        shippingCurrency:manualShipping===null?null:currency,
+        shippingLabel:manualShipping===null?'Verzendkosten niet vastgesteld':'Handmatig ingevoerd',
+        currency,stockStatus:existing.stockStatus,source:'MANUAL',
+      }}),
+    ]),
   ])
 
   if (urlChanged && (existing.productMatch?.product.ean || existing.productMatch?.product.gtin)) {
