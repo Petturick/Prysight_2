@@ -43,13 +43,18 @@ export async function PATCH(request: Request, context: Context) {
       select: { id: true, name: true, url: true, sourceType: true, lastRunStatus: true },
     })
     if (!source) return NextResponse.json({ error: 'Feedbron niet gevonden.' }, { status: 404 })
-    if (!EDITABLE_TYPES.includes(source.sourceType)) return NextResponse.json({ error: 'Deze systeembron wordt via de eigen integratie beheerd en kan hier niet worden gewijzigd.' }, { status: 409 })
     if (source.lastRunStatus === FeedSyncStatus.RUNNING) return NextResponse.json({ error: 'Deze bron wordt nu gesynchroniseerd. Probeer het na afronding opnieuw.' }, { status: 409 })
 
     const body = await request.json().catch(() => null) as {
       name?: unknown; url?: unknown; countryCode?: unknown; isActive?: unknown; syncFrequencyHours?: unknown
     } | null
     if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Ongeldige aanvraag.' }, { status: 400 })
+
+    const editsMetadata = body.name !== undefined || body.url !== undefined || body.countryCode !== undefined || body.syncFrequencyHours !== undefined
+    if (editsMetadata && !EDITABLE_TYPES.includes(source.sourceType)) {
+      return NextResponse.json({ error: 'Deze systeembron wordt via de eigen integratie beheerd. Alleen activeren of deactiveren kan hier.' }, { status: 409 })
+    }
+
     if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 120)) {
       return NextResponse.json({ error: 'Geef de bron een naam van maximaal 120 tekens.' }, { status: 400 })
     }

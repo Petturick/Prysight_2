@@ -14,8 +14,10 @@ export default async function BeheerPage() {
     prisma.productGroup.count({ where: { companyId: actor.companyId } }),
     prisma.companyMembership.count({ where: { companyId: actor.companyId, isActive: true } }),
     prisma.auditLog.count({ where: { companyId: actor.companyId } }),
-  ]), [0, 0, 0, 0, 0, 0])
-  const [countries, competitors, webshops, productGroups, users, logs] = result.data
+    prisma.feedSource.count({ where: { companyId: actor.companyId } }),
+    prisma.product.count({ where: { companyId: actor.companyId, isActive: true } }),
+  ]), [0, 0, 0, 0, 0, 0, 0, 0])
+  const [countries, competitors, webshops, productGroups, users, logs, feeds, products] = result.data
 
   const stats = [
     { label: 'Actieve markten', value: countries },
@@ -23,6 +25,8 @@ export default async function BeheerPage() {
     { label: 'Webshops', value: webshops },
     { label: 'Productgroepen', value: productGroups },
     { label: 'Gebruikers', value: users },
+    { label: 'Feeds', value: feeds },
+    { label: 'Producten', value: products },
     { label: 'Auditregels', value: logs },
   ]
   const links = [
@@ -31,6 +35,8 @@ export default async function BeheerPage() {
     { href: '/beheer/webshops', label: 'Webshops', description: 'Verkoopkanalen en koppelingen met concurrenten.' },
     { href: '/beheer/productgroepen', label: 'Productgroepen', description: 'Categorieën en scope voor signalering.' },
     { href: '/instellingen/gebruikers', label: 'Gebruikers en toegang', description: 'Gebruikers, rollen en toegang binnen de organisatie.' },
+    { href: '/instellingen/feedbeheer', label: 'Feedbeheer', description: 'Feeds per land beheren, activeren, deactiveren, synchroniseren en verwijderen.' },
+    { href: '/producten', label: 'Productdata beheren', description: 'Producten selecteren, alles selecteren, deselecteren en geselecteerde productdata verwijderen.' },
     { href: '/beheer/auditlog', label: 'Auditlog', description: 'Wijzigingshistorie van de actieve organisatie.' },
     ...(actor.role === 'SUPER_ADMIN' ? [{ href: '/beheer/landen', label: 'Platformlanden', description: 'Globale BTW en valutareferenties voor het hele platform.' }] : []),
   ]
@@ -42,7 +48,7 @@ export default async function BeheerPage() {
         <h1 className="text-3xl font-semibold">Beheer</h1>
         <p className="mt-2 text-sm text-slate-600">Beheer alleen wat bij de actieve organisatie hoort. Platforminstellingen worden uitsluitend aan super admins getoond.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">{stat.label}</p>
