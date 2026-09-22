@@ -173,11 +173,15 @@ async function searchDuckDuckGo(query: string): Promise<SearchCandidate[]> {
     for (const match of html.matchAll(pattern)) {
       const rawUrl = decodeHtml(match[1])
       const title = decodeHtml(match[2].replace(/<[^>]+>/g, '')).trim()
+      const offset = match.index ?? 0
+      const neighborhood = html.slice(offset, offset + 5000)
+      const snippetMatch = neighborhood.match(/class=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div)>/i)
+      const snippet = snippetMatch ? decodeHtml(snippetMatch[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim() : undefined
       try {
         const parsed = new URL(rawUrl, 'https://duckduckgo.com')
         const redirected = parsed.searchParams.get('uddg')
         const url = redirected ? decodeURIComponent(redirected) : rawUrl
-        candidates.push({ title, url })
+        candidates.push({ title, url, snippet })
       } catch {}
       if (candidates.length >= 12) break
     }
@@ -199,9 +203,17 @@ async function searchBing(query: string): Promise<SearchCandidate[]> {
     if (!response.ok) return []
     const html = await response.text()
     const candidates: SearchCandidate[] = []
-    const pattern = /<li class=["'][^"']*b_algo[^"']*["'][\s\S]*?<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/li>/gi
-    for (const match of html.matchAll(pattern)) {
-      candidates.push({ url: decodeHtml(match[1]), title: decodeHtml(match[2].replace(/<[^>]+>/g, '')).trim() })
+    const blockPattern = /<li class=["'][^"']*b_algo[^"']*["'][\s\S]*?<\/li>/gi
+    for (const blockMatch of html.matchAll(blockPattern)) {
+      const block = blockMatch[0]
+      const linkMatch = block.match(/<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
+      if (!linkMatch) continue
+      const snippetMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+      candidates.push({
+        url: decodeHtml(linkMatch[1]),
+        title: decodeHtml(linkMatch[2].replace(/<[^>]+>/g, '')).trim(),
+        snippet: snippetMatch ? decodeHtml(snippetMatch[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim() : undefined,
+      })
       if (candidates.length >= 12) break
     }
     return candidates
