@@ -3,7 +3,7 @@ import { requirePermission } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { webSearch } from '@/lib/ean-competitor-discovery'
 import { getMagentoPricingConfig, readMagentoBasePrice } from '@/lib/magento-pricing'
-import { extractOfferSnapshot } from '@/lib/price-monitoring'
+import { extractOfferSnapshot, fetchCommerceApiSnapshot } from '@/lib/price-monitoring'
 import { assessPriceQuality } from '@/lib/price-quality'
 import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl, safeRemoteFetch } from '@/lib/safe-remote-url'
@@ -20,6 +20,7 @@ type Source = {
   name: string
   url: string
   trusted: boolean
+  vatIncluded: boolean | null
 }
 
 type Suggestion = {
@@ -156,6 +157,52 @@ function emptySuggestion(source: Source, vatRate: number, currency: string): Sug
   }
 }
 
+
+function buildSuggestionFromApi(
+  source: Source,
+  base: Suggestion,
+  snapshot: Awaited<ReturnType<typeof fetchCommerceApiSnapshot>>,
+  product: { ean: string; articleNumber: string; name: string; ownPrice: number | null },
+  vatRate: number,
+  defaultCurrency: string,
+) {
+  if (!snapshot?.price || snapshot.price <= 0) return null
+  const quality = assessPriceQuality({
+    extractedPrice: snapshot.price,
+    normalizedPrice: snapshot.price,
+    method: snapshot.method === 'MAGENTO' || snapshot.method === 'META' ? snapshot.method : 'HTML_REGEX',
+    extractedEan: snapshot.ean,
+    extractedSku: snapshot.sku,
+    extractedTitle: snapshot.productTitle,
+    productEan: product.ean,
+    articleNumber: source.kind === 'OWN' ? product.articleNumber : undefined,
+    productName: product.name,
+    ownPrice: product.ownPrice,
+    trustedProductMapping: source.trusted,
+  })
+  if (!quality.accepted) return { ...base, reason: quality.reasons.join(' ') }
+
+  const resolvedCurrency = snapshot.currency?.toUpperCase() || defaultCurrency
+  const amounts = priceSuggestionAmounts(snapshot.price, source.vatIncluded, vatRate)
+  return {
+    ...base,
+    observedPrice: snapshot.price,
+    priceInclVat: amounts.incl,
+    priceExclVat: amounts.excl,
+    shippingCost: snapshot.shippingCost,
+    shippingCurrency: snapshot.shippingCurrency,
+    deliveredPriceInclVat: null,
+    shippingLabel: snapshot.shippingLabel,
+    vatIncluded: source.vatIncluded,
+    currency: resolvedCurrency,
+    confidence: quality.confidence === 'HIGH' ? 'HIGH' as const : 'REVIEW' as const,
+    method: `COMMERCE_API_${snapshot.method ?? 'UNKNOWN'}`,
+    reason: source.vatIncluded === null
+      ? 'Prijs rechtstreeks via de webshop API gevonden. Btw status kon niet betrouwbaar worden vastgesteld.'
+      : 'Prijs rechtstreeks via de webshop API gevonden en met de ingestelde btw status omgerekend.',
+  }
+}
+
 function buildSuggestionFromExtraction(
   source: Source,
   base: Suggestion,
@@ -235,7 +282,7 @@ async function previewSource(
         signal: controller.signal,
         cache: 'no-store',
         headers: {
-          'User-Agent': 'PrysightPriceMonitor/2.0 (+price suggestions)',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
           Accept: 'text/html,application/xhtml+xml',
           'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.7',
         },
@@ -255,6 +302,17 @@ async function previewSource(
       }
     } catch (error) {
       primaryReason = error instanceof Error && error.name === 'AbortError' ? 'Bron reageerde niet op tijd.' : 'Directe prijscontrole is mislukt.'
+    }
+
+    const commerceApi = await fetchCommerceApiSnapshot(source.url, {
+      ean: product.ean,
+      sku: source.kind === 'OWN' ? product.articleNumber : null,
+      productName: product.name,
+      countryCode,
+    }).catch(() => null)
+    if (commerceApi?.price) {
+      const suggestion = buildSuggestionFromApi(source, base, commerceApi, product, vatRate, defaultCurrency)
+      if (suggestion) return suggestion
     }
 
     const renderedHtml = await fetchRenderedHtml(source.url, controller.signal).catch(() => null)
@@ -363,6 +421,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                 id: true,
                 url: true,
                 isActive: true,
+                vatIncluded: true,
                 competitor: { select: { name: true, countryId: true, isActive: true } },
               },
             },
@@ -422,6 +481,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         name: match.competitorOffer.competitor.name,
         url: match.competitorOffer.url,
         trusted: match.matchStatus === 'CERTAIN',
+        vatIncluded: match.competitorOffer.vatIncluded,
       })
     }
 
@@ -440,7 +500,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           if (ownHosts.has(host)) continue
           if (/google\.|bing\.|duckduckgo\.|youtube\.|facebook\.|instagram\.|amazon\./i.test(host)) continue
           knownUrls.add(safe)
-          sources.push({ id: `ean-search-${autoDiscoveredCount + 1}`, matchId: null, kind: 'COMPETITOR', name: hostnameLabel(safe), url: safe, trusted: false })
+          sources.push({ id: `ean-search-${autoDiscoveredCount + 1}`, matchId: null, kind: 'COMPETITOR', name: hostnameLabel(safe), url: safe, trusted: false, vatIncluded: null })
           autoDiscoveredCount += 1
         } catch {}
       }
@@ -457,7 +517,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (magento) {
       results.push(magento)
     } else if (ownUrl) {
-      const ownSource: Source = { id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: !ownUrlDiscovered }
+      const ownSource: Source = { id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: !ownUrlDiscovered, vatIncluded: product.vatIncluded }
       const preview = await previewSource(ownSource, info, vatRate, marketCurrency, country.code)
       if (preview.observedPrice === null && ownPrice !== null) {
         results.push(storedOwnPriceSuggestion(
@@ -473,7 +533,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     } else if (ownPrice !== null) {
       results.push(storedOwnPriceSuggestion(
-        { id: 'own-data', matchId: null, kind: 'OWN', name: 'Eigen verkoopprijs', url: '/producten/' + product.id, trusted: true },
+        { id: 'own-data', matchId: null, kind: 'OWN', name: 'Eigen verkoopprijs', url: '/producten/' + product.id, trusted: true, vatIncluded: product.vatIncluded },
         ownPrice,
         product.vatIncluded,
         vatRate,

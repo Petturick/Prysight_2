@@ -6,6 +6,8 @@ import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 type SearchCandidate = { title: string; url: string; snippet?: string }
 type SearchResult = { candidates: SearchCandidate[]; provider: string }
 
+const SEARCH_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36'
+
 function hostnameLabel(url: string) {
   const host = new URL(url).hostname.replace(/^www\./, '')
   const base = host.split('.')[0] || host
@@ -29,21 +31,55 @@ function canonicalProductUrl(value: string) {
   return `${url.origin}${url.pathname.replace(/\/+$/, '') || '/'}${query ? `?${query}` : ''}`
 }
 
-function scoreCandidate(candidate: SearchCandidate, ean: string, productName: string, countryCode: string) {
+function readableUrlContext(value: string | null | undefined) {
+  if (!value) return ''
+  try {
+    const url = new URL(value)
+    return decodeURIComponent(url.pathname)
+      .replace(/\.[a-z0-9]+$/i, '')
+      .replace(/[\/_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  } catch {
+    return ''
+  }
+}
+
+function meaningfulText(value: string | null | undefined) {
+  const cleaned = String(value ?? '').replace(/[^0-9a-zà-ÿ]+/gi, ' ').replace(/\s+/g, ' ').trim()
+  return /[a-zà-ÿ]{2,}/i.test(cleaned) ? cleaned : ''
+}
+
+function productContext(input: { name: string; articleNumber: string; ownUrl?: string | null }) {
+  const name = meaningfulText(input.name)
+  const urlContext = meaningfulText(readableUrlContext(input.ownUrl))
+  const article = input.articleNumber.replace(/\s+/g, ' ').trim()
+  return [name, urlContext, article].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function scoreCandidate(
+  candidate: SearchCandidate,
+  product: { ean: string; articleNumber: string; context: string },
+  countryCode: string,
+) {
   const haystack = `${candidate.title} ${candidate.url} ${candidate.snippet ?? ''}`.toLowerCase()
-  const productTokens = productName
+  const contextTokens = product.context
     .toLowerCase()
     .replace(/[^0-9a-zà-ÿ]+/gi, ' ')
     .split(/\s+/)
     .filter((token) => token.length >= 4)
-    .slice(0, 10)
+    .slice(0, 14)
 
-  let score = haystack.includes(ean.toLowerCase()) ? 76 : 44
-  score += Math.min(24, productTokens.filter((token) => haystack.includes(token)).length * 4)
-  if (/product|artikel|item|shop|catalog|assortiment|p\//i.test(candidate.url)) score += 6
+  const compactArticle = product.articleNumber.replace(/[^0-9a-z]/gi, '').toLowerCase()
+  const compactHaystack = haystack.replace(/[^0-9a-z]/gi, '')
+
+  let score = haystack.includes(product.ean.toLowerCase()) ? 78 : 42
+  if (compactArticle.length >= 4 && compactHaystack.includes(compactArticle)) score += 18
+  score += Math.min(28, contextTokens.filter((token) => haystack.includes(token)).length * 4)
+  if (/product|artikel|item|shop|catalog|assortiment|productdetail|\/p\//i.test(candidate.url)) score += 6
   const suffix = marketDomainSuffix(countryCode)
   if (suffix && new URL(candidate.url).hostname.toLowerCase().endsWith(suffix)) score += 6
-  return Math.min(98, score)
+  return Math.min(99, score)
 }
 
 async function searchWithSerper(query: string): Promise<SearchCandidate[]> {
@@ -92,7 +128,7 @@ function decodeHtml(value: string) {
 async function searchDuckDuckGo(query: string): Promise<SearchCandidate[]> {
   try {
     const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; PrysightBot/2.0)' },
+      headers: { 'user-agent': SEARCH_UA, 'accept-language': 'nl-NL,nl;q=0.9,en;q=0.7' },
       cache: 'no-store',
     })
     if (!response.ok) return []
@@ -108,7 +144,7 @@ async function searchDuckDuckGo(query: string): Promise<SearchCandidate[]> {
         const url = redirected ? decodeURIComponent(redirected) : rawUrl
         candidates.push({ title, url })
       } catch {}
-      if (candidates.length >= 10) break
+      if (candidates.length >= 12) break
     }
     return candidates
   } catch {
@@ -120,7 +156,7 @@ async function searchBing(query: string): Promise<SearchCandidate[]> {
   try {
     const response = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
       headers: {
-        'user-agent': 'Mozilla/5.0 (compatible; PrysightBot/2.0)',
+        'user-agent': SEARCH_UA,
         'accept-language': 'nl-NL,nl;q=0.9,en;q=0.7',
       },
       cache: 'no-store',
@@ -131,7 +167,7 @@ async function searchBing(query: string): Promise<SearchCandidate[]> {
     const pattern = /<li class=["'][^"']*b_algo[^"']*["'][\s\S]*?<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/li>/gi
     for (const match of html.matchAll(pattern)) {
       candidates.push({ url: decodeHtml(match[1]), title: decodeHtml(match[2].replace(/<[^>]+>/g, '')).trim() })
-      if (candidates.length >= 10) break
+      if (candidates.length >= 12) break
     }
     return candidates
   } catch {
@@ -139,39 +175,55 @@ async function searchBing(query: string): Promise<SearchCandidate[]> {
   }
 }
 
-export async function webSearch(query: string): Promise<SearchResult> {
-  const serper = await searchWithSerper(query)
-  if (serper.length) return { candidates: serper, provider: 'Serper' }
-  const brave = await searchWithBrave(query)
-  if (brave.length) return { candidates: brave, provider: 'Brave Search' }
-  const duck = await searchDuckDuckGo(query)
-  if (duck.length) return { candidates: duck, provider: 'DuckDuckGo' }
-  const bing = await searchBing(query)
-  if (bing.length) return { candidates: bing, provider: 'Bing' }
-  return { candidates: [], provider: 'Geen zoekprovider met resultaten' }
+function dedupeCandidates(groups: SearchCandidate[][]) {
+  const unique = new Map<string, SearchCandidate>()
+  for (const group of groups) {
+    for (const candidate of group) {
+      try {
+        const canonical = canonicalProductUrl(candidate.url)
+        if (!unique.has(canonical)) unique.set(canonical, { ...candidate, url: canonical })
+      } catch {}
+    }
+  }
+  return [...unique.values()].slice(0, 30)
 }
 
-function rankCandidates(results: SearchCandidate[], product: { ean: string; name: string }, countryCode: string) {
-  const unique = new Map<string, SearchCandidate>()
-  for (const result of results) {
-    try {
-      const canonical = canonicalProductUrl(result.url)
-      if (!unique.has(canonical)) unique.set(canonical, { ...result, url: canonical })
-    } catch {}
+export async function webSearch(query: string): Promise<SearchResult> {
+  const [serper, brave] = await Promise.all([searchWithSerper(query), searchWithBrave(query)])
+  if (serper.length || brave.length) {
+    const candidates = dedupeCandidates([serper, brave])
+    const providers = [serper.length ? 'Serper' : '', brave.length ? 'Brave Search' : ''].filter(Boolean)
+    return { candidates, provider: providers.join(' + ') }
   }
-  return [...unique.values()]
-    .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, product.ean, product.name, countryCode) }))
-    .filter((candidate) => candidate.score >= 55)
+
+  const [duck, bing] = await Promise.all([searchDuckDuckGo(query), searchBing(query)])
+  const candidates = dedupeCandidates([duck, bing])
+  const providers = [duck.length ? 'DuckDuckGo' : '', bing.length ? 'Bing' : ''].filter(Boolean)
+  return { candidates, provider: providers.length ? providers.join(' + ') : 'Geen zoekprovider met resultaten' }
+}
+
+function rankCandidates(
+  results: SearchCandidate[],
+  product: { ean: string; articleNumber: string; context: string },
+  countryCode: string,
+) {
+  return dedupeCandidates([results])
+    .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, product, countryCode) }))
+    .filter((candidate) => candidate.score >= 54)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
+    .slice(0, 10)
 }
 
 export async function discoverCompetitorUrlsByEan({ companyId, productId, countryId }: { companyId: string; productId: string; countryId: string }) {
   const [product, country, companyWebshops] = await Promise.all([
-    prisma.product.findFirst({ where: { id: productId, companyId, isActive: true } }),
+    prisma.product.findFirst({
+      where: { id: productId, companyId, isActive: true },
+      include: { productMarkets: { where: { companyId, countryId, isActive: true }, select: { ownUrl: true } } },
+    }),
     prisma.country.findUnique({ where: { id: countryId } }),
     prisma.webshop.findMany({ where: { companyId, isActive: true, competitorId: null }, select: { url: true } }),
   ])
+
   if (!product) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Product ontbreekt', provider: null, queryMode: null }
   const ean = product.ean?.trim() || product.gtin?.trim()
   if (!ean) return { found: 0, created: 0, alreadyLinked: 0, reason: 'EAN of GTIN ontbreekt', provider: null, queryMode: null }
@@ -180,23 +232,52 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   const ownHosts = new Set(companyWebshops.flatMap((shop) => {
     try { return [new URL(shop.url).hostname.replace(/^www\./, '')] } catch { return [] }
   }))
-
-  // A strict search combining EAN, product name and market often returns zero results;
-  // the exact identifier is the primary signal and the market is used for ranking.
-  const exactSearch = await webSearch(`"${ean}"`)
-  let ranked = rankCandidates(exactSearch.candidates, { ean: ean, name: product.name }, country.code)
-  let provider = exactSearch.provider
-  let queryMode: 'EAN' | 'PRODUCT' = 'EAN'
-
-  if (ranked.length === 0) {
-    const cleanName = product.name.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
-    const fallbackSearch = await webSearch(`${cleanName} ${country.name} ${country.code}`)
-    ranked = rankCandidates(fallbackSearch.candidates, { ean: ean, name: product.name }, country.code)
-    provider = fallbackSearch.provider
-    queryMode = 'PRODUCT'
+  for (const market of product.productMarkets) {
+    try {
+      if (market.ownUrl) ownHosts.add(new URL(market.ownUrl).hostname.replace(/^www\./, ''))
+    } catch {}
   }
 
-  const safeRanked = []
+  const context = productContext({
+    name: product.name,
+    articleNumber: product.articleNumber,
+    ownUrl: product.productMarkets[0]?.ownUrl,
+  })
+  const identity = { ean, articleNumber: product.articleNumber, context }
+
+  const queryVariants = [
+    `"${ean}"`,
+    `"${ean}" prijs`,
+    `"${ean}" ${country.name}`,
+    product.articleNumber ? `"${product.articleNumber}" ${context}` : '',
+    context ? `${context} ${country.name}` : '',
+  ].filter(Boolean)
+
+  const searchResults: SearchCandidate[][] = []
+  const providerNames = new Set<string>()
+  let queryMode: 'EAN' | 'PRODUCT' = 'EAN'
+
+  for (const query of queryVariants.slice(0, 5)) {
+    const search = await webSearch(query)
+    if (search.candidates.length) searchResults.push(search.candidates)
+    if (search.provider && search.provider !== 'Geen zoekprovider met resultaten') {
+      search.provider.split(' + ').forEach((provider) => providerNames.add(provider))
+    }
+    const rankedNow = rankCandidates(dedupeCandidates(searchResults), identity, country.code)
+    if (rankedNow.length >= 6) break
+  }
+
+  let ranked = rankCandidates(dedupeCandidates(searchResults), identity, country.code)
+  if (ranked.length === 0 && context) {
+    queryMode = 'PRODUCT'
+    const fallback = await webSearch(context)
+    fallback.provider.split(' + ').forEach((provider) => {
+      if (provider && provider !== 'Geen zoekprovider met resultaten') providerNames.add(provider)
+    })
+    ranked = rankCandidates(fallback.candidates, identity, country.code)
+  }
+
+  const safeRanked: Array<SearchCandidate & { score: number }> = []
   for (const candidate of ranked) {
     try {
       const safe = (await assertSafeRemoteHttpUrl(candidate.url)).toString()
@@ -261,7 +342,7 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
         companyId,
         competitorId: competitor.id,
         url: candidate.url,
-        currency: product.currency,
+        currency: country.currency || product.currency,
         vatIncluded: true,
         packagingUnit: product.packagingUnit,
         packagingQty: product.packagingQty,
@@ -278,14 +359,15 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
         matchStatus: MatchStatus.REVIEW,
         matchEvidence: {
           source: 'ai-market-discovery',
-          ean: ean,
+          ean,
           market: country.code,
           title: candidate.title,
           snippet: candidate.snippet ?? null,
           searchMode: queryMode,
+          searchContext: context,
           reason: queryMode === 'EAN'
-            ? 'Slimme marktsuggestie op basis van EAN, productcontext en gekozen markt'
-            : 'EAN leverde geen bruikbare resultaten op, kandidaat gevonden op productnaam, kenmerken en gekozen markt',
+            ? 'Concurrentkandidaat gevonden op EAN, artikelnummer en productcontext'
+            : 'EAN leverde geen directe kandidaat op, productcontext en markt zijn als fallback gebruikt',
         },
       },
     })
@@ -301,5 +383,12 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
         : 'Er zijn kandidaten gevonden, maar geen nieuwe koppelingen aangemaakt.'
     : 'Geen betrouwbare concurrentkandidaten gevonden.'
 
-  return { found, created, alreadyLinked, reason, provider, queryMode }
+  return {
+    found,
+    created,
+    alreadyLinked,
+    reason,
+    provider: providerNames.size ? [...providerNames].join(' + ') : 'Geen zoekprovider met resultaten',
+    queryMode,
+  }
 }
