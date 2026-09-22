@@ -95,12 +95,16 @@ export async function deleteSelectedProductsAction(formData: FormData) {
   const ids = products.map((product) => product.id)
 
   await prisma.$transaction(async (tx) => {
-    await tx.productMatch.deleteMany({
-      where: { companyId: actor.companyId, productId: { in: ids } },
-    })
-    await tx.product.deleteMany({
-      where: { companyId: actor.companyId, id: { in: ids } },
-    })
+    const chunkSize = 5000
+    for (let offset = 0; offset < ids.length; offset += chunkSize) {
+      const chunk = ids.slice(offset, offset + chunkSize)
+      await tx.productMatch.deleteMany({
+        where: { companyId: actor.companyId, productId: { in: chunk } },
+      })
+      await tx.product.deleteMany({
+        where: { companyId: actor.companyId, id: { in: chunk } },
+      })
+    }
   })
 
   await createAuditLog({
