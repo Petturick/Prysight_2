@@ -1,6 +1,6 @@
 'use server'
 
-import { FeedSourceType, MatchStatus } from '@/generated/prisma/client'
+import { FeedSourceType, MatchStatus, Prisma } from '@/generated/prisma/client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAuditLog } from '@/lib/audit'
@@ -13,6 +13,8 @@ import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
 import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
+import { normalizePrice } from '@/lib/price-normalization'
+import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { findExistingProduct } from '@/lib/product-duplicate'
 
@@ -352,6 +354,9 @@ export async function updateCompetitorOfferAction(formData: FormData) {
   const packagingQty = positiveInteger(text(formData, 'packagingQty'))
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
+  const manualPriceText = text(formData, 'manualPrice')
+  const manualShippingText = text(formData, 'manualShippingCost')
+  if (!manualPriceText && manualShippingText) throw new Error('Vul ook de handmatige productprijs in als je de verzendkosten van deze concurrent wilt vastleggen.')
 
   if (!productId || !competitorOfferId || !competitorName || !offerUrl) {
     throw new Error('Concurrent, product en product URL zijn verplicht.')
@@ -363,7 +368,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
       companyId: user.companyId,
       productMatch: { companyId: user.companyId, productId },
     },
-    include: { competitor: true, productMatch: { include: { product: { select: { ean: true, gtin: true } } } } },
+    include: { competitor: { include: { country: true } }, productMatch: { include: { product: { select: { ean: true, gtin: true } } } } },
   })
   if (!existing) throw new Error('Concurrentiebron niet gevonden.')
 
@@ -394,6 +399,41 @@ export async function updateCompetitorOfferAction(formData: FormData) {
   if (duplicateOffer) throw new Error('Deze product URL is al gekoppeld aan dezelfde concurrent.')
 
   const urlChanged = existing.url !== safeOfferUrl
+  if (urlChanged && manualPriceText) throw new Error('Sla de nieuwe product URL eerst op en controleer daarna de handmatige prijs.')
+  const manualPrice = manualPriceText
+    ? validateVatPricePair({
+        primary: manualPriceText, opposite: text(formData, 'manualPriceOther'),
+        vatIncluded, vatRate: Number(existing.competitor.country.vatRate),
+      })
+    : null
+  const manualShipping = manualPrice === null ? null : parseOptionalShipping(manualShippingText)
+  const manualShippingVatIncluded = text(formData, 'manualShippingVatIncluded') !== 'false'
+  const now = new Date()
+  const currency = existing.currency.toUpperCase()
+  const fxSnapshot = manualPrice !== null && currency !== 'EUR' ? await getFxSnapshot() : null
+  // Never silently compare prices in different currencies without a credible rate.
+  if (fxSnapshot?.source === 'FALLBACK') throw new Error('Actuele wisselkoers ontbreekt. Controleer de prijs later opnieuw of voer een EUR prijsbron in.')
+  const fxAmount = (amount: number) => currency === 'EUR' ? amount : convertWithFxSnapshot(amount, currency, 'EUR', fxSnapshot!)
+  const normalizedPrice = manualPrice === null ? null : normalizePrice(
+    new Prisma.Decimal(fxAmount(manualPrice)), vatIncluded, existing.competitor.country.vatRate,
+    'EUR', packagingUnit, packagingQty, true, 'EUR',
+  ).amount
+  const normalizedShipping = manualShipping === null ? null : normalizePrice(
+    new Prisma.Decimal(fxAmount(manualShipping)), manualShippingVatIncluded, existing.competitor.country.vatRate,
+    'EUR', packagingUnit, packagingQty, true, 'EUR',
+  ).amount
+  const deliveredPrice = normalizedPrice === null || normalizedShipping === null ? null : normalizedPrice.add(normalizedShipping)
+  const manualData = manualPrice === null ? {} : {
+    rawPrice: new Prisma.Decimal(manualPrice),
+    normalizedPrice,
+    shippingCost: manualShipping === null ? null : new Prisma.Decimal(manualShipping),
+    normalizedShippingCost: normalizedShipping,
+    deliveredPrice,
+    shippingCurrency: manualShipping === null ? null : currency,
+    shippingLabel: manualShipping === null ? 'Verzendkosten niet vastgesteld' : manualShipping === 0 ? 'Gratis verzending' : 'Handmatig ingevoerde verzendkosten',
+    currency,
+    lastCheckedAt: now,
+  }
   await prisma.$transaction([
     prisma.competitor.update({
       where: { id: existing.competitorId },
@@ -410,6 +450,7 @@ export async function updateCompetitorOfferAction(formData: FormData) {
         packagingUnit,
         packagingQty,
         vatIncluded,
+        ...manualData,
         ...(urlChanged
           ? {
               rawPrice: null,
@@ -425,6 +466,24 @@ export async function updateCompetitorOfferAction(formData: FormData) {
           : {}),
       },
     }),
+    ...(manualPrice === null ? [] : [
+      prisma.priceCheck.create({data:{
+        companyId:user.companyId,competitorOfferId:existing.id,checkedAt:now,foundPrice:new Prisma.Decimal(manualPrice),
+        shippingCost:manualShipping===null?null:new Prisma.Decimal(manualShipping),normalizedShippingCost:normalizedShipping,
+        deliveredPrice,shippingCurrency:manualShipping===null?null:currency,
+        shippingLabel:manualShipping===null?'Verzendkosten niet vastgesteld':'Handmatig ingevoerd',
+        currency,checkMethod:'MANUAL',sourceUrl:safeOfferUrl,isSuccess:true,stockStatus:existing.stockStatus,
+        productTitle:null,packagingUnit,
+      }}),
+      prisma.priceHistory.create({data:{
+        companyId:user.companyId,competitorOfferId:existing.id,recordedAt:now,price:new Prisma.Decimal(manualPrice),
+        normalizedPrice,shippingCost:manualShipping===null?null:new Prisma.Decimal(manualShipping),
+        normalizedShippingCost:normalizedShipping,deliveredPrice,
+        shippingCurrency:manualShipping===null?null:currency,
+        shippingLabel:manualShipping===null?'Verzendkosten niet vastgesteld':'Handmatig ingevoerd',
+        currency,stockStatus:existing.stockStatus,source:'MANUAL',
+      }}),
+    ]),
   ])
 
   if (urlChanged && (existing.productMatch?.product.ean || existing.productMatch?.product.gtin)) {
