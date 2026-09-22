@@ -55,6 +55,79 @@ function hostnameLabel(value: string) {
   }
 }
 
+function parseMoneyValues(value: string) {
+  const values: number[] = []
+  const patterns = [
+    /€\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)/g,
+    /([0-9]{1,6}(?:[.,][0-9]{1,2})?)\s*€/g,
+  ]
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const normalized = match[1].includes(',') ? match[1].replace(/\./g, '').replace(',', '.') : match[1]
+      const amount = Number(normalized)
+      if (Number.isFinite(amount) && amount > 0 && !values.some((candidate) => Math.abs(candidate - amount) < 0.005)) values.push(amount)
+    }
+  }
+  return values
+}
+
+function pricePairForVat(values: number[], vatRate: number) {
+  const factor = 1 + vatRate / 100
+  for (const first of values) {
+    for (const second of values) {
+      if (first === second) continue
+      const excl = Math.min(first, second)
+      const incl = Math.max(first, second)
+      if (excl <= 0) continue
+      if (Math.abs(incl / excl - factor) <= 0.035) return { incl, excl }
+    }
+  }
+  return null
+}
+
+async function indexedOwnPriceSuggestion(
+  ownUrl: string,
+  articleNumber: string,
+  vatRate: number,
+  currency: string,
+): Promise<Suggestion | null> {
+  try {
+    const host = new URL(ownUrl).hostname.replace(/^www\./, '')
+    const search = await webSearch(`"${articleNumber}" site:${host}`)
+    for (const candidate of search.candidates) {
+      let candidateHost = ''
+      try { candidateHost = new URL(candidate.url).hostname.replace(/^www\./, '') } catch { continue }
+      if (candidateHost !== host && !candidateHost.endsWith(`.${host}`)) continue
+
+      const pair = pricePairForVat(parseMoneyValues(`${candidate.title} ${candidate.snippet ?? ''}`), vatRate)
+      if (!pair) continue
+
+      return {
+        id: 'own-search-index',
+        matchId: null,
+        kind: 'OWN',
+        name: 'Eigen webshop',
+        url: candidate.url,
+        observedPrice: pair.incl,
+        priceInclVat: Math.round(pair.incl * 100) / 100,
+        priceExclVat: Math.round(pair.excl * 100) / 100,
+        shippingCost: null,
+        shippingCurrency: null,
+        deliveredPriceInclVat: null,
+        shippingLabel: null,
+        vatIncluded: true,
+        vatRate,
+        currency,
+        confidence: 'REVIEW',
+        method: 'SEARCH_INDEX',
+        reason: 'De productpagina blokkeert directe uitlezing. De prijs is uit een actuele zoekindexvermelding van de eigen webshop gehaald en op het btw verschil gevalideerd.',
+        checkedAt: new Date().toISOString(),
+      }
+    }
+  } catch {}
+  return null
+}
+
 async function limitedHtml(response: Response) {
   const maxBytes = 1_200_000
   const reader = response.body?.getReader()
@@ -520,15 +593,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } else if (ownUrl) {
       const ownSource: Source = { id: 'own', matchId: null, kind: 'OWN', name: 'Eigen webshop', url: ownUrl, trusted: !ownUrlDiscovered, vatIncluded: ownVatIncluded }
       const preview = await previewSource(ownSource, info, vatRate, marketCurrency, country.code)
-      if (preview.observedPrice === null && ownPrice !== null) {
-        results.push(storedOwnPriceSuggestion(
-          ownSource,
-          ownPrice,
-          ownVatIncluded,
-          vatRate,
-          marketCurrency,
-          `De productbron kon niet worden uitgelezen. De huidige Prysight verkoopprijs is gebruikt. ${preview.reason}`,
-        ))
+      if (preview.observedPrice === null) {
+        const indexed = await indexedOwnPriceSuggestion(ownUrl, product.articleNumber, vatRate, marketCurrency)
+        if (indexed) {
+          results.push(indexed)
+        } else if (ownPrice !== null) {
+          results.push(storedOwnPriceSuggestion(
+            ownSource,
+            ownPrice,
+            ownVatIncluded,
+            vatRate,
+            marketCurrency,
+            `De productbron kon niet worden uitgelezen. De huidige Prysight verkoopprijs is gebruikt. ${preview.reason}`,
+          ))
+        } else {
+          results.push(preview)
+        }
       } else {
         results.push(preview)
       }
