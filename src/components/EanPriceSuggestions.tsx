@@ -24,11 +24,91 @@ type Suggestion = {
   reason: string
   checkedAt: string
 }
-type Result = { suggestions: Suggestion[]; hasOwnUrl: boolean; hasCompetitors: boolean; error?: string }
+
+type Result = {
+  ean?: string
+  market?: string
+  suggestions: Suggestion[]
+  hasOwnUrl: boolean
+  hasCompetitors: boolean
+  autoDiscoveredCount?: number
+  searchProvider?: string | null
+  error?: string
+}
 
 const formatAmount = (value: number | null, currency: string) => value === null
-  ? 'Niet vastgesteld'
+  ? 'Niet gevonden'
   : new Intl.NumberFormat('nl-NL', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+
+function sourceStatus(item: Suggestion) {
+  if (item.priceInclVat !== null || item.priceExclVat !== null) return item.confidence === 'HIGH' ? 'Prijs bevestigd' : 'Prijs gevonden'
+  if (/403|blokkeert|captcha|robots/i.test(item.reason)) return 'Bron blokkeert controle'
+  return 'Geen prijs gevonden'
+}
+
+function PriceCard({ item, productId, countryId, currency, canEditProduct }: { item: Suggestion; productId: string; countryId: string; currency: string; canEditProduct: boolean }) {
+  const hasPrice = item.priceInclVat !== null || item.priceExclVat !== null
+  return (
+    <article className={`rounded-[14px] border bg-white p-4 ${hasPrice ? 'border-[#d9e5ef]' : 'border-[#ead9ba]'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8492a2]">{item.kind === 'OWN' ? 'Eigen webshop' : item.matchId ? 'Gekoppelde concurrent' : 'Automatisch gevonden via EAN'}</p>
+          <h3 className="mt-1 truncate text-[13px] font-semibold text-[#2b4057]">{item.name}</h3>
+        </div>
+        <span className={`ps-chip ${hasPrice ? item.confidence === 'HIGH' ? 'ps-chip-green' : 'ps-chip-amber' : 'ps-chip-red'}`}>{sourceStatus(item)}</span>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-[11px] bg-[#f3f7fb] px-3 py-3">
+          <p className="text-[10px] font-medium text-[#74869a]">Prijs inclusief btw</p>
+          <p className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-[#21364d]">{formatAmount(item.priceInclVat, item.currency)}</p>
+        </div>
+        <div className="rounded-[11px] bg-[#f3f7fb] px-3 py-3">
+          <p className="text-[10px] font-medium text-[#74869a]">Prijs exclusief btw</p>
+          <p className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-[#21364d]">{formatAmount(item.priceExclVat, item.currency)}</p>
+        </div>
+      </div>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-[10px] bg-[#f8fafc] px-3 py-2.5">
+          <p className="text-[9px] text-[#8593a3]">Verzendkosten</p>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#42566d]">{item.shippingCost === 0 ? 'Gratis' : formatAmount(item.shippingCost, item.shippingCurrency ?? item.currency)}</p>
+        </div>
+        <div className="rounded-[10px] bg-[#eef7f2] px-3 py-2.5">
+          <p className="text-[9px] text-[#668072]">Totaal inclusief verzending</p>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#244b37]">{formatAmount(item.deliveredPriceInclVat, item.currency)}</p>
+        </div>
+      </div>
+
+      {!hasPrice ? (
+        <div className="mt-3 rounded-[10px] bg-[#fff8eb] px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-[#76591d]">{item.reason}</p>
+          {/403|blokkeert|captcha/i.test(item.reason) ? <p className="mt-1 text-[10px] leading-4 text-[#8a6a2a]">De EAN en productbron zijn wel gevonden, maar de website laat geen servercontrole toe. Gebruik bij voorkeur de webshopintegratie of browsercontrole voor deze bron.</p> : null}
+        </div>
+      ) : (
+        <p className="mt-3 text-[10px] leading-4 text-[#687c90]">{item.reason}</p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#edf1f5] pt-3">
+        <a className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px]" href={item.url} target="_blank" rel="noreferrer">Bron bekijken</a>
+        {item.kind === 'OWN' && canEditProduct && item.observedPrice !== null && item.vatIncluded !== null && item.currency === currency ? (
+          <form action={updateProductOwnPriceAction}>
+            <input type="hidden" name="productId" value={productId} />
+            <input type="hidden" name="countryId" value={countryId} />
+            <input type="hidden" name="currency" value={item.currency} />
+            <input type="hidden" name="ownPrice" value={String(item.observedPrice)} />
+            <input type="hidden" name="vatIncluded" value={String(item.vatIncluded)} />
+            <input type="hidden" name="ownUrl" value={item.url} />
+            <button type="submit" className="primary-action min-h-[34px] px-3 py-1.5 text-[10px]">Prijs overnemen</button>
+          </form>
+        ) : null}
+        {item.kind === 'COMPETITOR' && item.matchId ? <a className="primary-action min-h-[34px] px-3 py-1.5 text-[10px]" href="#concurrenten-vinden">Match gebruiken</a> : null}
+        {item.kind === 'COMPETITOR' && !item.matchId ? <a className="text-[10px] font-semibold text-[#2f6edb]" href="#concurrenten-vinden">Kandidaat koppelen</a> : null}
+      </div>
+      <p className="mt-2 text-[9px] text-[#8a97a6]">{new Date(item.checkedAt).toLocaleString('nl-NL')} · {item.method ?? 'Bron niet uitgelezen'}</p>
+    </article>
+  )
+}
 
 export function EanPriceSuggestions({
   productId, ean, countryId, currency, sourceKey, canEditProduct,
@@ -76,81 +156,55 @@ export function EanPriceSuggestions({
   }, [productId, ean, countryId, sourceKey, attempt])
 
   if (!ean || !countryId) return null
+
   const items = result?.suggestions ?? []
+  const ownItem = items.find((item) => item.kind === 'OWN') ?? null
+  const competitors = items.filter((item) => item.kind === 'COMPETITOR')
+  const pricedCount = items.filter((item) => item.priceInclVat !== null || item.priceExclVat !== null).length
+  const competitorPriceCount = competitors.filter((item) => item.priceInclVat !== null || item.priceExclVat !== null).length
 
   return (
-    <section id="ean-prijssuggesties" className="ps-panel scroll-mt-24 overflow-hidden" aria-label="Automatische EAN prijssuggesties">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf3] p-5 sm:px-6">
-        <div>
-          <p className="eyebrow">EAN {ean}</p>
-          <h2 className="mt-1 text-[15px] font-semibold text-[#24384f]">Prijssuggesties</h2>
-          <p className="mt-1 text-[11px] leading-5 text-[#7b8999]">Eigen webshop en concurrenten, automatisch gecontroleerd op prijs én verzendkosten in de gekozen markt. Alleen expliciete verzendkosten worden overgenomen.</p>
-        </div>
-        <button type="button" className="secondary-action min-h-[40px]" onClick={check} disabled={pending}>
-          {pending ? 'Prijzen controleren…' : 'Opnieuw controleren'}
-        </button>
-      </div>
-      <div className="p-5 sm:px-6">
-        {error ? <p role="alert" className="rounded-[10px] bg-[#fff1f2] px-4 py-3 text-[12px] text-[#a83f4b]">{error}</p> : null}
-        {pending && !result ? <p role="status" className="text-[12px] text-[#60758d]">Prysight controleert nu de beschikbare productbronnen op EAN, prijs en verzendkosten.</p> : null}
-        {result && !result.hasOwnUrl ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">Geen eigen product URL gevonden voor deze markt. Koppel eenmalig de eigen webshop voor automatische EAN herkenning, of vul de URL op de productpagina in. <a href="/beheer/webshops" className="font-semibold underline">Eigen webshop instellen</a></p> : null}
-        {result && !result.hasCompetitors ? <p className="mb-3 rounded-[10px] bg-[#f7faff] px-4 py-3 text-[11px] text-[#5f7084]">Nog geen concurrentbronnen beschikbaar. Prysight zoekt automatisch naar EAN kandidaten. Je kunt ook hieronder opnieuw naar concurrenten zoeken.</p> : null}
-        {items.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {items.map((item) => (
-              <article key={item.id} className="rounded-[12px] border border-[#e0e8f0] bg-white p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[.06em] text-[#8793a3]">{item.kind === 'OWN' ? 'Eigen verkoopprijs' : 'Concurrentiesuggestie'}</p>
-                    <h3 className="mt-1 truncate text-[13px] font-semibold text-[#30465d]">{item.name}</h3>
-                  </div>
-                  <span className={`ps-chip ${item.confidence === 'HIGH' ? 'ps-chip-green' : item.confidence === 'REVIEW' ? 'ps-chip-amber' : ''}`}>
-                    {item.confidence === 'HIGH' ? 'EAN bevestigd' : item.confidence === 'REVIEW' ? 'Controleren' : 'Geen prijs'}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-[10px] bg-[#f3f7fb] px-3 py-3">
-                    <p className="text-[10px] text-[#74869a]">Inclusief btw</p>
-                    <p className="mt-1 text-[15px] font-semibold text-[#24384f]">{formatAmount(item.priceInclVat, item.currency)}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-[#f3f7fb] px-3 py-3">
-                    <p className="text-[10px] text-[#74869a]">Exclusief btw</p>
-                    <p className="mt-1 text-[15px] font-semibold text-[#24384f]">{formatAmount(item.priceExclVat, item.currency)}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-[#f3f7fb] px-3 py-3">
-                    <p className="text-[10px] text-[#74869a]">Verzendkosten</p>
-                    <p className="mt-1 text-[15px] font-semibold text-[#24384f]">{item.shippingCost === 0 ? 'Gratis' : formatAmount(item.shippingCost, item.shippingCurrency ?? item.currency)}</p>
-                  </div>
-                  <div className="rounded-[10px] bg-[#eef7f2] px-3 py-3">
-                    <p className="text-[10px] text-[#668072]">Totaal incl. verzending</p>
-                    <p className="mt-1 text-[15px] font-semibold text-[#244b37]">{formatAmount(item.deliveredPriceInclVat, item.currency)}</p>
-                  </div>
-                </div>
-                {item.observedPrice !== null ? <p className="mt-2 text-[10px] text-[#687c90]">Gelezen bronprijs: {formatAmount(item.observedPrice, item.currency)} · Btw {item.vatIncluded === null ? 'onbekend' : item.vatIncluded ? 'inbegrepen' : 'niet inbegrepen'} · Tarief {item.vatRate}%</p> : null}
-                <p className="mt-2 text-[11px] leading-5 text-[#6f8093]">{item.reason}</p>
-                <p className="mt-1 text-[10px] text-[#8793a3]">Controle: {new Date(item.checkedAt).toLocaleString('nl-NL')} · {item.method ?? 'Bron niet uitgelezen'}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#edf1f5] pt-3">
-                  <a className="secondary-action min-h-[36px] px-3 py-2 text-[11px]" href={item.url} target="_blank" rel="noreferrer">Bekijk bron</a>
-                  {item.kind === 'OWN' && canEditProduct && item.observedPrice !== null && item.vatIncluded !== null && item.currency === currency ? (
-                    <form action={updateProductOwnPriceAction}>
-                      <input type="hidden" name="productId" value={productId} />
-                      <input type="hidden" name="countryId" value={countryId} />
-                      <input type="hidden" name="currency" value={item.currency} />
-                      <input type="hidden" name="ownPrice" value={String(item.observedPrice)} />
-                      <input type="hidden" name="vatIncluded" value={String(item.vatIncluded)} />
-                      <input type="hidden" name="ownUrl" value={item.url} />
-                      <button type="submit" className="primary-action min-h-[36px] px-3 py-2 text-[11px]">Eigen prijs overnemen</button>
-                    </form>
-                  ) : null}
-                  {item.kind === 'COMPETITOR' && item.matchId ? (
-                    <a className="primary-action min-h-[36px] px-3 py-2 text-[11px]" href="#concurrenten-vinden">Match controleren en gebruiken</a>
-                  ) : null}
-                </div>
-                {item.kind === 'OWN' && item.observedPrice !== null && item.currency !== currency ? <p className="mt-2 text-[10px] text-[#a36816]">De valuta wijkt af van de gekozen markt. Controleer en pas de prijs handmatig aan.</p> : null}
-              </article>
-            ))}
+    <section id="ean-prijssuggesties" className="ps-panel scroll-mt-24 overflow-hidden" aria-label="Automatische EAN prijsherkenning">
+      <div className="border-b border-[#e7edf3] px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="eyebrow">EAN {ean}</p>
+            <h2 className="mt-1 text-[17px] font-semibold text-[#21364d]">Automatische prijsherkenning</h2>
+            <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#74869a]">Prysight zoekt op EAN naar de eigen productbron en concurrenten, leest prijzen uit en zet inclusief en exclusief btw direct naast elkaar.</p>
           </div>
-        ) : !pending && result ? <p className="text-[11px] text-[#74869a]">Nog geen productbronnen om automatisch te controleren.</p> : null}
+          <button type="button" className="primary-action min-h-[40px]" onClick={check} disabled={pending}>
+            {pending ? 'Prijzen worden opgehaald…' : 'Nu prijzen ophalen'}
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[10px] bg-[#f4f7fb] px-3 py-2.5"><p className="text-[9px] text-[#8492a2]">Productherkenning</p><p className="mt-0.5 text-[11px] font-semibold text-[#30465d]">EAN gevonden</p></div>
+          <div className="rounded-[10px] bg-[#f4f7fb] px-3 py-2.5"><p className="text-[9px] text-[#8492a2]">Eigen bron</p><p className="mt-0.5 text-[11px] font-semibold text-[#30465d]">{result ? result.hasOwnUrl || ownItem ? 'Gevonden' : 'Nog niet gevonden' : 'Controleren…'}</p></div>
+          <div className="rounded-[10px] bg-[#f4f7fb] px-3 py-2.5"><p className="text-[9px] text-[#8492a2]">Concurrenten</p><p className="mt-0.5 text-[11px] font-semibold text-[#30465d]">{result ? `${competitors.length} bron${competitors.length === 1 ? '' : 'nen'}` : 'Controleren…'}</p></div>
+          <div className={`rounded-[10px] px-3 py-2.5 ${pricedCount ? 'bg-[#eef7f2]' : 'bg-[#fff8eb]'}`}><p className="text-[9px] text-[#8492a2]">Prijzen opgehaald</p><p className="mt-0.5 text-[11px] font-semibold text-[#30465d]">{pending && !result ? 'Bezig…' : `${pricedCount} van ${items.length}`}</p></div>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5 sm:px-6">
+        {error ? <p role="alert" className="rounded-[10px] bg-[#fff1f2] px-4 py-3 text-[12px] text-[#a83f4b]">{error}</p> : null}
+        {pending && !result ? <p role="status" className="rounded-[10px] bg-[#f5f8fc] px-4 py-3 text-[11px] text-[#60758d]">EAN herkend. Prysight zoekt nu productbronnen en controleert prijs, btw en verzendkosten.</p> : null}
+
+        {result && !result.hasOwnUrl && !ownItem ? <div className="rounded-[11px] bg-[#fff8eb] px-4 py-3 text-[11px] text-[#76591d]">Eigen productbron niet gevonden. Koppel de eigen webshop onder <a href="/beheer/webshops" className="font-semibold underline">Webshops</a> of <a href="/integraties" className="font-semibold underline">Integraties</a>.</div> : null}
+
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3"><h3 className="text-[12px] font-semibold text-[#34495f]">Eigen verkoopprijs</h3><span className="text-[10px] text-[#8793a3]">Inclusief en exclusief btw zichtbaar zodra een prijs is gelezen</span></div>
+          {ownItem ? <PriceCard item={ownItem} productId={productId} countryId={countryId} currency={currency} canEditProduct={canEditProduct} /> : <div className="rounded-[12px] border border-dashed border-[#d6dee8] bg-[#fafbfd] px-4 py-5 text-[11px] text-[#7b8999]">Nog geen leesbare eigen prijs gevonden.</div>}
+        </div>
+
+        <div>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div><h3 className="text-[12px] font-semibold text-[#34495f]">Concurrentieprijzen</h3><p className="mt-0.5 text-[10px] text-[#8793a3]">{competitorPriceCount} prijs{competitorPriceCount === 1 ? '' : 'en'} leesbaar, {competitors.length} bron{competitors.length === 1 ? '' : 'nen'} gevonden{result?.autoDiscoveredCount ? `, ${result.autoDiscoveredCount} automatisch via EAN` : ''}.</p></div>
+            <a href="#concurrenten-vinden" className="text-[10px] font-semibold text-[#2f6edb]">Concurrenten beheren</a>
+          </div>
+          {competitors.length ? <div className="grid gap-3 xl:grid-cols-2">{competitors.map((item) => <PriceCard key={item.id} item={item} productId={productId} countryId={countryId} currency={currency} canEditProduct={canEditProduct} />)}</div> : <div className="rounded-[12px] border border-dashed border-[#d6dee8] bg-[#fafbfd] px-4 py-5 text-[11px] text-[#7b8999]">Nog geen concurrentbron met deze EAN gevonden. Prysight zoekt bij iedere controle opnieuw.</div>}
+        </div>
+
+        <p className="border-t border-[#edf1f5] pt-3 text-[9px] leading-4 text-[#8a97a6]">Een EAN identificeert het product, maar garandeert niet dat een website de prijs technisch laat uitlezen. Bij een blokkade gebruikt Prysight een gekoppelde webshopintegratie of browsercontrole zodra die beschikbaar is.</p>
       </div>
     </section>
   )
