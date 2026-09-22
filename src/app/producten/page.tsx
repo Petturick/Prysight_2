@@ -246,6 +246,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         deleteAction={deleteSelectedProductsAction}
         refreshPricesAction={refreshSelectedProductPricesAction}
         refreshSinglePriceAction={refreshSingleProductPriceAction}
+        filters={filters}
       />
 
       <nav aria-label="Pagina's" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-4 py-3 text-[11px] text-[#66788d]">
