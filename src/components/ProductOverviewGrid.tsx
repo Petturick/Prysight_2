@@ -58,6 +58,7 @@ export function ProductOverviewGrid({
   deleteAction,
   refreshPricesAction,
   refreshSinglePriceAction,
+  filters,
 }: {
   rows: ProductGridRow[]
   totalCount: number
@@ -67,8 +68,16 @@ export function ProductOverviewGrid({
   deleteAction: (data: FormData) => Promise<void>
   refreshPricesAction: (data: FormData) => Promise<void>
   refreshSinglePriceAction: (data: FormData) => Promise<void>
+  filters: {
+    q?: string
+    productGroupId?: string
+    countryId?: string
+    competitorId?: string
+    identifierStatus?: string
+  }
 }) {
   const [selected, setSelected] = useState<string[]>([])
+  const [allResultsSelected, setAllResultsSelected] = useState(false)
   const [visible, setVisible] = useState<Column[]>(DEFAULT_COLUMNS)
   const [compact, setCompact] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -93,6 +102,7 @@ export function ProductOverviewGrid({
   }
 
   function toggleRow(id: string, checked: boolean) {
+    setAllResultsSelected(false)
     setSelected((current) => checked ? [...new Set([...current, id])] : current.filter((value) => value !== id))
   }
 
@@ -145,22 +155,32 @@ export function ProductOverviewGrid({
     return <span className={'block whitespace-nowrap ' + (key === 'ean' || key === 'markets' ? 'text-[#758498]' : '')} title={value}>{value || '—'}</span>
   }
 
+  const selectionCount = allResultsSelected ? totalCount : selected.length
+
   return (
     <form action={deleteAction} className="space-y-2">
+      <input type="hidden" name="deleteScope" value={allResultsSelected ? 'filtered' : 'selected'} />
+      <input type="hidden" name="filterQ" value={filters.q ?? ''} />
+      <input type="hidden" name="filterProductGroupId" value={filters.productGroupId ?? ''} />
+      <input type="hidden" name="filterCountryId" value={filters.countryId ?? ''} />
+      <input type="hidden" name="filterCompetitorId" value={filters.competitorId ?? ''} />
+      <input type="hidden" name="filterIdentifierStatus" value={filters.identifierStatus ?? ''} />
       <section className="ps-panel">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e7edf3] px-3 py-2.5 sm:px-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#edf4ff] px-3 py-1.5 text-[11px] font-semibold text-[#315fa7]">{selected.length} geselecteerd</span>
+            <span className="rounded-full bg-[#edf4ff] px-3 py-1.5 text-[11px] font-semibold text-[#315fa7]">{selectionCount} geselecteerd</span>
             <span className="text-[10px] text-[#78889b]">{rows.length} op deze pagina, {totalCount} totaal</span>
-            <button type="button" className="secondary-action min-h-[32px] px-2.5 py-1.5 text-[10px]" disabled={!rows.length || allSelected} onClick={() => setSelected(rowIds)}>Selecteer pagina</button>
-            <button type="button" className="secondary-action min-h-[32px] px-2.5 py-1.5 text-[10px]" disabled={!selected.length} onClick={() => setSelected([])}>Deselecteer</button>
+            <button type="button" className="secondary-action min-h-[32px] px-2.5 py-1.5 text-[10px]" disabled={!rows.length || allSelected || allResultsSelected} onClick={() => { setAllResultsSelected(false); setSelected(rowIds) }}>Selecteer pagina</button>
+            <button type="button" className="secondary-action min-h-[32px] px-2.5 py-1.5 text-[10px]" disabled={!totalCount || allResultsSelected} onClick={() => { setSelected([]); setAllResultsSelected(true) }}>Selecteer alle {totalCount}</button>
+            <button type="button" className="secondary-action min-h-[32px] px-2.5 py-1.5 text-[10px]" disabled={!selectionCount} onClick={() => { setSelected([]); setAllResultsSelected(false) }}>Deselecteer alles</button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => void discoverSources(selected)} disabled={!selected.some((id) => rows.some((row) => row.id === id && row.ean)) || sourceLookup?.running} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">{sourceLookup?.running ? `URLs zoeken ${sourceLookup.done}/${sourceLookup.total}` : 'EAN en URLs zoeken'}</button>
-            {canCrawl ? <button type="submit" formAction={refreshPricesAction} disabled={!selected.length} className="primary-action min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">Prijzen ophalen ({selected.length})</button> : null}
-            {canDelete ? <button type="submit" disabled={!selected.length} onClick={(event) => {
-              if (!window.confirm('Je verwijdert ' + selected.length + ' geselecteerde producten en hun koppelingen definitief. Doorgaan?')) event.preventDefault()
-            }} className="ps-button-danger min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">Verwijderen ({selected.length})</button> : null}
+            <button type="button" onClick={() => void discoverSources(selected)} disabled={allResultsSelected || !selected.some((id) => rows.some((row) => row.id === id && row.ean)) || sourceLookup?.running} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">{sourceLookup?.running ? `URLs zoeken ${sourceLookup.done}/${sourceLookup.total}` : 'EAN en URLs zoeken'}</button>
+            {canCrawl ? <button type="submit" formAction={refreshPricesAction} disabled={allResultsSelected || !selected.length} className="primary-action min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">Prijzen ophalen ({selected.length})</button> : null}
+            {canDelete ? <button type="submit" disabled={!selectionCount} onClick={(event) => {
+              const scope = allResultsSelected ? `alle ${totalCount} producten in de huidige selectie` : `${selected.length} geselecteerde producten`
+              if (!window.confirm('Je verwijdert ' + scope + ' en hun koppelingen definitief. Doorgaan?')) event.preventDefault()
+            }} className="ps-button-danger min-h-[34px] px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40">Verwijderen ({selectionCount})</button> : null}
             <details className="relative">
               <summary className="secondary-action min-h-[34px] cursor-pointer list-none px-3 py-1.5 text-[10px]">Kolommen ({visible.length})</summary>
               <div className="absolute right-0 top-full z-30 mt-2 w-[230px] rounded-xl border border-[#dbe3ed] bg-white p-3 shadow-xl">
@@ -182,7 +202,7 @@ export function ProductOverviewGrid({
             <thead className="sticky top-0 z-20 bg-[#f6f8fb] text-[10px] font-semibold text-[#67788c]">
               <tr>
                 <th className="sticky left-0 z-30 w-[42px] min-w-[42px] border-b border-r border-[#e4eaf1] bg-[#f6f8fb] px-3 py-2">
-                  <input ref={selectAllRef} type="checkbox" checked={allSelected} onChange={(event) => setSelected(event.target.checked ? rowIds : [])} disabled={!rowIds.length} aria-label="Selecteer alle producten op deze pagina" className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
+                  <input ref={selectAllRef} type="checkbox" checked={allSelected || allResultsSelected} onChange={(event) => { setAllResultsSelected(false); setSelected(event.target.checked ? rowIds : []) }} disabled={!rowIds.length} aria-label="Selecteer alle producten op deze pagina" className="h-4 w-4 cursor-pointer accent-[#346ed6]" />
                 </th>
                 {chosenColumns.map((column) => <th key={column.key} scope="col" className={cellPadding + ' whitespace-nowrap border-b border-r border-[#e4eaf1] bg-[#f6f8fb] ' + (column.align === 'right' ? 'text-right ' : '') + (column.key === 'name' ? 'sticky left-[42px] z-20 min-w-[170px] ' : '')}>{column.label}</th>)}
                 <th className={cellPadding + ' whitespace-nowrap border-b border-[#e4eaf1] bg-[#f6f8fb] text-right'}>Acties</th>
@@ -221,7 +241,7 @@ export function ProductOverviewGrid({
             </tbody>
           </table>
         </div>
-        <p className="px-4 py-2 text-[10px] text-[#7d8b9b]">Selecties gelden voor de huidige pagina. De belangrijkste kolommen staan direct in beeld. Klik op Details voor alle productprijzen en broninformatie, of kies extra kolommen via Kolommen.</p>
+        <p className="px-4 py-2 text-[10px] text-[#7d8b9b]">Je kunt één pagina selecteren of alle resultaten van de huidige filters. Deselecteer alles maakt de volledige selectie direct leeg. Klik op Details voor productprijzen en broninformatie.</p>
       </section>
     </form>
   )
