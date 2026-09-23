@@ -10,7 +10,6 @@ import { assertSafeRemoteHttpUrl, safeRemoteFetch } from '@/lib/safe-remote-url'
 import { detectVatInclusion } from '@/lib/vat-detection'
 import { priceSuggestionAmounts } from '@/lib/ean-price-suggestion-amounts'
 import { validGtin } from '@/lib/gtin'
-import { scrapeSerperProductPage, verifiedSerperOffer } from '@/lib/serper-scrape'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -394,23 +393,6 @@ async function previewSource(
     if (renderedHtml) {
       const suggestion = buildSuggestionFromExtraction(source, base, renderedHtml, 'BROWSER', product, vatRate, defaultCurrency, countryCode)
       if (suggestion) return suggestion
-    }
-
-    const scraped = await scrapeSerperProductPage(source.url)
-    const verified = scraped ? verifiedSerperOffer(scraped, product.ean, product.name) : null
-    if (verified) {
-      const amounts = priceSuggestionAmounts(verified.price, verified.vatIncluded, vatRate)
-      return {
-        ...base,
-        observedPrice: verified.price,
-        priceInclVat: amounts.incl,
-        priceExclVat: amounts.excl,
-        vatIncluded: verified.vatIncluded,
-        currency: verified.currency,
-        confidence: 'REVIEW',
-        method: 'SERPER_SCRAPE',
-        reason: 'Prijs en EAN via Serper gecontroleerd. Controleer verpakking en leveringsvoorwaarden voordat je de prijs overneemt.',
-      }
     }
 
     return { ...base, reason: primaryReason }
