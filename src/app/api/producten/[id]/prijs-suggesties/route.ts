@@ -563,7 +563,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let autoDiscoveredCount = 0
     if (sources.filter((source) => source.kind === 'COMPETITOR').length < 4) {
       const search = await webSearch(`"${identifier}" ${country.name}`, country.code)
-      searchProvider = search.provider
+      searchProvider = search.issue ? `${search.provider}. ${search.issue}` : search.provider
       const knownUrls = new Set(sources.map((source) => source.url))
       for (const candidate of search.candidates) {
         if (sources.filter((source) => source.kind === 'COMPETITOR').length >= 4) break
