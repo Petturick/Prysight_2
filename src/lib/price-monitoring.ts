@@ -738,7 +738,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       const identifier = product.ean ?? product.gtin
       if (identifier) {
         const scraped = await scrapeSerperProductPage(offer.url)
-        const verified = scraped ? verifiedSerperOffer(scraped, identifier, product.name) : null
+        const verified = scraped ? verifiedSerperOffer(scraped, identifier, product.name, product.packagingQty ?? 1) : null
         if (verified && scraped) {
           extracted = {
             price: verified.price,
