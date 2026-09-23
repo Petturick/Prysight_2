@@ -290,8 +290,9 @@ export async function createCompetitorAction(formData: FormData) {
   const website = new URL(safeWebsite).origin
   const where = { companyId_name_countryId: { companyId: user.companyId, name, countryId } }
   const existing = await prisma.competitor.findUnique({ where })
-  if (!existing) await assertCompanyCapacity(user.companyId, 'competitors')
-  await prisma.competitor.upsert({ where, update: { website, isActive: true, checkFrequencyHours }, create: { companyId: user.companyId, name, website, countryId, isActive: true, checkFrequencyHours } })
+  if (existing) redirect(`/concurrenten/${existing.id}/bewerken?bestaat=1`)
+  await assertCompanyCapacity(user.companyId, 'competitors')
+  await prisma.competitor.create({ data: { companyId: user.companyId, name, website, countryId, isActive: true, checkFrequencyHours } })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath('/concurrenten')
   redirect(`/concurrenten?markt=${encodeURIComponent(country.code)}&toegevoegd=1`)
 }
