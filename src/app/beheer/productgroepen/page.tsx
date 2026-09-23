@@ -14,7 +14,8 @@ export default async function ProductgroepenBeheerPage() {
     orderBy: { name: 'asc' },
     include: { _count: { select: { products: true } } },
   }), [])
-  const groups = result.data.filter((group) => !mergedGroupTarget(group.description) && group.name.trim().toLowerCase() !== 'onbekend')
+  // Source identifiers are not product categories. Only show groups with a readable category name.
+  const groups = result.data.filter((group) => !mergedGroupTarget(group.description) && productGroupLabel(group) !== 'Nog niet ingedeeld')
   const targets = groups.filter((group) => group.isActive && productGroupLabel(group) !== 'Nog niet ingedeeld')
 
   return (
@@ -22,7 +23,7 @@ export default async function ProductgroepenBeheerPage() {
       {!result.available ? <DatabaseNotice /> : null}
       <header>
         <h1 className="text-[22px] font-semibold text-[#20344b]">Productgroepen</h1>
-        <p className="mt-1 text-[12px] text-[#748296]">Geef groepen een herkenbare naam. De productgroep is optioneel bij productinvoer en heeft geen invloed op EAN herkenning.</p>
+        <p className="mt-1 text-[12px] text-[#748296]">Gebruik uitsluitend herkenbare categorieën. Interne feedcodes worden niet getoond als productgroep. Je kunt producten zonder categorie later in het productenoverzicht indelen.</p>
       </header>
       <section className="ps-panel p-4 sm:p-5">
         <h2 className="text-[14px] font-semibold text-[#21364d]">Nieuwe productgroep</h2>
@@ -39,9 +40,8 @@ export default async function ProductgroepenBeheerPage() {
       </section>
       <section className="space-y-3">
         <h2 className="text-[14px] font-semibold text-[#21364d]">Bestaande productgroepen</h2>
-        {groups.length === 0 ? <div className="ps-panel p-5 text-[12px] text-[#748296]">Er zijn nog geen productgroepen. Je kunt een product ook zonder productgroep toevoegen.</div> : null}
+        {groups.length === 0 ? <div className="ps-panel p-5 text-[12px] text-[#748296]">Er zijn nog geen benoemde categorieën. Maak hierboven je eerste categorie aan. Producten zonder categorie blijven gewoon te monitoren.</div> : null}
         {groups.map((group) => {
-          const coded = /^\d+$/.test(group.name)
           const label = productGroupLabel(group)
           const mergeTargets = targets.filter((target) => target.id !== group.id)
           return (
@@ -49,16 +49,15 @@ export default async function ProductgroepenBeheerPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-[13px] font-semibold text-[#21364d]">{label}</h3>
-                  <p className="text-[11px] text-[#748296]">{group._count.products} producten, {group.isActive ? 'actief' : 'inactief'}{coded ? `, broncode ${group.name}` : ''}</p>
+                  <p className="text-[11px] text-[#748296]">{group._count.products} producten, {group.isActive ? 'actief' : 'inactief'}</p>
                 </div>
-                {label === 'Nog niet ingedeeld' ? <span className="rounded-lg bg-[#fff4df] px-2.5 py-1 text-[10px] font-semibold text-[#92641f]">Naam ontbreekt</span> : null}
               </div>
               <form action={saveProductGroupAction} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="id" value={group.id} />
-                <label className="min-w-[210px] flex-1 text-[11px] font-semibold text-[#4f5869]">{coded ? 'Naam voor deze broncode' : 'Naam'}
-                  <input name="name" required defaultValue={coded ? label === 'Nog niet ingedeeld' ? '' : label : group.name} placeholder="Geef deze groep een duidelijke naam" className="toolbar-control mt-1.5 w-full" />
+                <label className="min-w-[210px] flex-1 text-[11px] font-semibold text-[#4f5869]">Categorienaam
+                  <input name="name" required defaultValue={label} placeholder="Geef deze groep een duidelijke naam" className="toolbar-control mt-1.5 w-full" />
                 </label>
-                {!coded ? <label className="min-w-[180px] flex-1 text-[11px] font-semibold text-[#4f5869]">Beschrijving
+                {!/^\d+$/.test(group.name) ? <label className="min-w-[180px] flex-1 text-[11px] font-semibold text-[#4f5869]">Beschrijving
                   <input name="description" defaultValue={group.description ?? ''} className="toolbar-control mt-1.5 w-full" />
                 </label> : null}
                 <label className="flex items-center gap-2 text-[11px] text-[#4f5869]"><input type="checkbox" name="isActive" defaultChecked={group.isActive} /> Actief</label>
