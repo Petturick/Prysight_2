@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createAuditLog } from '@/lib/audit'
 import { requirePermission } from '@/lib/authz'
 import { assertCompanyCapacity } from '@/lib/company-license'
@@ -24,4 +25,9 @@ export async function activateCompanyCountryAction(formData: FormData) {
   revalidatePath('/onboarding')
   revalidatePath('/dashboard')
   revalidatePath('/instellingen/markten')
+  revalidatePath('/concurrenten')
+  revalidatePath('/producten')
+  if (String(formData.get('returnTo') ?? '') === 'concurrenten') {
+    redirect(`/concurrenten?markt=${encodeURIComponent(country.code)}&marktoegevoegd=1`)
+  }
 }
