@@ -205,7 +205,7 @@ export async function mergeProductGroupAction(formData: FormData) {
     prisma.productGroup.findFirst({ where: { id: sourceId, companyId: actor.companyId } }),
     prisma.productGroup.findFirst({ where: { id: targetId, companyId: actor.companyId, isActive: true } }),
   ])
-  if (!source || !target || mergedGroupTarget(source.description) || mergedGroupTarget(target.description) || productGroupLabel(target) === 'Nog niet ingedeeld') {
+  if (!source || !target || source.name.trim().toLowerCase() === 'onbekend' || mergedGroupTarget(source.description) || mergedGroupTarget(target.description) || productGroupLabel(target) === 'Nog niet ingedeeld') {
     throw new Error('Selecteer een bestaande bron en een actieve productgroep met een herkenbare naam.')
   }
   await prisma.$transaction(async (tx) => {
