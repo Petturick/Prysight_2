@@ -3,7 +3,14 @@ export function isUnnamedGroup(name: string) {
   return !name.trim() || name.trim().toLowerCase() === 'onbekend' || /^\d+$/.test(name.trim())
 }
 
+export const MERGED_GROUP_PREFIX = '__merged_into__:'
+
+export function mergedGroupTarget(description?: string | null) {
+  return description?.startsWith(MERGED_GROUP_PREFIX) ? description.slice(MERGED_GROUP_PREFIX.length) : null
+}
+
 export function productGroupLabel(group: { name: string; description?: string | null }) {
+  if (mergedGroupTarget(group.description)) return 'Nog niet ingedeeld'
   const name = group.name.trim()
   if (!isUnnamedGroup(name)) return name
   const label = group.description?.trim() || ''
