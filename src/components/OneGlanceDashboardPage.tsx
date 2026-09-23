@@ -193,7 +193,9 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
       <div className="surface-card p-5">
         <h2 className="text-[15px] font-semibold text-[#25324a]">Concurrentiepositie</h2>
         <p className="mt-1 text-[11px] text-[#8490a2]">Actieve producten binnen de gekozen filters</p>
-        <MarketPositionDonut total={snapshot.kpis.monitoredProducts} lowerOrEqual={lowerOrEqual}\n          higher={higher.length} withoutComparison={withoutComparison}/>\n        <div className="mt-6 space-y-3 text-[12px]">
+        <MarketPositionDonut total={snapshot.kpis.monitoredProducts} lowerOrEqual={lowerOrEqual}
+          higher={higher.length} withoutComparison={withoutComparison}/>
+        <div className="mt-6 space-y-3 text-[12px]">
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-[#299574]"/>Onder of gelijk aan markt</span>
             <strong>{lowerOrEqual} · {pct(lowerOrEqual)}%</strong>
