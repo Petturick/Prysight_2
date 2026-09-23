@@ -8,6 +8,7 @@ import { assertCompanyCapacity } from '@/lib/company-license'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
 import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
+import { productGroupLabel } from '@/lib/product-groups'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -89,7 +90,8 @@ export async function processBulkProductImportAction(payload: unknown) {
   const rows = parsed.data.rows
   const articleNumbers = [...new Set(rows.map((row) => row.articleNumber.trim()).filter(Boolean))]
   const countryCodes = [...new Set(rows.map((row) => (row.country || 'NL').toUpperCase()))]
-  const groupNames = [...new Set(rows.map((row) => row.productGroup.trim() || 'Onbekend'))]
+  const sourceGroups = [...new Set(rows.map((row) => row.productGroup.trim() || 'Onbekend'))]
+  const groupNames = [...new Set([...sourceGroups.filter((name) => !/^\d+$/.test(name)), 'Onbekend'])]
 
   const [existingProducts, countries, companyCountries] = await Promise.all([
     prisma.product.findMany({ where: { companyId, articleNumber: { in: articleNumbers } }, select: { articleNumber: true } }),
@@ -126,12 +128,21 @@ export async function processBulkProductImportAction(payload: unknown) {
       create: { companyId, name, description: `Automatisch aangemaakt via bulkimport ${parsed.data.filename}`, isActive: true },
     })))
     const groupByName = new Map(groups.map((group) => [group.name, group]))
+    const codedGroups = sourceGroups.filter((name) => /^\d+$/.test(name))
+    if (codedGroups.length) {
+      const existingCodes = await prisma.productGroup.findMany({ where: { companyId, name: { in: codedGroups } } })
+      for (const existingCode of existingCodes) {
+        if (productGroupLabel(existingCode) !== 'Nog niet ingedeeld') groupByName.set(existingCode.name, existingCode)
+      }
+    }
     const countryByCode = new Map(countries.map((country) => [country.code.toUpperCase(), country]))
     const activeCountryIds = new Set(companyCountries.map((country) => country.countryId))
 
     await inChunks(rows, 10, async (row) => {
       try {
-        const group = groupByName.get(row.productGroup.trim() || 'Onbekend')
+        const sourceGroup = row.productGroup.trim() || 'Onbekend'
+        const hasCategory = !/^\d+$/.test(sourceGroup) || groupByName.has(sourceGroup)
+        const group = groupByName.get(sourceGroup) ?? groupByName.get('Onbekend')
         if (!group) throw new Error('Productgroep kon niet worden bepaald.')
         const ownPrice = decimal(row.ownPrice)
         const country = countryByCode.get((row.country || 'NL').toUpperCase())
@@ -142,7 +153,7 @@ export async function processBulkProductImportAction(payload: unknown) {
           update: {
             name: row.productName.trim(),
             ean: row.ean || undefined,
-            productGroupId: group.id,
+            productGroupId: hasCategory ? group.id : undefined,
             ownPrice: ownPrice ?? undefined,
             vatIncluded: vatIncluded(row.vatIncluded, existing?.vatIncluded ?? true),
             packagingUnit: row.packagingUnit || 'stuks',

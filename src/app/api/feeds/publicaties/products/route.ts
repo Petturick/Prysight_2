@@ -5,6 +5,7 @@ import { verifyBearerSecret } from '@/lib/api-auth'
 import { requirePermission } from '@/lib/authz'
 import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { prisma } from '@/lib/prisma'
+import { productGroupLabel } from '@/lib/product-groups'
 
 function csvEscape(value: unknown) {
   const text = value === null || value === undefined ? '' : String(value)
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     include: { productGroup: true },
     orderBy: { articleNumber: 'asc' },
   })
-  const rows = products.map((product) => ({ articleNumber: product.articleNumber, ean: product.ean, gtin: product.gtin, name: product.name, productGroup: product.productGroup.name, ownPrice: product.ownPrice?.toString() ?? null, currency: product.currency, stockStatus: product.stockStatus, packagingUnit: product.packagingUnit, packagingQty: product.packagingQty, updatedAt: product.updatedAt.toISOString() }))
+  const rows = products.map((product) => ({ articleNumber: product.articleNumber, ean: product.ean, gtin: product.gtin, name: product.name, productGroup: productGroupLabel(product.productGroup) === 'Nog niet ingedeeld' ? '' : productGroupLabel(product.productGroup), ownPrice: product.ownPrice?.toString() ?? null, currency: product.currency, stockStatus: product.stockStatus, packagingUnit: product.packagingUnit, packagingQty: product.packagingQty, updatedAt: product.updatedAt.toISOString() }))
   if (format === 'json') return NextResponse.json({ generatedAt: new Date().toISOString(), companyId: scope.companyId, count: rows.length, products: rows })
   const headers = Object.keys(rows[0] ?? { articleNumber: '', ean: '', gtin: '', name: '', productGroup: '', ownPrice: '', currency: '', stockStatus: '', packagingUnit: '', packagingQty: '', updatedAt: '' })
   const csv = [headers.map(csvEscape).join(','), ...rows.map((row) => headers.map((header) => csvEscape(row[header as keyof typeof row])).join(','))].join('\n')

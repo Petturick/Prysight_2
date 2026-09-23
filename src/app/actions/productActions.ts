@@ -12,6 +12,7 @@ import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
 import { prisma } from '@/lib/prisma'
+import { isUnnamedGroup } from '@/lib/product-groups'
 import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
 import { normalizePrice } from '@/lib/price-normalization'
 import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
@@ -52,7 +53,7 @@ export async function createProductAction(formData: FormData) {
   const name = text(formData, 'name')
   const ean = normalizeGtin(text(formData, 'ean'))
   if (ean && !validGtin(ean)) throw new Error('Ongeldige EAN of GTIN. Controleer het aantal cijfers en de controlecode.')
-  const productGroup = text(formData, 'productGroup') || 'Onbekend'
+  const productGroup = isUnnamedGroup(text(formData, 'productGroup')) ? 'Onbekend' : text(formData, 'productGroup')
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const rawOwnPrice = text(formData, 'ownPrice')
   const ownShippingCost = parseOptionalShipping(text(formData, 'ownShippingCost'))

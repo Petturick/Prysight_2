@@ -17,3 +17,8 @@ test('suggests only a distinct existing category from the product name', () => {
   assert.equal(suggestProductGroup('Onbekend artikel', groups), null)
   assert.equal(suggestProductGroup('Inklapbare palletbox', groups), null)
 })
+
+test('source identifiers cannot become category labels without explicit category mapping', () => {
+  assert.equal(productGroupLabel({ name: '0', description: 'Automatisch aangemaakt vanuit productfeed.' }), 'Nog niet ingedeeld')
+  assert.equal(productGroupLabel({ name: '103', description: 'Lekbakken' }), 'Lekbakken')
+})

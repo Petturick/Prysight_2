@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { getPersistedPricingRules, getProductPricingGuardrails } from '@/lib/pricing-rules'
 import { prisma } from '@/lib/prisma'
+import { productGroupLabel } from '@/lib/product-groups'
 
 const strategyLabels: Record<string, string> = {
   LOWEST_MATCH: 'Laagste marktprijs volgen',
@@ -42,7 +43,7 @@ export default async function PricingRulesPage({ searchParams }: { searchParams:
 
   const [countries, productGroups, products, rules] = await Promise.all([
     getActiveCompanyCountries(actor.companyId),
-    prisma.productGroup.findMany({ where: { companyId: actor.companyId, isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+    prisma.productGroup.findMany({ where: { companyId: actor.companyId, isActive: true }, select: { id: true, name: true, description: true }, orderBy: { name: 'asc' } }),
     prisma.product.findMany({ where: { companyId: actor.companyId, isActive: true }, select: { id: true, articleNumber: true, name: true, productGroupId: true }, orderBy: { name: 'asc' }, take: 1000 }),
     getPersistedPricingRules(actor.companyId),
   ])
@@ -52,7 +53,7 @@ export default async function PricingRulesPage({ searchParams }: { searchParams:
   const selectedGuardrail = selectedProduct ? guardrails.get(selectedProduct.id) ?? null : null
   const editRule = rules.find((rule) => rule.id === editRuleId) ?? null
   const countryById = new Map(countries.map((country) => [country.id, country.name]))
-  const groupById = new Map(productGroups.map((group) => [group.id, group.name]))
+  const groupById = new Map(productGroups.map((group) => [group.id, productGroupLabel(group)]))
   const productById = new Map(products.map((product) => [product.id, `${product.articleNumber} · ${product.name}`]))
 
   return (
@@ -78,7 +79,7 @@ export default async function PricingRulesPage({ searchParams }: { searchParams:
             {editRule ? <input type="hidden" name="ruleId" value={editRule.id} /> : null}
             <label className="sm:col-span-2"><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Naam</span><input name="name" required defaultValue={editRule?.name ?? ''} placeholder="Bijvoorbeeld Nederland palletboxen" className={fieldClass()} /></label>
             <label><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Land</span><select name="countryId" defaultValue={editRule?.countryId ?? ''} className={fieldClass()}><option value="">Alle landen</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
-            <label><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Productgroep</span><select name="productGroupId" defaultValue={editRule?.productGroupId ?? ''} className={fieldClass()}><option value="">Alle productgroepen</option>{productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+            <label><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Productgroep</span><select name="productGroupId" defaultValue={editRule?.productGroupId ?? ''} className={fieldClass()}><option value="">Alle productgroepen</option>{productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}</select></label>
             <label className="sm:col-span-2"><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Specifiek product</span><select name="productId" defaultValue={editRule?.productId ?? ''} className={fieldClass()}><option value="">Geen specifiek product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.articleNumber} · {product.name}</option>)}</select></label>
             <label><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Strategie</span><select name="strategy" defaultValue={editRule?.strategy ?? 'MARKET_MEDIAN'} className={fieldClass()}>{Object.entries(strategyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label><span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[#68758a]">Prijsafronding</span><select name="roundingMode" defaultValue={editRule?.roundingMode ?? 'CENT'} className={fieldClass()}>{Object.entries(roundingLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

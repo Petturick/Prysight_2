@@ -9,7 +9,7 @@ import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { matchProducts } from '@/lib/product-matching'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
-import { mergedGroupTarget } from '@/lib/product-groups'
+import { mergedGroupTarget, productGroupLabel } from '@/lib/product-groups'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { importPayloadSchema } from '@/lib/validators'
 import { revalidatePath } from 'next/cache'
@@ -85,9 +85,10 @@ export async function processImportRowsAction(payload: unknown) {
   })
   const requestedArticleNumbers = [...new Set(resolvedArticleNumbers.filter(Boolean))]
   const countryCodes = [...new Set(parsed.data.rows.map((row) => (row.country || 'NL').toUpperCase()))]
-  const groupNames = importsProducts
-    ? [...new Set(parsed.data.rows.map((row) => row.productGroup || 'Onbekend'))]
+  const sourceGroupNames = importsProducts
+    ? [...new Set(parsed.data.rows.map((row) => row.productGroup?.trim() || 'Onbekend'))]
     : []
+  const groupNames = importsProducts ? [...new Set([...sourceGroupNames.filter((name) => !/^\d+$/.test(name)), 'Onbekend'])] : []
 
   const [existingProducts, countries, companyCountries, existingGroups] = await Promise.all([
     requestedArticleNumbers.length
@@ -96,7 +97,7 @@ export async function processImportRowsAction(payload: unknown) {
     prisma.country.findMany({ where: { code: { in: countryCodes } } }),
     prisma.companyCountry.findMany({ where: { companyId }, select: { countryId: true, isActive: true } }),
     groupNames.length
-      ? prisma.productGroup.findMany({ where: { companyId, name: { in: groupNames } } })
+      ? prisma.productGroup.findMany({ where: { companyId, name: { in: [...new Set([...groupNames, ...sourceGroupNames])] } } })
       : Promise.resolve([]),
   ])
 
@@ -192,9 +193,11 @@ export async function processImportRowsAction(payload: unknown) {
         const pricingInputPresent = Boolean(row.costPrice || row.minimumMarginPct || row.targetMarginPct || row.minimumPrice || row.maximumPrice || row.pricingMode || row.pricingCooldownHours)
         if (pricingInputPresent && !canManagePricing) throw new Error('Onvoldoende rechten om pricinginstellingen te importeren.')
 
-        const productGroupName = row.productGroup || 'Onbekend'
-        const productGroup = groupCache.get(productGroupName)
-        if (!productGroup) throw new Error(`Productgroep ${productGroupName} kon niet worden geladen.`)
+        const sourceCategory = row.productGroup?.trim() || 'Onbekend'
+        const incomingGroup = groupCache.get(sourceCategory)
+        const hasReadableCategory = !/^\d+$/.test(sourceCategory) || Boolean(incomingGroup && productGroupLabel(incomingGroup) !== 'Nog niet ingedeeld')
+        const productGroup = hasReadableCategory ? incomingGroup ?? groupCache.get('Onbekend') : groupCache.get('Onbekend')
+        if (!productGroup) throw new Error('De standaardcategorie voor niet ingedeelde producten ontbreekt.')
         const ownPrice = toDecimal(row.ownPrice)
         const previousOwnPrice = product?.ownPrice ?? null
 
@@ -204,7 +207,7 @@ export async function processImportRowsAction(payload: unknown) {
             ean: row.ean || undefined,
             gtin: row.gtin || undefined,
             name: row.productName || undefined,
-            productGroupId: productGroup.id,
+            productGroupId: hasReadableCategory ? productGroup.id : undefined,
             ownPrice: ownPrice ?? undefined,
             vatIncluded: importedVatIncluded(row.vatIncluded, product?.vatIncluded ?? true),
             packagingUnit: row.packagingUnit || undefined,

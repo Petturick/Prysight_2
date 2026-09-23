@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@/generated/prisma/client'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
 import { prisma } from '@/lib/prisma'
+import { isUnnamedGroup } from '@/lib/product-groups'
 import { z } from 'zod'
 
 const productSchema = z.object({
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
       competitorCount += 1
     }
 
-    const groupNames = [...new Set(parsed.products.map((product) => product.group))]
+    const groupNames = [...new Set(parsed.products.map((product) => isUnnamedGroup(product.group) ? 'Onbekend' : product.group))]
     const groups = await Promise.all(groupNames.map((name) => prisma.productGroup.upsert({
       where: { companyId_name: { companyId, name } },
       update: { isActive: true },
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
     let productCount = 0
     let marketCount = 0
     for (const productInput of parsed.products) {
-      const group = groupByName.get(productInput.group)
+      const group = groupByName.get(isUnnamedGroup(productInput.group) ? 'Onbekend' : productInput.group)
       if (!group) continue
       const ownPrice = productInput.ownPrice == null ? null : new Prisma.Decimal(productInput.ownPrice)
       const product = await prisma.product.upsert({
