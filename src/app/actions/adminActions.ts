@@ -9,6 +9,7 @@ import { assertCompanyCapacity } from '@/lib/company-license'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
 import { competitorSchema, countrySchema, productGroupSchema, userSchema, webshopSchema } from '@/lib/validators'
+import { isUnnamedGroup, MERGED_GROUP_PREFIX, mergedGroupTarget, productGroupLabel } from '@/lib/product-groups'
 import { revalidatePath } from 'next/cache'
 
 async function audit(userId: string, action: string, entityType: string, entityId: string, oldValue?: Prisma.InputJsonValue | null, newValue?: Prisma.InputJsonValue | null) {
@@ -168,13 +169,80 @@ export async function deleteWebshopAction(formData: FormData) {
 
 export async function saveProductGroupAction(formData: FormData) {
   const actor = await requirePermission('products.write')
-  const parsed = productGroupSchema.parse({ id: formData.get('id') || undefined, name: formData.get('name'), description: formData.get('description') || '', isActive: formData.get('isActive') === 'on' })
-  const result = parsed.id ? await prisma.productGroup.update({ where: { id: parsed.id, companyId: actor.companyId }, data: parsed }) : await prisma.productGroup.create({ data: { ...parsed, companyId: actor.companyId } })
-  await audit(actor.id, 'PRODUCT_GROUP_SAVED', 'ProductGroup', result.id, null, { companyId: actor.companyId, name: result.name }); revalidatePath('/beheer/productgroepen'); revalidatePath('/beheer')
+  const id = String(formData.get('id') ?? '').trim()
+  const name = String(formData.get('name') ?? '').trim()
+  const description = String(formData.get('description') ?? '').trim()
+  const isActive = formData.get('isActive') === 'on'
+  if (!name || isUnnamedGroup(name)) throw new Error('Geef de productgroep een herkenbare naam, geen categoriecode.')
+  const existing = id ? await prisma.productGroup.findFirst({ where: { id, companyId: actor.companyId } }) : null
+  if (id && !existing) throw new Error('Productgroep niet gevonden in deze organisatie.')
+  if (existing && mergedGroupTarget(existing.description)) throw new Error('Deze productgroep is al samengevoegd.')
+  // Imported feed codes are stable source identifiers. Store their visible label in
+  // the description so the next feed sync cannot recreate an anonymous category.
+  const saved = existing && /^\d+$/.test(existing.name)
+    ? await prisma.productGroup.update({
+      where: { id: existing.id, companyId: actor.companyId },
+      data: { description: name, isActive },
+    })
+    : existing
+      ? await prisma.productGroup.update({
+        where: { id: existing.id, companyId: actor.companyId },
+        data: { name, description, isActive },
+      })
+      : await prisma.productGroup.create({ data: { companyId: actor.companyId, name, description, isActive } })
+  await audit(actor.id, 'PRODUCT_GROUP_SAVED', 'ProductGroup', saved.id, null, { companyId: actor.companyId, displayName: productGroupLabel(saved) })
+  revalidatePath('/beheer/productgroepen')
+  revalidatePath('/producten')
+  revalidatePath('/producten/nieuw')
 }
+
+export async function mergeProductGroupAction(formData: FormData) {
+  const actor = await requirePermission('products.write')
+  const sourceId = String(formData.get('sourceId') ?? '')
+  const targetId = String(formData.get('targetId') ?? '')
+  if (!sourceId || !targetId || sourceId === targetId) throw new Error('Kies twee verschillende productgroepen.')
+  const [source, target] = await Promise.all([
+    prisma.productGroup.findFirst({ where: { id: sourceId, companyId: actor.companyId } }),
+    prisma.productGroup.findFirst({ where: { id: targetId, companyId: actor.companyId, isActive: true } }),
+  ])
+  if (!source || !target || mergedGroupTarget(source.description) || mergedGroupTarget(target.description) || productGroupLabel(target) === 'Nog niet ingedeeld') {
+    throw new Error('Selecteer een bestaande bron en een actieve productgroep met een herkenbare naam.')
+  }
+  await prisma.$transaction(async (tx) => {
+    // Preserve the source record as a feed alias, including its original code.
+    await tx.product.updateMany({ where: { companyId: actor.companyId, productGroupId: source.id }, data: { productGroupId: target.id } })
+    await tx.alertRule.updateMany({ where: { companyId: actor.companyId, productGroupId: source.id }, data: { productGroupId: target.id } })
+    await tx.productGroup.update({
+      where: { id: source.id, companyId: actor.companyId },
+      data: { isActive: false, description: MERGED_GROUP_PREFIX + target.id },
+    })
+    // Repoint any prior feed aliases that were mapped to the merged source.
+    await tx.productGroup.updateMany({
+      where: { companyId: actor.companyId, description: MERGED_GROUP_PREFIX + source.id },
+      data: { description: MERGED_GROUP_PREFIX + target.id },
+    })
+  })
+  await audit(actor.id, 'PRODUCT_GROUP_MERGED', 'ProductGroup', source.id, null, { companyId: actor.companyId, targetId: target.id })
+  revalidatePath('/beheer/productgroepen')
+  revalidatePath('/producten')
+  revalidatePath('/producten/nieuw')
+}
+
 export async function deleteProductGroupAction(formData: FormData) {
-  const actor = await requirePermission('products.write'); const id = String(formData.get('id'))
-  await prisma.productGroup.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'PRODUCT_GROUP_DELETED', 'ProductGroup', id, null, { companyId: actor.companyId }); revalidatePath('/beheer/productgroepen')
+  const actor = await requirePermission('products.write')
+  const id = String(formData.get('id') ?? '').trim()
+  const group = await prisma.productGroup.findFirst({ where: { id, companyId: actor.companyId } })
+  if (!group) throw new Error('Productgroep niet gevonden in deze organisatie.')
+  const [products, aliases] = await Promise.all([
+    prisma.product.count({ where: { companyId: actor.companyId, productGroupId: id } }),
+    prisma.productGroup.count({ where: { companyId: actor.companyId, description: MERGED_GROUP_PREFIX + id } }),
+  ])
+  if (products || aliases) throw new Error('Deze groep is nog in gebruik. Verplaats eerst de producten naar een andere groep.')
+  await prisma.productGroup.delete({ where: { id, companyId: actor.companyId } })
+  await audit(actor.id, 'PRODUCT_GROUP_DELETED', 'ProductGroup', id, null, { companyId: actor.companyId })
+  revalidatePath('/beheer/productgroepen')
+  revalidatePath('/producten')
+  revalidatePath('/producten/nieuw')
 }
 
 export async function saveUserAction(formData: FormData) {
