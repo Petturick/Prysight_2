@@ -16,7 +16,7 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
           <p className="text-[10px] font-semibold uppercase tracking-[.07em] text-[#986020]">Pagina tijdelijk niet beschikbaar</p>
           <h1 className="mt-2 text-[22px] font-bold tracking-[-.025em] text-[#17233a]">Het laden is niet gelukt</h1>
           <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[#596a80]">
-            Deze pagina kon niet worden geopend. Je kunt het veilig opnieuw proberen, daarbij worden geen gegevens gewijzigd.
+            De pagina kon niet worden geladen. Je kunt het veilig opnieuw proberen, daarbij worden geen gegevens gewijzigd.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <button type="button" onClick={reset} className="primary-action">Opnieuw proberen</button>
