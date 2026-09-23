@@ -45,7 +45,8 @@ export default async function NewProductPage() {
             <EanDiscoveryField />
             <details className="rounded-lg border border-[#e2e9f2] bg-[#fafcff] sm:col-span-2">
               <summary className="cursor-pointer px-4 py-3 text-[12px] font-medium text-[#416b9d]">Overige productgegevens (optioneel)</summary>
-              <div className="grid gap-3 border-t border-[#e2e9f2] p-4 sm:grid-cols-2 lg:grid-cols-3">\n            <label className="text-[11px] font-semibold text-[#4f5869]">Productgroep<input name="productGroup" list="product-groups" className="toolbar-control mt-1.5 w-full" placeholder="Kies of typ een productgroep" /><datalist id="product-groups">{productGroups.map((group) => <option key={group.id} value={group.name} />)}</datalist></label>
+              <div className="grid gap-3 border-t border-[#e2e9f2] p-4 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="text-[11px] font-semibold text-[#4f5869]">Productgroep<input name="productGroup" list="product-groups" className="toolbar-control mt-1.5 w-full" placeholder="Kies of typ een productgroep" /><datalist id="product-groups">{productGroups.map((group) => <option key={group.id} value={group.name} />)}</datalist></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">GTIN<input name="gtin" inputMode="numeric" className="toolbar-control mt-1.5 w-full" /></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">MPN<input name="mpn" className="toolbar-control mt-1.5 w-full" /></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">Merk<input name="brand" className="toolbar-control mt-1.5 w-full" /></label>
@@ -61,7 +62,7 @@ export default async function NewProductPage() {
             <span className="text-[11px] text-[#738298]">Je eigen verkoopprijs</span>
           </div>
           <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
-            <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *<div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white shadow-[0_1px_2px_rgba(31,49,77,.02)] focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]"><span className="px-3 text-[13px] font-semibold text-[#64748b]">{defaultCountry?.currency ?? 'EUR'}</span><input name="ownPrice" required inputMode="decimal" className="min-h-[46px] flex-1 border-0 bg-transparent px-0 pr-3 text-[16px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" /></div></label>
+            <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *<input name="ownPrice" required inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="0,00" /></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Markt<select name="countryId" defaultValue={defaultCountry?.id} className="toolbar-control mt-1.5 w-full"><option value="">Algemeen</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Valuta<select name="currency" defaultValue={defaultCountry?.currency ?? 'EUR'} className="toolbar-control mt-1.5 w-full"><option>EUR</option><option>GBP</option><option>DKK</option><option>USD</option></select></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue="true" className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
