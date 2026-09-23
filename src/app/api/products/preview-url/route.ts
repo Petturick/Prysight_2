@@ -4,10 +4,12 @@ import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
 import { extractOfferSnapshot } from '@/lib/price-monitoring'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
+import { scrapeSerperProductPage } from '@/lib/serper-scrape'
 import { detectVatInclusion } from '@/lib/vat-detection'
 import { findExistingProduct } from '@/lib/product-duplicate'
 
 const MAX_HTML_BYTES = 4 * 1024 * 1024
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36'
 
 type JsonRecord = Record<string, unknown>
 
@@ -74,6 +76,63 @@ function structuredProductDetails(html: string) {
   return { brand: null, category: null, image: null, model: null, mpn: null }
 }
 
+function parseLocalizedPrice(value: string | null | undefined) {
+  if (!value) return null
+  const cleaned = value.replace(/\u00a0/g, ' ').replace(/[^0-9,.-]/g, '').trim()
+  if (!cleaned) return null
+  const lastComma = cleaned.lastIndexOf(',')
+  const lastDot = cleaned.lastIndexOf('.')
+  let normalized = cleaned
+  if (lastComma > lastDot) normalized = cleaned.replace(/\./g, '').replace(',', '.')
+  else if (lastDot > lastComma) normalized = cleaned.replace(/,/g, '')
+  else normalized = cleaned.replace(',', '.')
+  const numeric = Number(normalized)
+  return Number.isFinite(numeric) && numeric > 0 && numeric <= 10_000_000 ? numeric : null
+}
+
+function cleanSerperTitle(value: string | null) {
+  if (!value) return null
+  return value
+    .replace(/\s+[|–—-]\s+(?:Engels(?:\s+Logistiek)?|Prysight).*$/i, '')
+    .trim()
+    .slice(0, 240) || null
+}
+
+function recognizeFromSerper(page: { text: string; title: string | null }) {
+  const compact = page.text.replace(/\s+/g, ' ').slice(0, 80_000)
+  const title = cleanSerperTitle(page.title)
+  const sku = compact.match(/(?:artikelnummer|artikel nr\.?|art\.?\s*nr\.?|sku|productcode)\s*[:#]?\s*([A-Z0-9][A-Z0-9._\/-]{2,50})/i)?.[1] ?? null
+  const ean = compact.match(/(?:ean|gtin(?:13|14)?)\s*[:#]?\s*([0-9]{8,14})/i)?.[1] ?? null
+  const labelledPrice = compact.match(/(?:prijs|vanaf|nu)\s*[:]?\s*(?:€|EUR)\s*([0-9][0-9.,\s]{0,14})/i)?.[1]
+    ?? compact.match(/(?:€|EUR)\s*([0-9][0-9.,\s]{0,14})\s*(?:incl\.?|excl\.?|per\b|$)/i)?.[1]
+  const price = parseLocalizedPrice(labelledPrice)
+  const currency = price ? 'EUR' : /£/.test(compact) ? 'GBP' : null
+  const stockStatus = /niet op voorraad|out of stock|sold out/i.test(compact)
+    ? 'Niet op voorraad'
+    : /op voorraad|in stock|available/i.test(compact)
+      ? 'Op voorraad'
+      : null
+  const vat = detectVatInclusion(compact, price)
+  return {
+    url: null as string | null,
+    name: title,
+    articleNumber: sku,
+    ean,
+    ownPrice: price,
+    currency,
+    stockStatus,
+    packagingQty: null as number | null,
+    extractionMethod: 'SERPER',
+    vatIncluded: vat.vatIncluded,
+    vatConfidence: vat.confidence,
+    vatEvidence: vat.evidence,
+    brand: null as string | null,
+    productGroup: null as string | null,
+    model: null as string | null,
+    mpn: null as string | null,
+  }
+}
+
 async function readLimitedHtml(response: Response) {
   const declaredLength = Number(response.headers.get('content-length') ?? '0')
   if (declaredLength > MAX_HTML_BYTES) throw new Error('De productpagina is te groot om veilig te analyseren.')
@@ -112,63 +171,110 @@ export async function POST(request: Request) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 12_000)
     try {
-      const response = await safeRemoteFetch(rawUrl, {
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: {
-          'User-Agent': 'PrysightProductOnboarding/1.0 (+product import)',
-          Accept: 'text/html,application/xhtml+xml',
-          'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.7',
-        },
-      })
-
-      if (!response.ok) return NextResponse.json({ error: `De productpagina gaf HTTP ${response.status} terug.` }, { status: 422 })
-      const contentType = response.headers.get('content-type') ?? ''
-      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
-        return NextResponse.json({ error: 'Deze URL is geen leesbare productpagina.' }, { status: 422 })
+      let response: Response | null = null
+      let directError: unknown = null
+      try {
+        response = await safeRemoteFetch(rawUrl, {
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: {
+            'User-Agent': BROWSER_UA,
+            Accept: 'text/html,application/xhtml+xml',
+            'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.7',
+          },
+        })
+      } catch (error) {
+        directError = error
       }
 
-      const html = await readLimitedHtml(response)
-      if (!html.trim()) return NextResponse.json({ error: 'De productpagina bevat geen leesbare inhoud.' }, { status: 422 })
-
-      const offer = extractOfferSnapshot(html)
-      const details = structuredProductDetails(html)
-      const vat = detectVatInclusion(html, offer.price)
-      const resolvedUrl = response.url || rawUrl
-      const existingProduct = await findExistingProduct({
-        companyId: actor.companyId,
-        articleNumber: offer.sku,
-        ean: offer.ean,
-        gtin: offer.ean,
-        ownUrl: resolvedUrl,
-      })
-      if (!offer.productTitle && !offer.sku && !offer.ean && !offer.price) {
-        return NextResponse.json({
-          error: 'Prysight kon nog geen productgegevens herkennen. Vul de ontbrekende velden handmatig in.',
-          partial: true,
-          url: resolvedUrl,
-        }, { status: 422 })
+      if (response?.ok) {
+        const contentType = response.headers.get('content-type') ?? ''
+        if (contentType.includes('text/html') || contentType.includes('application/xhtml+xml')) {
+          const html = await readLimitedHtml(response)
+          if (html.trim()) {
+            const offer = extractOfferSnapshot(html)
+            const details = structuredProductDetails(html)
+            const vat = detectVatInclusion(html, offer.price)
+            const resolvedUrl = response.url || rawUrl
+            if (offer.productTitle || offer.sku || offer.ean || offer.price) {
+              const existingProduct = await findExistingProduct({
+                companyId: actor.companyId,
+                articleNumber: offer.sku,
+                ean: offer.ean,
+                gtin: offer.ean,
+                ownUrl: resolvedUrl,
+              })
+              return NextResponse.json({
+                url: resolvedUrl,
+                name: offer.productTitle,
+                articleNumber: offer.sku,
+                ean: offer.ean,
+                ownPrice: offer.price,
+                currency: offer.currency?.toUpperCase() ?? null,
+                stockStatus: offer.stockStatus,
+                packagingQty: offer.packagingQty,
+                extractionMethod: offer.method,
+                vatIncluded: vat.vatIncluded,
+                vatConfidence: vat.confidence,
+                vatEvidence: vat.evidence,
+                brand: details.brand,
+                productGroup: details.category,
+                model: details.model,
+                mpn: details.mpn,
+                image: details.image,
+                existingProduct,
+              })
+            }
+          }
+        }
       }
 
+      const scraped = await scrapeSerperProductPage(rawUrl)
+      if (scraped) {
+        const recognized = recognizeFromSerper(scraped)
+        const resolvedUrl = response?.url || rawUrl
+        const existingProduct = await findExistingProduct({
+          companyId: actor.companyId,
+          articleNumber: recognized.articleNumber,
+          ean: recognized.ean,
+          gtin: recognized.ean,
+          ownUrl: resolvedUrl,
+        })
+        if (recognized.name || recognized.articleNumber || recognized.ean || recognized.ownPrice) {
+          return NextResponse.json({
+            ...recognized,
+            url: resolvedUrl,
+            image: null,
+            existingProduct,
+          })
+        }
+      }
+
+      console.warn('Product URL recognition returned no usable data', {
+        url: rawUrl,
+        status: response?.status ?? null,
+        error: directError instanceof Error ? directError.message : null,
+      })
       return NextResponse.json({
-        url: response.url || rawUrl,
-        name: offer.productTitle,
-        articleNumber: offer.sku,
-        ean: offer.ean,
-        ownPrice: offer.price,
-        currency: offer.currency?.toUpperCase() ?? null,
-        stockStatus: offer.stockStatus,
-        packagingQty: offer.packagingQty,
-        extractionMethod: offer.method,
-        vatIncluded: vat.vatIncluded,
-        vatConfidence: vat.confidence,
-        vatEvidence: vat.evidence,
-        brand: details.brand,
-        productGroup: details.category,
-        model: details.model,
-        mpn: details.mpn,
-        image: details.image,
-        existingProduct,
+        url: response?.url || rawUrl,
+        name: null,
+        articleNumber: null,
+        ean: null,
+        ownPrice: null,
+        currency: null,
+        stockStatus: null,
+        packagingQty: null,
+        extractionMethod: null,
+        vatIncluded: null,
+        vatConfidence: 'UNKNOWN',
+        vatEvidence: null,
+        brand: null,
+        productGroup: null,
+        model: null,
+        mpn: null,
+        image: null,
+        existingProduct: null,
+        partial: true,
       })
     } finally {
       clearTimeout(timer)
