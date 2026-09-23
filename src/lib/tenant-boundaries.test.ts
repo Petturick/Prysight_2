@@ -42,7 +42,7 @@ test('rapport exports en matchmutaties zijn tenant scoped', () => {
   const reportsApi = source('src/app/api/rapportages/route.ts')
   assert.ok(reportsApi.includes("requirePermission('reports.read')"))
   assert.ok(reportsApi.includes('companyId: actor.companyId'))
-  assert.ok(reportsApi.includes('buildWeeklyReportPayload(company.id)'))
+  assert.ok(reportsApi.includes('buildWeeklyReportPayload(company.id, weekStart, new Date())'))
 
   const matches = source('src/app/actions/matchActions.ts')
   assert.ok(matches.includes("requirePermission('competitors.write')"))
@@ -69,4 +69,17 @@ test('hourly Netlify taak draagt zwaar werk over aan background functie', () => 
   assert.ok(scheduled.includes("schedule: '@hourly'"))
   assert.ok(background.includes('/api/prijscontroles'))
   assert.ok(background.includes("Netlify.env.get('PRICE_MONITOR_API_KEY')"))
+})
+
+test('rapport toont een verse productstand en telt alle fouten voor uitsluitend actieve productbronnen', () => {
+  const dashboard = source('src/lib/dashboard.ts')
+  const reports = source('src/app/rapportages/page.tsx')
+  const actions = source('src/app/actions/reportActions.ts')
+  assert.ok(dashboard.includes('prisma.priceCheck.count({ where: failedWhere })'))
+  assert.ok(dashboard.includes('prisma.competitorOffer.count({ where: staleWhere })'))
+  assert.ok(dashboard.includes('product: { companyId: companyId || undefined, isActive: true }'))
+  assert.ok(dashboard.includes('checkedAt: { gte: checkedSince, lte: checkedUntil }'))
+  assert.ok(reports.includes('getFreshDashboardSnapshot({}, actor.companyId)'))
+  assert.ok(reports.includes('Historische momentopname'))
+  assert.ok(actions.includes('getFreshDashboardSnapshot({}, companyId, { from: weekStart, to: weekEnd })'))
 })
