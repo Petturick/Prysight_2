@@ -176,7 +176,7 @@ export async function saveProductGroupAction(formData: FormData) {
   if (!name || isUnnamedGroup(name)) throw new Error('Geef de productgroep een herkenbare naam, geen categoriecode.')
   const existing = id ? await prisma.productGroup.findFirst({ where: { id, companyId: actor.companyId } }) : null
   if (id && !existing) throw new Error('Productgroep niet gevonden in deze organisatie.')
-  if (existing && mergedGroupTarget(existing.description)) throw new Error('Deze productgroep is al samengevoegd.')
+  if (existing && (mergedGroupTarget(existing.description) || existing.name.trim().toLowerCase() === 'onbekend')) throw new Error('De standaardgroep voor niet ingedeelde producten kan niet worden hernoemd of samengevoegd.')
   // Imported feed codes are stable source identifiers. Store their visible label in
   // the description so the next feed sync cannot recreate an anonymous category.
   const saved = existing && /^\d+$/.test(existing.name)
@@ -205,7 +205,7 @@ export async function mergeProductGroupAction(formData: FormData) {
     prisma.productGroup.findFirst({ where: { id: sourceId, companyId: actor.companyId } }),
     prisma.productGroup.findFirst({ where: { id: targetId, companyId: actor.companyId, isActive: true } }),
   ])
-  if (!source || !target || source.name.trim().toLowerCase() === 'onbekend' || mergedGroupTarget(source.description) || mergedGroupTarget(target.description) || productGroupLabel(target) === 'Nog niet ingedeeld') {
+  if (!source || !target || source.name.trim().toLowerCase() === 'onbekend' || target.name.trim().toLowerCase() === 'onbekend' || mergedGroupTarget(source.description) || mergedGroupTarget(target.description) || productGroupLabel(target) === 'Nog niet ingedeeld') {
     throw new Error('Selecteer een bestaande bron en een actieve productgroep met een herkenbare naam.')
   }
   await prisma.$transaction(async (tx) => {
@@ -233,6 +233,7 @@ export async function deleteProductGroupAction(formData: FormData) {
   const id = String(formData.get('id') ?? '').trim()
   const group = await prisma.productGroup.findFirst({ where: { id, companyId: actor.companyId } })
   if (!group) throw new Error('Productgroep niet gevonden in deze organisatie.')
+  if (group.name.trim().toLowerCase() === 'onbekend') throw new Error('De standaardgroep voor niet ingedeelde producten kan niet worden verwijderd.')
   const [products, aliases] = await Promise.all([
     prisma.product.count({ where: { companyId: actor.companyId, productGroupId: id } }),
     prisma.productGroup.count({ where: { companyId: actor.companyId, description: MERGED_GROUP_PREFIX + id } }),
