@@ -11,14 +11,14 @@ const tabs: Array<{ href: string; label: string; permission?: Permission; superA
   { href: '/instellingen/organisaties', label: 'Organisaties', superAdminOnly: true },
   { href: '/instellingen/markten', label: 'Markten', permission: 'settings.manage' },
   { href: '/instellingen/feedbeheer', label: 'Feedbeheer', permission: 'feeds.read' },
-  { href: '/instellingen/team', label: 'Team', permission: 'users.manage' },
-  { href: '/instellingen/gebruikers', label: 'Gebruikers', permission: 'users.manage' },
+  
+  { href: '/instellingen/gebruikers', label: 'Gebruikers en rechten', permission: 'users.manage' },
   { href: '/instellingen/rollen', label: 'Rollen en rechten', superAdminOnly: true },
   { href: '/integraties', label: 'Integraties', permission: 'settings.manage' },
   { href: '/instellingen/licentie', label: 'Licentie en facturatie', permission: 'billing.manage' },
   { href: '/instellingen/systeem', label: 'Systeem', permission: 'settings.manage' },
-  { href: '/instellingen/data', label: 'Data beheer', superAdminOnly: true },
-  { href: '/instellingen/profiel', label: 'Mijn profiel' },
+  { href: '/instellingen/data', label: 'Gegevens verwijderen', superAdminOnly: true },
+  
 ]
 
 export function SettingsTabs({ role, permissions = [] }: { role?: AppRole | null; permissions?: Permission[] }) {
