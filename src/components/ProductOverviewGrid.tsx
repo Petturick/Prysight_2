@@ -60,6 +60,8 @@ export function ProductOverviewGrid({
   canCrawl,
   canDelete,
   deleteAction,
+  assignGroupAction,
+  productGroups,
   refreshPricesAction,
   refreshSinglePriceAction,
   filters,
@@ -70,6 +72,8 @@ export function ProductOverviewGrid({
   canCrawl: boolean
   canDelete: boolean
   deleteAction: (data: FormData) => Promise<void>
+  assignGroupAction: (data: FormData) => Promise<void>
+  productGroups: Array<{ id: string; name: string }>
   refreshPricesAction: (data: FormData) => Promise<void>
   refreshSinglePriceAction: (data: FormData) => Promise<void>
   filters: {
@@ -85,6 +89,7 @@ export function ProductOverviewGrid({
   const [allResultsSelected, setAllResultsSelected] = useState(false)
   const [visible, setVisible] = useState<Column[]>(DEFAULT_COLUMNS)
   const [compact, setCompact] = useState(true)
+  const [targetGroupId, setTargetGroupId] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sourceLookup, setSourceLookup] = useState<{ running: boolean; done: number; total: number; created: number; errors: number; message: string } | null>(null)
   const router = useRouter()
@@ -207,6 +212,16 @@ export function ProductOverviewGrid({
             <button type="button" onClick={() => setCompact((value) => !value)} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px]">{compact ? 'Ruimer' : 'Compacter'}</button>
           </div>
         </div>
+        {selectionCount > 0 && productGroups.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#e7edf3] bg-[#f9fbff] px-4 py-3">
+            <label htmlFor="bulk-product-group" className="text-[11px] font-semibold text-[#40556e]">Productgroep wijzigen</label>
+            <select id="bulk-product-group" name="targetProductGroupId" value={targetGroupId} onChange={(event) => setTargetGroupId(event.target.value)} className="toolbar-control min-w-[190px] max-w-[270px]">
+              <option value="">Kies een productgroep</option>
+              {productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </select>
+            <button type="submit" formAction={assignGroupAction} disabled={!targetGroupId} className="secondary-action disabled:opacity-40">Toewijzen aan {selectionCount} producten</button>
+          </div>
+        ) : null}
         {sourceLookup ? <div role="status" aria-live="polite" className="border-b border-[#e7edf3] bg-[#f3f8ff] px-4 py-2 text-[11px] font-medium text-[#315fa7]">{sourceLookup.message} {sourceLookup.created > 0 ? <Link href="/productmatches" className="ml-2 font-semibold underline">Bekijk suggesties</Link> : null}</div> : null}
         <div className="w-full overflow-x-auto" role="region" aria-label="Productenoverzicht" tabIndex={0}>
           <table className="w-full min-w-[1030px] table-auto border-separate border-spacing-0 text-left text-[11px]">
