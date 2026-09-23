@@ -14,7 +14,7 @@ export function productGroupLabel(group: { name: string; description?: string | 
   const name = group.name.trim()
   if (!isUnnamedGroup(name)) return name
   const label = group.description?.trim() || ''
-  return label && !isUnnamedGroup(label) ? label : 'Nog niet ingedeeld'
+  return label && !isUnnamedGroup(label) && !/^Automatisch aangemaakt/i.test(label) ? label : 'Nog niet ingedeeld'
 }
 
 /** Suggest only an existing, uniquely matching, named group; never fabricate a category. */
