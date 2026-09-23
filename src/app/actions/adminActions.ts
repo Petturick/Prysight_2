@@ -110,9 +110,10 @@ export async function setCompetitorActiveAction(formData: FormData) {
   const isActive = String(formData.get('isActive')) === 'true'
   const competitor = await prisma.competitor.findFirst({
     where: { id, companyId: actor.companyId },
-    select: { id: true, name: true, isActive: true },
+    select: { id: true, name: true, isActive: true, countryId: true },
   })
   if (!competitor) throw new Error('Concurrent niet gevonden binnen deze organisatie.')
+  if (isActive) await requireLicensedCountry(actor.companyId, competitor.countryId)
   await prisma.competitor.update({ where: { id, companyId: actor.companyId }, data: { isActive } })
   await audit(actor.id, isActive ? 'COMPETITOR_RESUMED' : 'COMPETITOR_PAUSED', 'Competitor', id,
     { isActive: competitor.isActive }, { companyId: actor.companyId, isActive })
