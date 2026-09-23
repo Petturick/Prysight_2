@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Feed = { id: string; name: string; countryCode: string; isActive: boolean; sourceType: string;
+type Feed = { id: string; name: string; countryCode: string; isActive: boolean; sourceType: string; sourceKey: string;
   syncFrequencyHours: number; lastRunStatus: string; lastRunAt: string | null;
   lastItemCount: number; lastErrorCount: number; syncError: string | null }
 type Competitor = { id: string; name: string; isActive: boolean; frequency: number; offerCount: number;
@@ -24,9 +24,9 @@ function formattedDate(value: string | null) {
 }
 
 export function SynchronizationHub({ marketName, feeds: initialFeeds, competitors: initialCompetitors,
-  canReadFeeds, canWriteFeeds, canReadPrices, canWritePrices, canEditCompetitors,
+  canReadFeeds, canWriteFeeds, canWriteProducts, canReadPrices, canWritePrices, canEditCompetitors,
 }: { marketName: string; feeds: Feed[]; competitors: Competitor[]; canReadFeeds: boolean; canWriteFeeds: boolean;
-  canReadPrices: boolean; canWritePrices: boolean; canEditCompetitors: boolean }) {
+  canReadPrices: boolean; canWritePrices: boolean; canEditCompetitors: boolean; canWriteProducts: boolean }) {
   const router = useRouter()
   const [tab, setTab] = useState<'feeds' | 'prices'>(canReadFeeds ? 'feeds' : 'prices')
   const [feeds, setFeeds] = useState(initialFeeds)
@@ -68,21 +68,27 @@ export function SynchronizationHub({ marketName, feeds: initialFeeds, competitor
   }
 
   async function saveFeed(feed: Feed, frequency: number) {
-    if (!canWriteFeeds || busy) return
+    const ownUrl = feed.sourceType === 'API' && feed.sourceKey.startsWith('own-url:')
+    if (!(ownUrl ? canWriteProducts : canWriteFeeds) || busy) return
     setBusy(feed.id); setNotice(null)
     try {
-      const data = await request(`/api/feeds/${encodeURIComponent(feed.id)}`, 'PATCH', { syncFrequencyHours: frequency })
-      setFeeds(current => current.map(item => item.id === feed.id ? { ...item, syncFrequencyHours: Number(data.syncFrequencyHours) } : item))
+      const data = ownUrl
+        ? await request('/api/synchronisatie/product-url', 'POST', { productId: feed.sourceKey.split(':')[1], countryId: feed.sourceKey.split(':')[2], action: 'configure', frequency })
+        : await request(`/api/feeds/${encodeURIComponent(feed.id)}`, 'PATCH', { syncFrequencyHours: frequency })
+      const updatedFrequency = ownUrl ? (data.source as { syncFrequencyHours: number }).syncFrequencyHours : Number(data.syncFrequencyHours)
+      setFeeds(current => current.map(item => item.id === feed.id ? { ...item, syncFrequencyHours: Number(updatedFrequency) } : item))
       setNotice({ ok: true, text: `Planning voor ${feed.name} opgeslagen.` })
     } catch (error) { setNotice({ ok: false, text: error instanceof Error ? error.message : 'Opslaan mislukt.' }) }
     finally { setBusy('') }
   }
 
   async function syncFeed(feed: Feed) {
-    if (!canWriteFeeds || busy) return
+    const ownUrl = feed.sourceType === 'API' && feed.sourceKey.startsWith('own-url:')
+    if (!(ownUrl ? canWriteProducts : canWriteFeeds) || busy) return
     setBusy(feed.id); setNotice(null)
     try {
-      await request(`/api/feeds/${encodeURIComponent(feed.id)}/sync`, 'POST')
+      if (ownUrl) await request('/api/synchronisatie/product-url', 'POST', { productId: feed.sourceKey.split(':')[1], countryId: feed.sourceKey.split(':')[2], action: 'sync' })
+      else await request(`/api/feeds/${encodeURIComponent(feed.id)}/sync`, 'POST')
       setFeeds(current => current.map(item => item.id === feed.id ? { ...item, lastRunStatus: 'RUNNING', syncError: null } : item))
       setNotice({ ok: true, text: `Synchronisatie van ${feed.name} is gestart. De status wordt automatisch bijgewerkt.` })
     } catch (error) { setNotice({ ok: false, text: error instanceof Error ? error.message : 'Synchronisatie mislukt.' }) }
@@ -146,7 +152,7 @@ export function SynchronizationHub({ marketName, feeds: initialFeeds, competitor
         {feeds.map(feed => <div key={feed.id} className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
           <div className="min-w-[190px] flex-1">
             <p className="text-[13px] font-semibold text-[#263b53]">{feed.name}</p>
-            <p className="mt-1 text-[11px] text-[#738298]">{feed.countryCode} · {feed.sourceType === 'URL' ? 'URL feed' : feed.sourceType} · {feed.lastItemCount} regels</p>
+            <p className="mt-1 text-[11px] text-[#738298]">{feed.countryCode} · {feed.sourceKey.startsWith('own-url:') ? 'Product URL' : feed.sourceType === 'URL' ? 'URL feed' : feed.sourceType} · {feed.lastItemCount} regels</p>
           </div>
           <div className="min-w-[180px] text-[11px] text-[#63758c]">
             <p className="font-medium text-[#34495f]">{!feed.isActive ? 'Inactief' : feed.lastRunStatus === 'RUNNING' ? 'Bezig' : feed.lastRunStatus === 'FAILED' ? 'Controle nodig' : feed.lastRunStatus === 'COMPLETED' ? 'Gesynchroniseerd' : 'Nog niet gesynchroniseerd'}</p>
@@ -157,20 +163,20 @@ export function SynchronizationHub({ marketName, feeds: initialFeeds, competitor
             Synchronisatie
             <select aria-label={`Synchronisatiefrequentie voor ${feed.name}`} value={feed.syncFrequencyHours}
               onChange={event => void saveFeed(feed, Number(event.target.value))}
-              disabled={!canWriteFeeds || feed.sourceType !== 'URL' || !feed.isActive || feed.lastRunStatus === 'RUNNING' || Boolean(busy)}
+              disabled={!(feed.sourceKey.startsWith('own-url:') ? canWriteProducts : canWriteFeeds) || !(feed.sourceType === 'URL' || feed.sourceKey.startsWith('own-url:')) || !feed.isActive || feed.lastRunStatus === 'RUNNING' || Boolean(busy)}
               className="toolbar-control mt-1 w-full">
               {feedFrequencies.map(([hours, label]) => <option value={hours} key={hours}>{label}</option>)}
             </select>
           </label>
-          {feed.sourceType === 'URL' ? <button type="button" onClick={() => void syncFeed(feed)}
-            disabled={!canWriteFeeds || !feed.isActive || feed.lastRunStatus === 'RUNNING' || Boolean(busy)}
+          {(feed.sourceType === 'URL' || feed.sourceKey.startsWith('own-url:')) ? <button type="button" onClick={() => void syncFeed(feed)}
+            disabled={!(feed.sourceKey.startsWith('own-url:') ? canWriteProducts : canWriteFeeds) || !feed.isActive || feed.lastRunStatus === 'RUNNING' || Boolean(busy)}
             className="primary-action min-w-[125px] disabled:opacity-50">
             {busy === feed.id || feed.lastRunStatus === 'RUNNING' ? 'Bezig…' : 'Nu synchroniseren'}
           </button> : <Link href={feed.sourceType === 'SYNTRX' ? '/integraties' : '/feeds'} className="secondary-action">Via bron bijwerken</Link>}
         </div>)}
         {!feeds.length ? <p className="p-6 text-[12px] text-[#738298]">Geen productfeeds voor deze markt. <Link href="/feeds" className="text-[#2f6edb] underline">Voeg een feed toe</Link>.</p> : null}
       </div>
-      <p className="border-t border-[#e7edf3] px-5 py-3 text-[11px] text-[#738298]">URL feeds worden volgens hun ingestelde frequentie opgehaald. Handmatige invoer en Syntrx synchroniseer je vanuit de bijbehorende bron.</p>
+      <p className="border-t border-[#e7edf3] px-5 py-3 text-[11px] text-[#738298]">URL feeds en gekoppelde eigen productpagina’s worden volgens hun ingestelde frequentie opgehaald. Syntrx synchroniseer je vanuit de bijbehorende bron.</p>
     </section> : null}
     {tab === 'prices' && canReadPrices ? <section className="ps-panel overflow-hidden" role="tabpanel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf3] px-4 py-3 sm:px-5">
