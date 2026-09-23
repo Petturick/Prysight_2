@@ -22,7 +22,8 @@ const mobileItems = [
 
 function routeMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/producten')) return { title: 'Producten', helper: 'Vergelijk eigen prijzen met de markt', action: { href: '/producten/nieuw', label: 'Product toevoegen' } }
-  if (pathname.startsWith('/concurrenten') || pathname.startsWith('/monitoring') || pathname.startsWith('/productmatches')) return { title: 'Markt', helper: 'Concurrenten, matches en meetkwaliteit', action: { href: '/productmatches', label: 'Matches controleren' } }
+  if (pathname.startsWith('/concurrenten')) return { title: 'Concurrenten', helper: 'Beheer concurrenten per markt', action: { href: '/productmatches', label: 'Matches controleren' } }
+  if (pathname.startsWith('/monitoring') || pathname.startsWith('/productmatches')) return { title: 'Markt', helper: 'Productmatches en meetkwaliteit', action: { href: '/concurrenten', label: 'Concurrenten' } }
   if (pathname.startsWith('/acties') || pathname.startsWith('/waarschuwingen') || pathname.startsWith('/prijsstrategie') || pathname.startsWith('/prijsregels') || pathname.startsWith('/prijswijzigingen') || pathname.startsWith('/prijsautomatisering')) return { title: 'Acties', helper: 'Werk alleen af wat echt aandacht vraagt', action: { href: '/acties', label: 'Open acties' } }
   if (pathname.startsWith('/rapportages')) return { title: 'Inzichten', helper: 'Analyseer trends en deel conclusies' }
   if (pathname.startsWith('/instellingen') || pathname.startsWith('/feeds') || pathname.startsWith('/import') || pathname.startsWith('/integraties') || pathname.startsWith('/beheer') || pathname.startsWith('/onboarding')) return { title: 'Beheer', helper: 'Data, feeds, koppelingen en organisatie', action: { href: '/import/bulk', label: 'Bulk import' } }
