@@ -173,7 +173,7 @@ export async function getPricingRecommendations(
                 isActive: true,
                 normalizedPrice: true,
                 stockStatus: true,
-                competitor: { select: { countryId: true, country: { select: { code: true, name: true, vatRate: true } } } },
+                competitor: { select: { isActive: true, countryId: true, country: { select: { code: true, name: true, vatRate: true } } } },
               },
             },
           },
@@ -190,7 +190,7 @@ export async function getPricingRecommendations(
 
   for (const product of products) {
     const guardrail = guardrailMap.get(product.id) ?? null
-    const matchedOffers = product.matches.map((match) => match.competitorOffer).filter((offer) => offer.isActive && offer.normalizedPrice !== null)
+    const matchedOffers = product.matches.map((match) => match.competitorOffer).filter((offer) => offer.isActive && offer.competitor.isActive && offer.normalizedPrice !== null)
 
     const marketMap = new Map<string, {
       countryId: string | null

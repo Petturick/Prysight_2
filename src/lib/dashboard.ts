@@ -103,7 +103,7 @@ export async function getFilteredProducts(filters: DashboardFilters = {}, compan
 
 function getFilteredMatches(product: ProductWithRelations, filters: DashboardFilters) {
   return product.matches.filter((match) => {
-    if (!match.competitorOffer.isActive) return false
+    if (!match.competitorOffer.isActive || !match.competitorOffer.competitor.isActive) return false
     if (filters.matchStatus && match.matchStatus !== filters.matchStatus) return false
     if (filters.competitorId && match.competitorOffer.competitorId !== filters.competitorId) return false
     if (filters.countryId && match.competitorOffer.competitor.countryId !== filters.countryId) return false

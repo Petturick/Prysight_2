@@ -545,19 +545,22 @@ export async function removeCompetitorOfferAction(formData: FormData) {
   })
   if (!match) throw new Error('Deze concurrent is niet meer aan het product gekoppeld.')
 
-  await prisma.$transaction([
-    prisma.productMatch.delete({ where: { id: match.id } }),
-    prisma.competitorOffer.update({
-      where: { id: match.competitorOfferId },
+  await prisma.$transaction(async (tx) => {
+    await tx.alert.deleteMany({ where: { companyId: user.companyId, competitorOfferId: match.competitorOfferId } })
+    await tx.productMatch.delete({ where: { id: match.id } })
+    await tx.competitorOffer.update({
+      where: { id: match.competitorOfferId, companyId: user.companyId },
       data: { isActive: false },
-    }),
-  ])
+    })
+  })
 
   revalidatePath('/dashboard')
   revalidatePath('/producten')
   revalidatePath(`/producten/${productId}`)
   revalidatePath('/productmatches')
   revalidatePath('/concurrenten')
+  revalidatePath('/waarschuwingen')
+  revalidatePath('/monitoring')
 }
 
 export async function refreshProductIntelligenceAction(formData: FormData) {

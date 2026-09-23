@@ -14,7 +14,7 @@ type NavItem = { href: string; label: string; icon: IconName; aliases?: string[]
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Overzicht', icon: 'dashboard' },
   { href: '/producten', label: 'Producten', icon: 'products' },
-  { href: '/concurrenten', label: 'Markt', icon: 'competitors', aliases: ['/monitoring', '/productmatches'] },
+  { href: '/concurrenten', label: 'Concurrenten', icon: 'competitors', aliases: ['/monitoring', '/productmatches'] },
   { href: '/acties', label: 'Acties', icon: 'alerts', aliases: ['/waarschuwingen', '/prijsstrategie', '/prijsregels', '/prijswijzigingen', '/prijsautomatisering'] },
   { href: '/rapportages', label: 'Inzichten', icon: 'reports' },
   { href: '/instellingen', label: 'Beheer', icon: 'settings', aliases: ['/feeds', '/import', '/integraties', '/beheer', '/onboarding'] },
