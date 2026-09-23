@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DataTable } from '@/components/DataTable'
+import { checkCompetitorSourceAction } from '@/app/actions/competitorSourceActions'
 import { requirePermission } from '@/lib/authz'
 import { deriveCompetitorMetrics } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -41,11 +42,12 @@ function friendlyFailureReason(message: string | null | undefined) {
   return 'Prijs kon niet betrouwbaar worden opgehaald'
 }
 
-export default async function ConcurrentDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ bijgewerkt?: string }> }) {
+export default async function ConcurrentDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ bijgewerkt?: string; bronbijgewerkt?: string; bronverwijderd?: string; broncontrole?: string }> }) {
   const actor = await requirePermission('competitors.read')
   const { id } = await params
   const query = await searchParams
   const canWrite = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
+  const canCheckPrices = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
   const competitor = await prisma.competitor.findFirst({
     where: { id, companyId: actor.companyId },
     include: {
@@ -63,13 +65,19 @@ export default async function ConcurrentDetailPage({ params, searchParams }: { p
 
   if (!competitor) notFound()
   const metrics = deriveCompetitorMetrics(competitor)
-  const latestChecks = competitor.offers.map((offer) => offer.priceChecks[0]).filter((check): check is LatestCheck => Boolean(check))
+  const linkedOffers = competitor.offers.filter((offer) => Boolean(offer.productMatch))
+  const unlinkedOffers = competitor.offers.length - linkedOffers.length
+  const latestChecks = linkedOffers.map((offer) => offer.priceChecks[0]).filter((check): check is LatestCheck => Boolean(check))
   const failedLatestChecks = latestChecks.filter((check) => !check.isSuccess)
   const lastAttempt = latestChecks.map((check) => check.checkedAt).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
 
   return (
     <div className="space-y-4">
       {query.bijgewerkt === '1' ? <p role="status" className="rounded-[10px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">De concurrentgegevens zijn opgeslagen. Gekoppelde product URL’s en prijshistorie zijn behouden.</p> : null}
+      {query.bronbijgewerkt === '1' ? <p role="status" className="rounded-[10px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">De prijsbron is bijgewerkt. Controleer de productmatch en haal de nieuwe prijs op.</p> : null}
+      {query.bronverwijderd === '1' ? <p role="status" className="rounded-[10px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">De prijsbron is verwijderd. Andere prijsbronnen en de concurrent zijn behouden.</p> : null}
+      {query.broncontrole === 'gelukt' ? <p role="status" className="rounded-[10px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">De nieuwe prijscontrole is geslaagd.</p> : null}
+      {query.broncontrole === 'mislukt' ? <p role="alert" className="rounded-[10px] bg-[#fff3f4] px-4 py-3 text-[12px] font-semibold text-[#913140]">De prijs kon nog niet betrouwbaar worden vastgesteld. Controleer de product URL en productmatch.</p> : null}
       <section className="strong-panel overflow-hidden">
         <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div>
@@ -87,6 +95,16 @@ export default async function ConcurrentDetailPage({ params, searchParams }: { p
         </div>
       </section>
 
+      {unlinkedOffers > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#e8d9af] bg-[#fff9e8] px-4 py-3">
+          <div>
+            <p className="text-[12px] font-semibold text-[#755c29]">{unlinkedOffers} prijsbron{unlinkedOffers === 1 ? '' : 'nen'} nog niet aan een product gekoppeld.</p>
+            <p className="mt-1 text-[11px] text-[#806b42]">Koppel per bron het juiste product voordat je een betrouwbare concurrentieprijs kunt ophalen. Eerdere foutmeldingen van niet gekoppelde bronnen tellen niet als actuele productcontrole.</p>
+          </div>
+          <a href="#prijsbronnen" className="secondary-action">Producten koppelen</a>
+        </div>
+      ) : null}
+
       {failedLatestChecks.length > 0 ? (
         <div className="rounded-[12px] border border-[#efc8cd] bg-[#fff3f4] px-4 py-3">
           <p className="text-[12px] font-semibold text-[#913140]">{failedLatestChecks.length} prijsbron{failedLatestChecks.length === 1 ? '' : 'nen'} is bij de laatste controle mislukt.</p>
@@ -94,8 +112,8 @@ export default async function ConcurrentDetailPage({ params, searchParams }: { p
         </div>
       ) : null}
 
-      <section className="ps-panel overflow-hidden">
-        <div className="border-b border-[#e7edf3] px-5 py-4"><h2 className="text-[15px] font-semibold text-[#21364d]">Prijsbronnen</h2></div>
+      <section id="prijsbronnen" className="ps-panel scroll-mt-4 overflow-hidden">
+        <div className="border-b border-[#e7edf3] px-5 py-4"><h2 className="text-[15px] font-semibold text-[#21364d]">Prijsbronnen</h2><p className="mt-1 text-[11px] text-[#718197]">Koppel of wijzig hier het product en de URL van iedere prijsbron afzonderlijk.</p></div>
         <DataTable
           emptyText="Nog geen product URLs gekoppeld aan deze concurrent."
           columns={[
@@ -104,21 +122,36 @@ export default async function ConcurrentDetailPage({ params, searchParams }: { p
             { key: 'status', header: 'Status' },
             { key: 'controle', header: 'Laatste controle' },
             { key: 'bron', header: 'Bron' },
+            { key: 'acties', header: 'Acties' },
           ]}
           rows={competitor.offers.map((offer) => {
             const latest = offer.priceChecks[0]
-            const status = latest
+            const status = !offer.productMatch
+              ? <span className="ps-chip ps-chip-amber">Product koppelen</span>
+              : latest
               ? latest.isSuccess
                 ? <span className="ps-chip ps-chip-green">Geslaagd</span>
                 : <div><span className="ps-chip ps-chip-red">Mislukt</span><p className="mt-1 max-w-[260px] text-[10px] text-[#8d4652]">{friendlyFailureReason(latest.errorMessage)}</p></div>
               : <span className="ps-chip ps-chip-amber">Nog niet gecontroleerd</span>
 
             return {
-              product: offer.productMatch?.product ? <Link href={`/producten/${offer.productMatch.product.id}`} className="font-semibold text-[#2f6edb]">{offer.productMatch.product.name}</Link> : 'Nog niet gekoppeld',
-              prijs: formatCurrency(offer.normalizedPrice),
+              product: offer.productMatch?.product
+                ? <Link href={`/producten/${offer.productMatch.product.id}`} className="font-semibold text-[#2f6edb]">{offer.productMatch.product.name}</Link>
+                : canWrite
+                  ? <Link href={`/concurrenten/${competitor.id}/bronnen/${offer.id}/bewerken`} className="font-semibold text-[#2f6edb]">+ Product koppelen</Link>
+                  : 'Nog niet gekoppeld',
+              prijs: offer.productMatch ? formatCurrency(offer.normalizedPrice) : '—',
               status,
               controle: latest ? formatDate(latest.checkedAt) : 'Nog niet gecontroleerd',
-              bron: <a href={offer.url} target="_blank" rel="noreferrer" className="font-semibold text-[#2f6edb]">Open URL</a>,
+              bron: <a href={offer.url} target="_blank" rel="noreferrer" className="font-semibold text-[#2f6edb]">Open URL ↗</a>,
+              acties: <div className="flex flex-wrap items-center gap-2">
+                {canWrite ? <Link href={`/concurrenten/${competitor.id}/bronnen/${offer.id}/bewerken`} className="secondary-action min-h-0 px-3 py-2 text-[11px]">Wijzigen</Link> : null}
+                {canCheckPrices && offer.productMatch && competitor.isActive ? <form action={checkCompetitorSourceAction}>
+                  <input type="hidden" name="competitorId" value={competitor.id} />
+                  <input type="hidden" name="offerId" value={offer.id} />
+                  <button type="submit" className="secondary-action min-h-0 px-3 py-2 text-[11px]">Prijs controleren</button>
+                </form> : null}
+              </div>,
             }
           })}
         />
