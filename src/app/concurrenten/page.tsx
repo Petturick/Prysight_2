@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { selectedMarketCode } from '@/lib/market-context'
 import { createCompetitorAction } from '@/app/actions/productActions'
 import { activateCompanyCountryAction } from '@/app/actions/onboardingActions'
-import { CompetitorMarketPicker } from '@/components/CompetitorMarketPicker'
 import { CompetitorBulkTable } from '@/components/CompetitorBulkTable'
 import { CompetitorRowActions } from '@/components/CompetitorRowActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
@@ -63,7 +63,8 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
   const user = await requireAuthenticatedUser()
   const canWrite = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const canManageMarkets = user.role === 'SUPER_ADMIN' || user.permissions.includes('settings.manage')
-  const requestedMarket = typeof params.markt === 'string' ? params.markt.trim().toUpperCase() : ''
+  const marketCode = await selectedMarketCode(user.companyId)
+  const requestedMarket = typeof params.markt === 'string' ? params.markt.trim().toUpperCase() : marketCode
 
   const result = await profileStep('/concurrenten', 'overview', () => safeDatabaseQuery(async () => {
     const [companyCountries, availableCountries] = await Promise.all([
@@ -140,7 +141,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
 
       <section className="ps-panel flex flex-wrap items-end justify-between gap-3 px-5 py-4 sm:px-6" aria-label="Markt selecteren en toevoegen">
         <div className="flex flex-wrap items-end gap-3">
-          <CompetitorMarketPicker countries={countries} selected={selectedMarket?.code ?? 'alle'} />
+          <span className="text-[12px] font-semibold text-[#34495f]">{selectedMarket ? selectedMarket.name : 'Alle actieve markten'}</span>
           <div className="flex flex-col gap-1 pb-1 text-[11px] text-[#718197]">
             <span>{selectedMarket ? `Je bekijkt concurrenten in ${selectedMarket.name}.` : 'Je bekijkt de concurrenten van alle actieve markten.'}</span>
             {selectedMarket ? <Link href={`/producten?land=${encodeURIComponent(selectedMarket.id)}`} className="font-semibold text-[#356ccd]">Producten in {selectedMarket.name} bekijken</Link> : null}

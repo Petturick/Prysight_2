@@ -12,6 +12,7 @@ import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
+import { selectedMarketCode } from '@/lib/market-context'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { getPricingRecommendations } from '@/lib/pricing-engine'
 import { prisma } from '@/lib/prisma'
@@ -152,8 +153,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
 
   if (!product) notFound()
 
+  const marketCode = await selectedMarketCode(user.companyId)
   const requestedCountryId = readParam(query.markt)
   const defaultCountry = countries.find((country) => country.id === requestedCountryId && product.productMarkets.some((market) => market.countryId === country.id))
+    ?? countries.find((country) => country.code.toUpperCase() === marketCode)
     ?? countries.find((country) => product.productMarkets.some((market) => market.countryId === country.id))
     ?? countries.find((country) => country.code === 'NL')
     ?? countries[0]

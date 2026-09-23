@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { getActiveCompanyCountries } from '@/lib/company-countries'
+import { selectedMarketCode } from '@/lib/market-context'
 import { assignProductGroupAction, deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
@@ -26,12 +28,17 @@ function percent(value: number | null) {
 export default async function ProductenPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await requirePermission('products.read')
   const params = await searchParams
+  const [marketCode, activeMarkets] = await Promise.all([selectedMarketCode(actor.companyId), getActiveCompanyCountries(actor.companyId)])
+  const activeMarket = activeMarkets.find(market => market.code.toUpperCase() === marketCode)
+  const requestedMarket = readParam(params.land)
+  const scopedMarket = activeMarkets.find(market => market.id === requestedMarket)
+  const selectedCountryId = requestedMarket === '' ? undefined : requestedMarket ? scopedMarket?.id ?? '__unlicensed_market__' : activeMarket?.id
   const canCrawl = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
   const canDelete = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
   const filters = {
     q: readParam(params.q)?.trim() || undefined,
     productGroupId: readParam(params.productgroep) || undefined,
-    countryId: readParam(params.land) || undefined,
+    countryId: selectedCountryId,
     competitorId: readParam(params.concurrent) || undefined,
     identifierStatus: readParam(params.identificatie) || undefined,
     feedSourceId: readParam(params.feed) || undefined,
@@ -220,10 +227,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       <section className="ps-panel px-3 py-3 sm:px-4">
         <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
           <input name="q" defaultValue={filters.q || ''} placeholder="Zoek op artikelnummer, productnaam of EAN" aria-label="Zoek producten" className="toolbar-control min-w-[210px] flex-[2_1_240px]" />
-          <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[125px] flex-1">
-            <option value="">Alle markten</option>
-            {filterOptions.countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
-          </select>
           <select name="feed" aria-label="Productfeed" defaultValue={filters.feedSourceId || ''} className="toolbar-control min-w-[140px] flex-1">
             <option value="">Alle feeds</option>
             {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}

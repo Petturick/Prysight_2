@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { selectedMarketCode } from '@/lib/market-context'
 import { createSmartProductAction } from '@/app/actions/smartProductActions'
 import { ProductUrlQuickStart } from '@/components/ProductUrlQuickStart'
 import { EanDiscoveryField } from '@/components/EanDiscoveryField'
@@ -17,7 +18,8 @@ export default async function NewProductPage() {
     getActiveCompanyCountries(user.companyId),
     prisma.productGroup.findMany({ where: { companyId: user.companyId, isActive: true }, orderBy: { name: 'asc' } }),
   ])
-  const defaultCountry = countries.find((country) => country.code === 'NL') ?? countries[0]
+  const marketCode = await selectedMarketCode(user.companyId)
+  const defaultCountry = countries.find((country) => country.code.toUpperCase() === marketCode) ?? countries.find((country) => country.code === 'NL') ?? countries[0]
 
   return (
     <div className="mx-auto max-w-[1050px] space-y-3 pb-6">
