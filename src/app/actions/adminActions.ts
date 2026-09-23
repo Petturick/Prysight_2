@@ -104,9 +104,49 @@ export async function saveCompetitorAdminAction(formData: FormData) {
   const result = id ? await prisma.competitor.update({ where: { id, companyId: actor.companyId }, data: parsed }) : await prisma.competitor.create({ data: { ...parsed, companyId: actor.companyId } })
   await audit(actor.id, 'COMPETITOR_SAVED', 'Competitor', result.id, null, { companyId: actor.companyId, name: result.name }); revalidatePath('/beheer/concurrenten'); revalidatePath('/concurrenten')
 }
+export async function setCompetitorActiveAction(formData: FormData) {
+  const actor = await requirePermission('competitors.write')
+  const id = String(formData.get('id') ?? '')
+  const isActive = String(formData.get('isActive')) === 'true'
+  const competitor = await prisma.competitor.findFirst({
+    where: { id, companyId: actor.companyId },
+    select: { id: true, name: true, isActive: true },
+  })
+  if (!competitor) throw new Error('Concurrent niet gevonden binnen deze organisatie.')
+  await prisma.competitor.update({ where: { id, companyId: actor.companyId }, data: { isActive } })
+  await audit(actor.id, isActive ? 'COMPETITOR_RESUMED' : 'COMPETITOR_PAUSED', 'Competitor', id,
+    { isActive: competitor.isActive }, { companyId: actor.companyId, isActive })
+  revalidatePath('/concurrenten')
+  revalidatePath('/beheer/concurrenten')
+  revalidatePath('/producten')
+  revalidatePath('/dashboard')
+  revalidatePath('/monitoring')
+}
+
 export async function deleteCompetitorAdminAction(formData: FormData) {
-  const actor = await requirePermission('competitors.write'); const id = String(formData.get('id'))
-  await prisma.competitor.delete({ where: { id, companyId: actor.companyId } }); await audit(actor.id, 'COMPETITOR_DELETED', 'Competitor', id, null, { companyId: actor.companyId }); revalidatePath('/beheer/concurrenten')
+  const actor = await requirePermission('competitors.write')
+  const id = String(formData.get('id') ?? '')
+  const confirmationName = String(formData.get('confirmationName') ?? '').trim()
+  const expectedOffers = Number(formData.get('expectedOffers'))
+  const competitor = await prisma.competitor.findFirst({
+    where: { id, companyId: actor.companyId },
+    select: { id: true, name: true, _count: { select: { offers: true } } },
+  })
+  if (!competitor) throw new Error('Concurrent niet gevonden binnen deze organisatie.')
+  if (confirmationName !== competitor.name || !Number.isSafeInteger(expectedOffers) || expectedOffers !== competitor._count.offers) {
+    throw new Error('De bevestiging of het aantal gekoppelde prijsbronnen is gewijzigd. Vernieuw de pagina en probeer opnieuw.')
+  }
+  const counts = await prisma.$transaction(async (tx) => {
+    const offers = { competitorId: competitor.id, companyId: actor.companyId }
+    const alerts = await tx.alert.deleteMany({ where: { companyId: actor.companyId, competitorOffer: offers } })
+    const matches = await tx.productMatch.deleteMany({ where: { companyId: actor.companyId, competitorOffer: offers } })
+    const deletedOffers = await tx.competitorOffer.deleteMany({ where: offers })
+    await tx.competitor.delete({ where: { id: competitor.id, companyId: actor.companyId } })
+    return { alerts: alerts.count, matches: matches.count, offers: deletedOffers.count }
+  })
+  await audit(actor.id, 'COMPETITOR_DELETED', 'Competitor', id, null,
+    { companyId: actor.companyId, name: competitor.name, ...counts })
+  for (const path of ['/beheer/concurrenten', '/concurrenten', '/producten', '/productmatches', '/dashboard', '/monitoring', '/waarschuwingen']) revalidatePath(path)
 }
 
 export async function saveWebshopAction(formData: FormData) {
