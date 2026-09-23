@@ -6,6 +6,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { createAuditLog } from '@/lib/audit'
 import { requirePermission } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
+import { productGroupLabel } from '@/lib/product-groups'
 
 const MAX_SELECTED_DELETE = 250
 
@@ -160,4 +161,45 @@ export async function deleteSelectedProductsAction(formData: FormData) {
   revalidatePath('/waarschuwingen')
   revalidatePath('/monitoring')
   redirect(`/producten?verwijderd=${ids.length}`)
+}
+
+/** Assign one group to selected products or every product matching the current filters. */
+export async function assignProductGroupAction(formData: FormData) {
+  const actor = await requirePermission('products.write')
+  const groupId = text(formData, 'targetProductGroupId')
+  const group = await prisma.productGroup.findFirst({
+    where: { id: groupId, companyId: actor.companyId, isActive: true },
+  })
+  if (!group || productGroupLabel(group) === 'Nog niet ingedeeld') {
+    throw new Error('Kies een bestaande productgroep met een herkenbare naam.')
+  }
+  const scope = text(formData, 'deleteScope')
+  const expectedCount = Number(text(formData, 'expectedCount'))
+  if (!Number.isSafeInteger(expectedCount) || expectedCount <= 0) {
+    redirect('/producten?selectie=leeg')
+  }
+
+  const where: Prisma.ProductWhereInput = scope === 'filtered'
+    ? filteredProductWhere(actor.companyId, formData)
+    : {
+      companyId: actor.companyId,
+      id: { in: [...new Set(formData.getAll('productIds').map((value) => String(value)).filter(Boolean))].slice(0, MAX_SELECTED_DELETE) },
+    }
+  const count = await prisma.product.count({ where })
+  if (count === 0 || count !== expectedCount) {
+    throw new Error('De productselectie is gewijzigd. Vernieuw het overzicht en selecteer de producten opnieuw.')
+  }
+
+  await prisma.product.updateMany({ where, data: { productGroupId: group.id } })
+  await createAuditLog({
+    companyId: actor.companyId,
+    userId: actor.id,
+    action: 'PRODUCT_GROUP_BULK_ASSIGNED',
+    entityType: 'ProductGroup',
+    entityId: group.id,
+    newValue: { count, scope: scope === 'filtered' ? 'FILTERED_RESULTS' : 'SELECTED_IDS' },
+  })
+  revalidatePath('/producten')
+  revalidatePath('/productmatches')
+  redirect(`/producten?groepBijgewerkt=${count}`)
 }
