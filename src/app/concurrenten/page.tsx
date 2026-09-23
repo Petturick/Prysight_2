@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { createCompetitorAction } from '@/app/actions/productActions'
 import { activateCompanyCountryAction } from '@/app/actions/onboardingActions'
 import { CompetitorMarketPicker } from '@/components/CompetitorMarketPicker'
-import { DataTable } from '@/components/DataTable'
+import { CompetitorBulkTable } from '@/components/CompetitorBulkTable'
 import { CompetitorRowActions } from '@/components/CompetitorRowActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAuthenticatedUser } from '@/lib/authz'
@@ -229,7 +229,8 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
           <h2 className="text-[15px] font-semibold text-[#21364d]">{selectedMarket ? `Concurrenten in ${selectedMarket.name}` : 'Concurrenten'}</h2>
           <span className="text-[11px] text-[#748296]">{formatNumber(competitors.length)} concurrenten</span>
         </div>
-        <DataTable
+        <CompetitorBulkTable
+          canWrite={canWrite && result.available}
           emptyText={hasInvalidSelection ? 'Kies eerst een actieve markt.' : selectedMarket ? `Nog geen concurrenten in ${selectedMarket.name}. Voeg hierboven een concurrent toe.` : 'Nog geen concurrenten toegevoegd. Kies een markt en voeg je eerste concurrent toe.'}
           columns={[
             { key: 'naam', header: 'Concurrent' },
@@ -255,6 +256,9 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
                     : <span className="ps-chip ps-chip-green">Actueel</span>
 
             return {
+              id: competitor.id,
+              name: competitor.name,
+              offerCount: competitor._count.offers,
               naam: <Link href={`/concurrenten/${competitor.id}`} className="font-semibold text-[#2f6edb]">{competitor.name}</Link>,
               markt: competitor.country.name,
               producten: formatNumber(metrics.linkedProducts),

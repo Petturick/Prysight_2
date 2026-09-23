@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { saveCompetitorAdminAction } from '@/app/actions/adminActions'
 import { CompetitorRowActions } from '@/components/CompetitorRowActions'
-import { DataTable } from '@/components/DataTable'
+import { CompetitorBulkTable } from '@/components/CompetitorBulkTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAdmin } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
@@ -16,6 +16,7 @@ export default async function BeheerConcurrentenPage() {
   ]), [[], []])
   const [competitors, companyCountries] = result.data
   const countries = companyCountries.map((membership) => membership.country)
+  const canWrite = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
 
   return (
     <div className="space-y-6">
@@ -37,7 +38,8 @@ export default async function BeheerConcurrentenPage() {
         </fieldset>
       </form>
       {countries.length === 0 ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Activeer eerst minimaal één markt voordat je concurrenten toevoegt.</p> : null}
-      <DataTable
+      <CompetitorBulkTable
+        canWrite={canWrite && result.available}
         columns={[
           { key: 'naam', header: 'Naam' },
           { key: 'land', header: 'Land' },
@@ -47,12 +49,15 @@ export default async function BeheerConcurrentenPage() {
           { key: 'actie', header: 'Actie' },
         ]}
         rows={competitors.map((competitor) => ({
+          id: competitor.id,
+          name: competitor.name,
+          offerCount: competitor._count.offers,
           naam: competitor.name,
           land: competitor.country.name,
           website: competitor.website,
           frequentie: competitor.checkFrequencyHours >= 876000 ? 'Handmatig' : `Iedere ${competitor.checkFrequencyHours} uur`,
           status: competitor.isActive ? 'Actief' : 'Inactief',
-          actie: <CompetitorRowActions id={competitor.id} name={competitor.name} isActive={competitor.isActive} offerCount={competitor._count.offers} canWrite />,
+          actie: <CompetitorRowActions id={competitor.id} name={competitor.name} isActive={competitor.isActive} offerCount={competitor._count.offers} canWrite={canWrite} />,
         }))}
       />
     </div>
