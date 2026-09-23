@@ -3,6 +3,7 @@ import { MatchStatus } from '@/generated/prisma/client'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getDashboardSnapshot, type DashboardSnapshot } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
+import { productGroupLabel } from '@/lib/product-groups'
 import { profileStep } from '@/lib/performance-profile'
 
 export const dynamic = 'force-dynamic'
@@ -129,8 +130,8 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
           Productgroep
           <select name="productgroep" defaultValue={filters.productGroupId ?? ''} className="toolbar-control mt-1 min-w-[135px]">
             <option value="">Alle groepen</option>
-            {snapshot.filterOptions.productGroups.map(group =>
-              <option key={group.id} value={group.id}>{group.name}</option>)}
+            {snapshot.filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map(group =>
+              <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}
           </select>
         </label>
         <label className="text-[10px] font-semibold text-[#66758b]">
