@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { cookies } from 'next/headers'
 import { isAdminRole, isSuperAdminRole } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
+import { retryTransientDatabaseRead } from '@/lib/safe-database'
 
 const ACTIVE_COMPANY_COOKIE = 'prysight_active_company'
 
@@ -55,13 +56,13 @@ function builtInPermissions(membershipRole: string): Permission[] {
 }
 
 const getAuthenticatedUser = cache(async () => {
-  const session = await auth()
+  const session = await retryTransientDatabaseRead(() => auth())
   if (!session?.user?.id) throw new Error('Niet geauthenticeerd')
 
   const cookieStore = await cookies()
   const requestedCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value || undefined
   const sessionCompanyId = session.user.companyId || undefined
-  const user = await prisma.user.findUnique({
+  const user = await retryTransientDatabaseRead(() => prisma.user.findUnique({
     relationLoadStrategy: 'join',
     where: { id: session.user.id },
     select: {
@@ -72,6 +73,7 @@ const getAuthenticatedUser = cache(async () => {
       },
     },
   })
+  )
   if (!user || user.id === 'system_pricing') throw new Error('Niet geauthenticeerd')
 
   const memberships = user.memberships as MembershipRow[]
@@ -80,18 +82,18 @@ const getAuthenticatedUser = cache(async () => {
   if (!membership) membership = memberships[0]
 
   if (user.isSuperAdmin && requestedCompanyId && !membership) {
-    const company = await prisma.company.findFirst({ where: { id: requestedCompanyId, status: 'ACTIVE' }, select: { id: true } })
+    const company = await retryTransientDatabaseRead(() => prisma.company.findFirst({ where: { id: requestedCompanyId, status: 'ACTIVE' }, select: { id: true } }))
     if (company) membership = { companyId: company.id, role: 'OWNER' }
   }
   if (!membership) throw new Error('Niet geauthenticeerd')
 
-  const rows = await prisma.$queryRaw<CustomRoleRow[]>`
+  const rows = await retryTransientDatabaseRead(() => prisma.$queryRaw<CustomRoleRow[]>`
     SELECT cr.id, cr.name, cr.permissions
     FROM company_memberships cm
     LEFT JOIN custom_roles cr ON cr.id = cm.custom_role_id AND cr.is_active = true
     WHERE cm.user_id = ${user.id} AND cm.company_id = ${membership.companyId} AND cm.is_active = true
     LIMIT 1
-  `
+  `)
   const customRole = rows[0] ?? null
   const permissions = user.isSuperAdmin ? ADMIN_PERMISSIONS : customRole?.id ? normalizePermissions(customRole.permissions) : builtInPermissions(membership.role)
 
