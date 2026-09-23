@@ -139,7 +139,10 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
       <section className="ps-panel flex flex-wrap items-end justify-between gap-3 px-5 py-4 sm:px-6" aria-label="Markt selecteren en toevoegen">
         <div className="flex flex-wrap items-end gap-3">
           <CompetitorMarketPicker countries={countries} selected={selectedMarket?.code ?? 'alle'} />
-          <div className="pb-1 text-[11px] text-[#718197]">{selectedMarket ? `Je bekijkt concurrenten in ${selectedMarket.name}.` : 'Je bekijkt de concurrenten van alle actieve markten.'}</div>
+          <div className="flex flex-col gap-1 pb-1 text-[11px] text-[#718197]">
+            <span>{selectedMarket ? `Je bekijkt concurrenten in ${selectedMarket.name}.` : 'Je bekijkt de concurrenten van alle actieve markten.'}</span>
+            {selectedMarket ? <Link href={`/producten?land=${encodeURIComponent(selectedMarket.id)}`} className="font-semibold text-[#356ccd]">Producten in {selectedMarket.name} bekijken</Link> : null}
+          </div>
         </div>
         {canManageMarkets ? (
           <details className="group w-full max-w-[360px] rounded-[10px] border border-[#dbe4ef] bg-white p-3">
@@ -211,6 +214,12 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
             </fieldset>
           </form>
         </details>
+      ) : null}
+
+      {selectedMarket && competitors.length === 0 ? (
+        <p className="rounded-[10px] border border-[#dce6f3] bg-[#f5f9ff] px-4 py-3 text-[11px] leading-5 text-[#526984]">
+          In {selectedMarket.name} staan nog geen concurrenten. Voeg hieronder een concurrent toe en koppel daarna product URL’s of een productfeed voor deze markt. Producten en prijzen uit andere landen worden niet automatisch overgenomen.
+        </p>
       ) : null}
 
       <section className="space-y-2.5">
