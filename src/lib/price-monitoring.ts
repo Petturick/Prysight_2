@@ -983,12 +983,14 @@ export async function runDuePriceChecks({
   limit = 40,
   competitorOfferId,
   productId,
+  countryIds,
   force = false,
 }: {
   companyId?: string
   limit?: number
   competitorOfferId?: string
   productId?: string
+  countryIds?: string[]
   force?: boolean
 } = {}) {
   const cappedLimit = Math.min(Math.max(limit, 1), 200)
@@ -997,7 +999,7 @@ export async function runDuePriceChecks({
       companyId,
       id: competitorOfferId,
       isActive: true,
-      competitor: { isActive: true },
+      competitor: { isActive: true, ...(countryIds ? { countryId: { in: countryIds } } : {}) },
       productMatch: productId
         ? { productId, matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } }
         : { matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } },
