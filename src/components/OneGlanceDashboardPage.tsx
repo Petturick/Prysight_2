@@ -5,6 +5,7 @@ import { getDashboardSnapshot, type DashboardSnapshot } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { productGroupLabel } from '@/lib/product-groups'
 import { profileStep } from '@/lib/performance-profile'
+import MarketPositionDonut from '@/components/MarketPositionDonut'
 
 export const dynamic = 'force-dynamic'
 
@@ -193,17 +194,8 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
       <div className="surface-card p-5">
         <h2 className="text-[15px] font-semibold text-[#25324a]">Concurrentiepositie</h2>
         <p className="mt-1 text-[11px] text-[#8490a2]">Actieve producten binnen de gekozen filters</p>
-        <div className="mt-6 flex items-center justify-center">
-          <div className="relative flex h-40 w-40 items-center justify-center rounded-full"
-            style={{ background: snapshot.kpis.monitoredProducts
-              ? 'conic-gradient(#299574 0 ' + pct(lowerOrEqual) + '%, #c95c61 ' + pct(lowerOrEqual) + '% ' + (pct(lowerOrEqual) + pct(higher.length)) + '%, #e7b05b ' + (pct(lowerOrEqual) + pct(higher.length)) + '% 100%)'
-              : '#e8edf3' }}>
-            <div className="flex h-[105px] w-[105px] flex-col items-center justify-center rounded-full bg-white">
-              <strong className="text-[25px] text-[#172033]">{formatNumber(snapshot.kpis.monitoredProducts)}</strong>
-              <span className="text-[10px] text-[#8996a8]">producten</span>
-            </div>
-          </div>
-        </div>
+        <MarketPositionDonut total={snapshot.kpis.monitoredProducts} lowerOrEqual={lowerOrEqual}
+          higher={higher.length} withoutComparison={withoutComparison}/>
         <div className="mt-6 space-y-3 text-[12px]">
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-[#299574]"/>Onder of gelijk aan markt</span>
