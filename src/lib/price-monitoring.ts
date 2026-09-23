@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
 import { extractShippingSnapshot } from '@/lib/shipping-extraction'
 import { detectVatInclusion } from '@/lib/vat-detection'
+import { scrapeSerperProductPage, verifiedSerperOffer } from '@/lib/serper-scrape'
 
 type ExtractionMethod = 'JSON_LD' | 'META' | 'MAGENTO' | 'HTML_REGEX'
 type ExtractedOfferCore = {
@@ -28,7 +29,7 @@ type ExtractedOffer = ExtractedOfferCore & {
   shippingMethod: string | null
 }
 type JsonRecord = Record<string, unknown>
-type FetchMode = 'HTTP' | 'BROWSER' | 'API'
+type FetchMode = 'HTTP' | 'BROWSER' | 'API' | 'SERPER'
 export type PriceExtractionTarget = {
   ean?: string | null
   sku?: string | null
@@ -695,6 +696,7 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
     let page: { html: string; statusCode: number } = { html: '', statusCode: 200 }
     let extracted: ExtractedOffer | null = null
     let directFetchError: unknown = null
+    let serperVatIncluded: boolean | null = null
 
     try {
       page = await fetchOfferPage(offer.url)
@@ -730,6 +732,37 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
       }
     }
 
+    // Use the paid Serper webpage extractor only after the primary methods fail.
+    // Never bypass a robots.txt denial, and never accept a generic scraped amount.
+    if (!extracted?.price && product
+      && (!offer.lastCheckedAt || checkedAt.getTime() - offer.lastCheckedAt.getTime() >= 24 * 60 * 60 * 1000)
+      && !(directFetchError instanceof Error && /robots\.txt/i.test(directFetchError.message))) {
+      const identifier = product.ean ?? product.gtin
+      if (identifier) {
+        const scraped = await scrapeSerperProductPage(offer.url)
+        const verified = scraped ? verifiedSerperOffer(scraped, identifier, product.name, product.packagingQty ?? 1) : null
+        if (verified && scraped) {
+          extracted = {
+            price: verified.price,
+            currency: verified.currency,
+            stockStatus: null,
+            productTitle: verified.productTitle,
+            sku: null,
+            ean: verified.ean,
+            packagingQty: null,
+            method: 'HTML_REGEX',
+            shippingCost: null,
+            shippingCurrency: null,
+            shippingLabel: null,
+            shippingMethod: null,
+          }
+          page = { html: scraped.text, statusCode: 200 }
+          serperVatIncluded = verified.vatIncluded
+          fetchMode = 'SERPER'
+        }
+      }
+    }
+
     if (!extracted?.price) {
       if (directFetchError) throw directFetchError
       throw new Error('Geen betrouwbare prijs gevonden op de productpagina.')
@@ -737,9 +770,11 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
 
     const currency = (extracted.currency ?? offer.currency ?? offer.competitor.country.currency).toUpperCase()
     const packagingQty = extracted.packagingQty ?? offer.packagingQty ?? 1
-    const detectedVat = fetchMode === 'API'
-      ? { vatIncluded: offer.vatIncluded }
-      : detectVatInclusion(page.html, extracted.price)
+    const detectedVat = fetchMode === 'SERPER'
+      ? { vatIncluded: serperVatIncluded }
+      : fetchMode === 'API'
+        ? { vatIncluded: offer.vatIncluded }
+        : detectVatInclusion(page.html, extracted.price)
     const sourceVatIncluded = detectedVat.vatIncluded ?? offer.vatIncluded
 
     const shippingCurrency = (extracted.shippingCurrency ?? currency).toUpperCase()

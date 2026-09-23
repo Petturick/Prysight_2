@@ -2,9 +2,10 @@ import { MatchStatus } from '@/generated/prisma/client'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
+import { normalizeGtin, validGtin } from '@/lib/gtin'
 
 type SearchCandidate = { title: string; url: string; snippet?: string }
-type SearchResult = { candidates: SearchCandidate[]; provider: string }
+type SearchResult = { candidates: SearchCandidate[]; provider: string; issue?: string }
 
 const SEARCH_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36'
 
@@ -117,21 +118,26 @@ function scoreCandidate(
   return Math.min(99, score)
 }
 
-async function searchWithSerper(query: string): Promise<SearchCandidate[]> {
-  const key = process.env.SERPER_API_KEY
-  if (!key) return []
+async function searchWithSerper(query: string, countryCode?: string): Promise<{ candidates: SearchCandidate[]; issue?: string }> {
+  const key = process.env.SERPER_API_KEY?.trim()
+  if (!key) return { candidates: [], issue: 'Serper is niet geconfigureerd.' }
   try {
     const response = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-API-KEY': key },
-      body: JSON.stringify({ q: query, num: 10 }),
+      body: JSON.stringify({
+        q: query,
+        num: 10,
+        ...(countryCode && /^[a-z]{2}$/i.test(countryCode) ? { gl: countryCode.toLowerCase() } : {}),
+      }),
       cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
     })
-    if (!response.ok) return []
+    if (!response.ok) return { candidates: [], issue: `Serper gaf HTTP ${response.status}. Controleer de API toegang en het zoektegoed.` }
     const data = await response.json() as { organic?: Array<{ title?: string; link?: string; snippet?: string }> }
-    return (data.organic ?? []).flatMap((item) => item.link ? [{ title: item.title ?? item.link, url: item.link, snippet: item.snippet }] : [])
+    return { candidates: (data.organic ?? []).flatMap((item) => item.link ? [{ title: item.title ?? item.link, url: item.link, snippet: item.snippet }] : []) }
   } catch {
-    return []
+    return { candidates: [], issue: 'Serper reageerde niet op tijd of kon niet worden bereikt.' }
   }
 }
 
@@ -235,18 +241,18 @@ function dedupeCandidates(groups: SearchCandidate[][]) {
   return [...unique.values()].slice(0, 30)
 }
 
-export async function webSearch(query: string): Promise<SearchResult> {
-  const [serper, brave] = await Promise.all([searchWithSerper(query), searchWithBrave(query)])
-  if (serper.length || brave.length) {
-    const candidates = dedupeCandidates([serper, brave])
-    const providers = [serper.length ? 'Serper' : '', brave.length ? 'Brave Search' : ''].filter(Boolean)
-    return { candidates, provider: providers.join(' + ') }
+export async function webSearch(query: string, countryCode?: string): Promise<SearchResult> {
+  const [serper, brave] = await Promise.all([searchWithSerper(query, countryCode), searchWithBrave(query)])
+  if (serper.candidates.length || brave.length) {
+    const candidates = dedupeCandidates([serper.candidates, brave])
+    const providers = [serper.candidates.length ? 'Serper' : '', brave.length ? 'Brave Search' : ''].filter(Boolean)
+    return { candidates, provider: providers.join(' + '), issue: serper.issue }
   }
 
   const [duck, bing] = await Promise.all([searchDuckDuckGo(query), searchBing(query)])
   const candidates = dedupeCandidates([duck, bing])
   const providers = [duck.length ? 'DuckDuckGo' : '', bing.length ? 'Bing' : ''].filter(Boolean)
-  return { candidates, provider: providers.length ? providers.join(' + ') : 'Geen zoekprovider met resultaten' }
+  return { candidates, provider: providers.length ? providers.join(' + ') : 'Geen zoekprovider met resultaten', issue: serper.issue }
 }
 
 function rankCandidates(
@@ -277,8 +283,8 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   ])
 
   if (!product) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Product ontbreekt', provider: null, queryMode: null }
-  const ean = product.ean?.trim() || product.gtin?.trim()
-  if (!ean) return { found: 0, created: 0, alreadyLinked: 0, reason: 'EAN of GTIN ontbreekt', provider: null, queryMode: null }
+  const ean = [product.ean, product.gtin].map(normalizeGtin).find(validGtin) ?? ''
+  if (!ean) return { found: 0, created: 0, alreadyLinked: 0, reason: product.ean || product.gtin ? 'EAN of GTIN is ongeldig. Controleer de lengte en controlecode.' : 'EAN of GTIN ontbreekt', provider: null, queryMode: null }
   if (!country) return { found: 0, created: 0, alreadyLinked: 0, reason: 'Markt ontbreekt', provider: null, queryMode: null }
 
   const ownHosts = new Set(companyWebshops.flatMap((shop) => {
@@ -312,10 +318,12 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
 
   const searchResults: SearchCandidate[][] = []
   const providerNames = new Set<string>()
+  const searchIssues = new Set<string>()
   let queryMode: 'EAN' | 'PRODUCT' = 'EAN'
 
-  for (const query of queryVariants.slice(0, 5)) {
-    const search = await webSearch(query)
+  for (const query of queryVariants.slice(0, 3)) {
+    const search = await webSearch(query, country.code)
+    if (search.issue) searchIssues.add(search.issue)
     if (search.candidates.length) searchResults.push(search.candidates)
     if (search.provider && search.provider !== 'Geen zoekprovider met resultaten') {
       search.provider.split(' + ').forEach((provider) => providerNames.add(provider))
@@ -334,8 +342,9 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
     ]
 
     const fallbackGroups: SearchCandidate[][] = []
-    for (const query of fallbackQueries) {
-      const fallback = await webSearch(query)
+    for (const query of fallbackQueries.slice(0, 2)) {
+      const fallback = await webSearch(query, country.code)
+      if (fallback.issue) searchIssues.add(fallback.issue)
       if (fallback.candidates.length) fallbackGroups.push(fallback.candidates)
       fallback.provider.split(' + ').forEach((provider) => {
         if (provider && provider !== 'Geen zoekprovider met resultaten') providerNames.add(provider)
@@ -347,13 +356,15 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
   }
 
   const safeRanked: Array<SearchCandidate & { score: number }> = []
+  const seenHosts = new Set<string>()
   for (const candidate of ranked) {
     try {
       const safe = (await assertSafeRemoteHttpUrl(candidate.url)).toString()
       const parsed = new URL(safe)
       const host = parsed.hostname.replace(/^www\./, '')
-      if (ownHosts.has(host)) continue
+      if (ownHosts.has(host) || seenHosts.has(host)) continue
       if (/engels(logistiek|group)?\.|google\.|bing\.|duckduckgo\.|youtube\.|facebook\.|instagram\.|amazon\./i.test(host)) continue
+      seenHosts.add(host)
       safeRanked.push({ ...candidate, url: canonicalProductUrl(safe) })
     } catch {}
   }
@@ -385,6 +396,7 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
     const where = { companyId_name_countryId: { companyId, name: competitorName, countryId } }
     let competitor = await prisma.competitor.findUnique({ where })
 
+    if (competitor && !competitor.isActive) continue // Do not silently undo a user's pause decision.
     if (!competitor) {
       await assertCompanyCapacity(companyId, 'competitors')
       competitor = await prisma.competitor.create({
@@ -450,7 +462,9 @@ export async function discoverCompetitorUrlsByEan({ companyId, productId, countr
       : alreadyLinked
         ? 'De gevonden kandidaten waren al gekoppeld.'
         : 'Er zijn kandidaten gevonden, maar geen nieuwe koppelingen aangemaakt.'
-    : 'Geen betrouwbare concurrentkandidaten gevonden.'
+    : searchIssues.size && !providerNames.size
+      ? `Zoekopdracht kon niet worden uitgevoerd. ${[...searchIssues].join(' ')}`
+      : 'Geen betrouwbare concurrentkandidaten gevonden.'
 
   return {
     found,

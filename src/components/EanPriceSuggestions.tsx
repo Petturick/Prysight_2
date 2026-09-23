@@ -43,6 +43,7 @@ const formatAmount = (value: number | null, currency: string) => value === null
 
 function sourceStatus(item: Suggestion) {
   if (item.priceInclVat !== null || item.priceExclVat !== null) return 'Prijs gevonden'
+  if (item.observedPrice !== null) return 'Prijs gevonden, btw controleren'
   if (/403|blokkeert|captcha|robots/i.test(item.reason)) return 'Bron blokkeert'
   if (/timeout|reageerde niet/i.test(item.reason)) return 'Geen reactie'
   return 'Nog geen prijs'
@@ -50,6 +51,7 @@ function sourceStatus(item: Suggestion) {
 
 function sourceTone(item: Suggestion) {
   if (item.priceInclVat !== null || item.priceExclVat !== null) return 'ps-chip-green'
+  if (item.observedPrice !== null) return 'ps-chip-amber'
   if (/403|blokkeert|captcha|robots/i.test(item.reason)) return 'ps-chip-amber'
   return ''
 }
@@ -63,6 +65,7 @@ function CompetitorRow({ item }: { item: Suggestion }) {
           <span className={`ps-chip ${sourceTone(item)}`}>{sourceStatus(item)}</span>
         </div>
         <p className="mt-0.5 truncate text-[9px] text-[#8794a3]">{item.matchId ? 'Gekoppelde bron' : 'Automatisch gevonden'}</p>
+        {item.observedPrice !== null && item.priceInclVat === null && item.priceExclVat === null ? <p className="mt-1 text-[10px] font-semibold text-[#987122]">Waargenomen {formatAmount(item.observedPrice, item.currency)}, btw status onbekend</p> : null}
       </div>
       <div>
         <p className="text-[9px] text-[#8794a3]">Incl. btw</p>
