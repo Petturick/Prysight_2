@@ -125,12 +125,8 @@ export default async function PriceSourceEditPage({
           <div className="space-y-3 rounded-[11px] border border-[#dbe4ef] bg-[#f7faff] px-4 py-4 text-[11px] leading-5 text-[#53677f]">
             <p className="font-semibold text-[#2e4766]">Controle vóór opslaan</p>
             <label className="flex items-start gap-2">
-              <input type="checkbox" name="confirmMatch" value="on" className="mt-1" />
-              <span>Ik heb gecontroleerd dat het gekozen product overeenkomt met de concurrentpagina.</span>
-            </label>
-            <label className="flex items-start gap-2">
               <input type="checkbox" name="confirmReset" value="on" className="mt-1" required />
-              <span>Ik begrijp dat bij wijziging van het product, de URL, verpakking of btw de oude prijsmetingen en meldingen van alleen deze bron worden gewist. De concurrent en andere prijsbronnen blijven behouden.</span>
+              <span>Ik bevestig dat de gekozen productpagina bij dit product hoort. Als ik het product, de URL, verpakking of btw wijzig, worden eerdere prijsmetingen en meldingen van alleen deze bron gewist. Andere bronnen blijven behouden.</span>
             </label>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
