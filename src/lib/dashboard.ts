@@ -200,9 +200,12 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
       is: {
         companyId: companyId || undefined,
         matchStatus: filters.matchStatus || undefined,
-        product: { companyId: companyId || undefined, isActive: true, productGroupId: filters.productGroupId || undefined },
+        product: { companyId: companyId || undefined, isActive: true },
       },
     },
+    AND: filters.productGroupId
+      ? [{ productMatch: { is: { product: { productGroupId: filters.productGroupId } } } }]
+      : undefined,
   }
   const failedWhere: Prisma.PriceCheckWhereInput = {
     companyId: companyId || undefined,
