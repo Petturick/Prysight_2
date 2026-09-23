@@ -8,7 +8,7 @@ import { ACTIVE_COMPANY_COOKIE, requirePermission, requireSuperAdmin } from '@/l
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
-import { competitorSchema, countrySchema, productGroupSchema, userSchema, webshopSchema } from '@/lib/validators'
+import { competitorSchema, countrySchema, userSchema, webshopSchema } from '@/lib/validators'
 import { isUnnamedGroup, MERGED_GROUP_PREFIX, mergedGroupTarget, productGroupLabel } from '@/lib/product-groups'
 import { revalidatePath } from 'next/cache'
 
