@@ -94,6 +94,9 @@ export async function getFilteredProducts(filters: DashboardFilters = {}, compan
               ],
             }
           : {},
+        filters.competitorId
+          ? { matches: { some: { companyId: companyId || undefined, competitorOffer: { competitorId: filters.competitorId, isActive: true } } } }
+          : {},
       ],
     },
     include: productInclude,
@@ -197,7 +200,7 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
       is: {
         companyId: companyId || undefined,
         matchStatus: filters.matchStatus || undefined,
-        product: { companyId: companyId || undefined, isActive: true },
+        product: { companyId: companyId || undefined, isActive: true, productGroupId: filters.productGroupId || undefined },
       },
     },
   }
@@ -245,8 +248,11 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
   const metrics = products.map((product) => deriveProductMetrics(product, filters))
   const allOfferMoves = products
     .flatMap((product) =>
-      product.matches.flatMap((match) => {
-        const ownPrice = decimalToNumber(product.ownPrice)
+      getFilteredMatches(product, filters).flatMap((match) => {
+        const selectedMarket = filters.countryId
+          ? product.productMarkets.find((market) => market.countryId === filters.countryId && market.isActive)
+          : null
+        const ownPrice = decimalToNumber(selectedMarket?.ownPrice ?? product.ownPrice)
         if (!hasVerifiedMeasurement(match, ownPrice)) return []
         const [current, previous] = match.competitorOffer.priceHistory
         if (!current || !previous) return []
