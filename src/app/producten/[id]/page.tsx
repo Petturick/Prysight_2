@@ -160,9 +160,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const feedName = feedDisplayName(feedContext?.rawData) ?? feedDisplayName(feedContext?.mappedData)
   const displayProductName = hasReadableProductName ? product.name : feedName ?? `Artikel ${product.articleNumber}`
   const productNameNeedsAttention = !hasReadableProductName && !feedName
-  const marketMatches = defaultCountry
-    ? product.matches.filter((match) => match.competitorOffer.competitor.countryId === defaultCountry.id)
-    : product.matches
+  const marketMatches = product.matches.filter((match) => match.competitorOffer.competitor.isActive && (!defaultCountry || match.competitorOffer.competitor.countryId === defaultCountry.id))
   const confirmedMatches = marketMatches.filter((match) => match.matchStatus === 'CERTAIN' && match.competitorOffer.isActive)
   const reviewMatches = marketMatches.filter((match) => match.matchStatus === 'REVIEW' && match.competitorOffer.isActive)
   const crawlableMatches = marketMatches.filter((match) => (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW') && match.competitorOffer.isActive)
