@@ -81,16 +81,18 @@ async function readResult(response: Response): Promise<Record<string, unknown>> 
 export function FeedSourceManager({
   initialSources,
   canManage,
+  initialMarket = '',
 }: {
   initialSources: ManageableFeed[]
   canManage: boolean
+  initialMarket?: string
 }) {
   const router = useRouter()
   const selectAllRef = useRef<HTMLInputElement>(null)
   const [sources, setSources] = useState(initialSources)
   const [selected, setSelected] = useState<string[]>([])
   const [filter, setFilter] = useState('')
-  const [marketFilter, setMarketFilter] = useState('')
+  const [marketFilter, setMarketFilter] = useState(initialMarket)
   const [statusFilter, setStatusFilter] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)

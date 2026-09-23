@@ -6,6 +6,7 @@ import { EanAutoDiscovery } from '@/components/EanAutoDiscovery'
 import { InteractionFeedback } from '@/components/InteractionFeedback'
 import { RoutePrefetcher } from '@/components/RoutePrefetcher'
 import { Sidebar } from '@/components/Sidebar'
+import { GlobalMarketSwitcher } from '@/components/GlobalMarketSwitcher'
 import type { AppRole } from '@/lib/roles'
 
 type ShellUser = { name?: string | null; email?: string | null; role?: AppRole | null }
@@ -52,7 +53,8 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
               <h1 className="text-[20px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#172033]">{context.title}</h1>
               <p className="mt-1 text-[13px] leading-5 text-[#7a8699]">{context.helper}</p>
             </div>
-            <div className="ml-6 flex shrink-0 items-center gap-2.5">
+            <div className="ml-3 flex shrink-0 items-center gap-2 sm:gap-2.5">
+              <GlobalMarketSwitcher />
               <Link href="/acties" prefetch={false} onMouseEnter={() => warm('/acties')} onFocus={() => warm('/acties')} className="group relative flex h-10 w-10 items-center justify-center rounded-[11px] border border-[#e3e8ee] bg-white text-[#667085] shadow-[0_1px_2px_rgba(16,24,40,.03)] transition-all hover:border-[#d5dce5] hover:bg-[#f8fafc] hover:text-[#172033]" title="Acties" aria-label="Acties">
                 <svg className="h-[17px] w-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>
                 <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#c95c61] ring-2 ring-white" />

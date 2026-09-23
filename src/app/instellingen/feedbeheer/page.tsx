@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { selectedMarketCode } from '@/lib/market-context'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { FeedConnectForm } from '@/components/FeedConnectForm'
 import { FeedSourceManager } from '@/components/FeedSourceManager'
@@ -11,6 +12,7 @@ import { safeDatabaseQuery } from '@/lib/safe-database'
 
 export default async function InstellingenFeedbeheerPage() {
   const actor = await requirePermission('feeds.read')
+  const marketCode = await selectedMarketCode(actor.companyId)
   const canManage = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('feeds.write')
 
   const result = await safeDatabaseQuery(() => prisma.feedSource.findMany({
@@ -91,6 +93,8 @@ export default async function InstellingenFeedbeheerPage() {
       ) : null}
 
       <FeedSourceManager
+        key={marketCode}
+        initialMarket={marketCode === 'ALL' ? '' : marketCode}
         canManage={canManage && result.available}
         initialSources={sources.map((source) => ({
           ...source,

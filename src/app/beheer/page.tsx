@@ -30,6 +30,7 @@ export default async function BeheerPage() {
     { label: 'Auditregels', value: logs },
   ]
   const links = [
+    { href: '/beheer/synchronisatie', label: 'Synchronisatie', description: 'Per markt productfeeds en concurrentieprijzen bijwerken, handmatig of volgens planning.' },
     { href: '/instellingen/markten', label: 'Markten', description: 'Kies in welke landen deze organisatie actief monitort.' },
     { href: '/beheer/concurrenten', label: 'Concurrenten', description: 'Marktspelers en controlefrequenties beheren.' },
     { href: '/beheer/webshops', label: 'Webshops', description: 'Verkoopkanalen en koppelingen met concurrenten.' },
