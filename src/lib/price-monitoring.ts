@@ -734,7 +734,9 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
 
     // Use the paid Serper webpage extractor only after the primary methods fail.
     // Never bypass a robots.txt denial, and never accept a generic scraped amount.
-    if (!extracted?.price && product && !(directFetchError instanceof Error && /robots\.txt/i.test(directFetchError.message))) {
+    if (!extracted?.price && product
+      && (!offer.lastCheckedAt || checkedAt.getTime() - offer.lastCheckedAt.getTime() >= 24 * 60 * 60 * 1000)
+      && !(directFetchError instanceof Error && /robots\.txt/i.test(directFetchError.message))) {
       const identifier = product.ean ?? product.gtin
       if (identifier) {
         const scraped = await scrapeSerperProductPage(offer.url)
