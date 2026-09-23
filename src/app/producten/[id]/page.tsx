@@ -345,8 +345,8 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="border-t border-[#e7edf3]">
         <div className="grid gap-0 lg:grid-cols-[.48fr_1.52fr]">
           <div className="border-b border-[#e7edf3] bg-[#f8fbff] px-5 py-4 sm:px-6 lg:border-b-0 lg:border-r">
-            <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownPrice, ownCurrency)}</p>
-            <p className="mt-1 text-[10px] text-[#7b8999]">{ownVatIncluded ? 'Inclusief btw' : 'Exclusief btw'} · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
+            <p className="text-[28px] font-semibold tracking-[-0.03em] text-[#1e2d3f]">{formatCurrency(ownAmounts.priceInc, ownCurrency)}</p>
+            <p className="mt-1 text-[10px] text-[#7b8999]">Inclusief btw · {selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</p>
             <div className="mt-3 space-y-1 text-[11px] text-[#526780]">
               <p>Product excl. btw, {formatCurrency(ownAmounts.priceEx, ownCurrency)}</p>
               <p>Product incl. btw, {formatCurrency(ownAmounts.priceInc, ownCurrency)}</p>
@@ -360,23 +360,66 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           </div>
           <div className="p-5 sm:p-6">
             {canEditProduct ? (
-              <form action={updateProductOwnPriceAction} className="grid gap-4 md:grid-cols-2">
+              <form action={updateProductOwnPriceAction} className="space-y-4">
                 <input type="hidden" name="productId" value={product.id} />
                 {defaultCountry ? <input type="hidden" name="countryId" value={defaultCountry.id} /> : null}
                 <input type="hidden" name="currency" value={ownCurrency} />
-                <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *
-                  <div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]">
-                    <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
-                    <input name="ownPrice" required inputMode="decimal" defaultValue={ownPrice ?? ''} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
+                <input type="hidden" name="vatIncluded" value="true" />
+                <input type="hidden" name="ownShippingVatIncluded" value="true" />
+
+                <div className="grid gap-4 xl:grid-cols-[1.08fr_.92fr]">
+                  <div className="rounded-[12px] border border-[#dce5ef] bg-[#fbfcfe] p-4">
+                    <div className="mb-3">
+                      <p className="text-[12px] font-semibold text-[#30465d]">Verkoopprijs</p>
+                      <p className="mt-1 text-[10px] leading-4 text-[#7b8999]">De prijs inclusief btw is leidend. De exclusieve prijs staat direct eronder voor controle en vergelijking.</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block text-[11px] font-semibold text-[#4f5869]">
+                        Prijs inclusief btw *
+                        <div className="mt-1.5 flex items-center rounded-[7px] border border-[#cbd9eb] bg-white focus-within:border-[#8cb1f3] focus-within:shadow-[0_0_0_3px_rgba(79,134,232,.09)]">
+                          <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
+                          <input name="ownPrice" required inputMode="decimal" defaultValue={ownAmounts.priceInc === null ? '' : ownAmounts.priceInc.toFixed(2).replace('.', ',')} className="min-h-[44px] flex-1 border-0 bg-transparent px-0 pr-3 text-[15px] font-semibold shadow-none outline-none focus:shadow-none" placeholder="0,00" />
+                        </div>
+                      </label>
+
+                      <label className="block text-[11px] font-semibold text-[#4f5869]">
+                        Prijs exclusief btw <span className="font-normal text-[#8b98a8]">(optioneel)</span>
+                        <div className="mt-1.5 flex items-center rounded-[7px] border border-[#d8e1eb] bg-white focus-within:border-[#8cb1f3]">
+                          <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
+                          <input name="ownPriceOther" inputMode="decimal" defaultValue={ownAmounts.priceEx === null ? '' : ownAmounts.priceEx.toFixed(2).replace('.', ',')} className="min-h-[42px] flex-1 border-0 bg-transparent px-0 pr-3 text-[13px] shadow-none outline-none focus:shadow-none" placeholder="Automatisch berekend" />
+                        </div>
+                        <span className="mt-1.5 block text-[10px] font-normal leading-4 text-[#7b8999]">Je mag dit veld leeg laten. Wanneer je het invult controleert Prysight of beide bedragen overeenkomen met het btw tarief van {defaultCountry?.name ?? 'de markt'}.</span>
+                      </label>
+                    </div>
                   </div>
-                </label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Aanvullende prijs, andere btw variant (optioneel)<input name="ownPriceOther" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Controleer beide prijsvarianten" /><span className="mt-1 block text-[10px] font-normal text-[#7b8999]">Bij basisprijs incl. btw vul je de prijs excl. btw in, en omgekeerd.</span></label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Verzendkosten<input name="ownShippingCost" inputMode="decimal" defaultValue={ownShippingCost ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Leeg is onbekend, 0 is gratis" /></label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Btw op verzendkosten<select name="ownShippingVatIncluded" defaultValue={String(ownShippingVatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue={String(ownVatIncluded)} className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
-                <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
-                {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869] md:col-span-2">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
-                <div className="md:col-span-2 flex justify-end">
+
+                  <div className="rounded-[12px] border border-[#dce5ef] bg-white p-4">
+                    <div className="mb-3">
+                      <p className="text-[12px] font-semibold text-[#30465d]">Verzendkosten</p>
+                      <p className="mt-1 text-[10px] leading-4 text-[#7b8999]">De verzendkosten worden inclusief btw opgeslagen en automatisch omgerekend voor de prijsvergelijking.</p>
+                    </div>
+
+                    <label className="block text-[11px] font-semibold text-[#4f5869]">
+                      Verzendkosten inclusief btw <span className="font-normal text-[#8b98a8]">(optioneel)</span>
+                      <div className="mt-1.5 flex items-center rounded-[7px] border border-[#d8e1eb] bg-white focus-within:border-[#8cb1f3]">
+                        <span className="px-3 text-[11px] font-semibold text-[#64748b]">{ownCurrency}</span>
+                        <input name="ownShippingCost" inputMode="decimal" defaultValue={ownAmounts.shippingInc === null ? '' : ownAmounts.shippingInc.toFixed(2).replace('.', ',')} className="min-h-[42px] flex-1 border-0 bg-transparent px-0 pr-3 text-[13px] shadow-none outline-none focus:shadow-none" placeholder="Bijvoorbeeld 6,95" />
+                      </div>
+                    </label>
+
+                    <div className="mt-3 rounded-[9px] bg-[#f4f7fb] px-3 py-2.5 text-[10px] leading-4 text-[#65758a]">
+                      Leeg betekent onbekend. Vul 0 in voor gratis verzending. Exclusief btw wordt automatisch berekend op basis van de gekozen markt.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="text-[11px] font-semibold text-[#4f5869]">Voorraadstatus<input name="stockStatus" defaultValue={selectedMarket?.stockStatus ?? product.stockStatus ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="Op voorraad" /></label>
+                  {defaultCountry ? <label className="text-[11px] font-semibold text-[#4f5869]">Jouw product URL<input name="ownUrl" type="url" defaultValue={selectedMarket?.ownUrl ?? ''} className="toolbar-control mt-1.5 w-full" placeholder="https://jouwwebshop.nl/product/..." /></label> : null}
+                </div>
+
+                <div className="flex justify-end">
                   <button type="submit" className="primary-action shrink-0">Opslaan</button>
                 </div>
               </form>
