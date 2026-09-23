@@ -15,6 +15,7 @@ export default async function PriceSourceEditPage({
   searchParams: Promise<{ zoek?: string }>
 }) {
   const actor = await requirePermission('competitors.write')
+  const canActivateProductMarket = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
   const { id: competitorId, offerId } = await params
   const query = await searchParams
   const q = typeof query.zoek === 'string' ? query.zoek.trim().slice(0, 80) : ''
@@ -94,13 +95,13 @@ export default async function PriceSourceEditPage({
               <option value="">Geen product gekoppeld</option>
               {choices.map((product) => {
                 const marketActive = product.productMarkets[0]?.isActive
-                return <option key={product.id} value={product.id} disabled={marketActive === false && product.id !== currentProduct?.id}>
-                  {product.name} · {product.articleNumber}{product.ean ? ` · EAN ${product.ean}` : ''}{marketActive === false ? ' (in deze markt gepauzeerd)' : ''}
+                return <option key={product.id} value={product.id} disabled={product.id !== currentProduct?.id && (marketActive === false || (marketActive === undefined && !canActivateProductMarket))}>
+                  {product.name} · {product.articleNumber}{product.ean ? ` · EAN ${product.ean}` : ''}{marketActive === false ? ' (in deze markt gepauzeerd)' : marketActive === undefined && !canActivateProductMarket ? ' (nog niet in deze markt, productbeheerder nodig)' : ''}
                 </option>
               })}
             </select>
           </label>
-          <p className="text-[11px] leading-5 text-[#6d7e91]">Als dit product nog niet in {country.name} voorkomt, koppelt Prysight het bij het opslaan aan deze markt zonder de Nederlandse verkoopprijs over te nemen. {currentProduct && currentMarket?.isActive === false ? 'Het huidige product is in deze markt gepauzeerd en moet apart geactiveerd worden om opnieuw te vergelijken.' : ''}</p>
+          <p className="text-[11px] leading-5 text-[#6d7e91]">{canActivateProductMarket ? `Als een product nog niet in ${country.name} voorkomt, wordt het bij het koppelen toegevoegd aan deze markt zonder een verkoopprijs voor die markt in te vullen.` : 'Alleen producten die al in deze markt actief zijn kun je koppelen. Vraag een productbeheerder om andere producten aan de markt toe te voegen.'} {currentProduct && currentMarket?.isActive === false ? 'Het huidige product is in deze markt gepauzeerd en moet apart geactiveerd worden om opnieuw te vergelijken.' : ''}</p>
           <label className="block space-y-1.5 text-[12px] font-semibold text-[#3b4b62]">
             <span>Product URL van de concurrent</span>
             <input name="offerUrl" type="url" className="toolbar-control w-full" defaultValue={offer.url} required />
