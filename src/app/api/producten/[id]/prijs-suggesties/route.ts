@@ -9,6 +9,8 @@ import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl, safeRemoteFetch } from '@/lib/safe-remote-url'
 import { detectVatInclusion } from '@/lib/vat-detection'
 import { priceSuggestionAmounts } from '@/lib/ean-price-suggestion-amounts'
+import { validGtin } from '@/lib/gtin'
+import { scrapeSerperProductPage, verifiedSerperOffer } from '@/lib/serper-scrape'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -394,6 +396,23 @@ async function previewSource(
       if (suggestion) return suggestion
     }
 
+    const scraped = await scrapeSerperProductPage(source.url)
+    const verified = scraped ? verifiedSerperOffer(scraped, product.ean, product.name) : null
+    if (verified) {
+      const amounts = priceSuggestionAmounts(verified.price, verified.vatIncluded, vatRate)
+      return {
+        ...base,
+        observedPrice: verified.price,
+        priceInclVat: amounts.incl,
+        priceExclVat: amounts.excl,
+        vatIncluded: verified.vatIncluded,
+        currency: verified.currency,
+        confidence: 'REVIEW',
+        method: 'SERPER_SCRAPE',
+        reason: 'Prijs en EAN via Serper gecontroleerd. Controleer verpakking en leveringsvoorwaarden voordat je de prijs overneemt.',
+      }
+    }
+
     return { ...base, reason: primaryReason }
   } catch (error) {
     return { ...base, reason: error instanceof Error && error.name === 'AbortError' ? 'Bron reageerde niet op tijd.' : 'Prijs kon niet veilig worden uitgelezen.' }
@@ -507,7 +526,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (!product) return NextResponse.json({ error: 'Product niet gevonden.' }, { status: 404 })
     const identifier = product.ean?.trim() || product.gtin?.trim()
-    if (!identifier || !/^\d{8}(?:\d{4,6})?$/.test(identifier)) return NextResponse.json({ error: 'Een geldige EAN of GTIN is vereist.' }, { status: 422 })
+    if (!validGtin(identifier)) return NextResponse.json({ error: 'Een geldige EAN of GTIN met correcte controlecode is vereist.' }, { status: 422 })
 
     const shops = await prisma.webshop.findMany({
       where: { companyId: actor.companyId, countryId: country.id, competitorId: null, isActive: true },
@@ -561,7 +580,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let searchProvider: string | null = null
     let autoDiscoveredCount = 0
     if (sources.filter((source) => source.kind === 'COMPETITOR').length < 4) {
-      const search = await webSearch(`"${identifier}" ${country.name}`)
+      const search = await webSearch(`"${identifier}" ${country.name}`, country.code)
       searchProvider = search.provider
       const knownUrls = new Set(sources.map((source) => source.url))
       for (const candidate of search.candidates) {
