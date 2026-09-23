@@ -319,7 +319,7 @@ export async function updateCompetitorDetailsAction(formData: FormData) {
   if (marketChanged && (competitor._count.offers > 0 || competitor._count.webshops > 0 || competitor._count.alertRules > 0)) {
     throw new Error('Deze concurrent heeft al productprijzen of gekoppelde gegevens. Maak voor een andere markt een nieuwe concurrent aan zodat de bestaande prijzen en historie in het juiste land blijven.')
   }
-  await requireLicensedCountry(actor.companyId, countryId)
+  if (marketChanged) await requireLicensedCountry(actor.companyId, countryId)
   const safeWebsite = (await assertSafeRemoteHttpUrl(websiteInput)).toString()
   const website = new URL(safeWebsite).origin
   const duplicate = await prisma.competitor.findUnique({
