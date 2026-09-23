@@ -37,7 +37,7 @@ function setControl(form: HTMLFormElement, name: string, value: string | number 
   return true
 }
 
-type MarketOption = { id: string; code: string; name: string; currency: string }
+type MarketOption = { id: string; code: string; name: string; currency: string; vatRate: number }
 
 function marketCodeFromUrl(value: string) {
   try {
@@ -85,36 +85,60 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         if (setControl(form, name, value, overwrite)) applied += 1
       }
 
+      const marketCode = marketCodeFromUrl(payload.url || rawUrl)
+      const selectedMarketId = control(form, 'countryId')?.value
+      const market = (marketCode
+        ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK'))
+        : null) ?? markets.find((item) => item.id === selectedMarketId) ?? null
+      const validVatRate = market && Number.isFinite(market.vatRate) && market.vatRate >= 0 && market.vatRate <= 100
+      const vatFactor = validVatRate ? 1 + market.vatRate / 100 : null
+      const priceIncludingVat = payload.ownPrice === null
+        ? null
+        : payload.vatIncluded === true
+          ? payload.ownPrice
+          : payload.vatIncluded === false && vatFactor
+            ? payload.ownPrice * vatFactor
+            : null
+      const priceExcludingVat = payload.ownPrice === null
+        ? null
+        : payload.vatIncluded === false
+          ? payload.ownPrice
+          : payload.vatIncluded === true && vatFactor
+            ? payload.ownPrice / vatFactor
+            : null
+      const money = (value: number | null) => value === null ? null : value.toFixed(2).replace('.', ',')
+
       apply('ownUrl', payload.url || rawUrl, true)
       apply('articleNumber', payload.articleNumber, true)
       apply('name', payload.name, true)
       apply('ean', payload.ean, true)
-      apply('ownPrice', payload.ownPrice, true)
+      apply('ownPrice', money(priceIncludingVat), true)
+      apply('ownPriceOther', money(priceExcludingVat), true)
       apply('currency', payload.currency, true)
       apply('stockStatus', payload.stockStatus, true)
       apply('packagingQty', payload.packagingQty, true)
       apply('brand', payload.brand, true)
       apply('model', payload.model, true)
       apply('mpn', payload.mpn, true)
-
-      if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
+      apply('vatIncluded', true, true)
 
       const eanControl = control(form, 'ean') as HTMLInputElement | null
       const articleControl = control(form, 'articleNumber') as HTMLInputElement | null
       eanControl?.setCustomValidity(payload.existingProduct ? 'Dit product bestaat al in Prysight.' : '')
       articleControl?.setCustomValidity(payload.existingProduct ? 'Dit product bestaat al in Prysight.' : '')
 
-      const marketCode = marketCodeFromUrl(payload.url || rawUrl)
-      const market = marketCode ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK')) : null
       if (market) {
         apply('countryId', market.id, true)
         apply('currency', market.currency, true)
       }
 
+      const priceNeedsAttention = payload.ownPrice !== null && priceIncludingVat === null
       setPreview(payload)
       setMessage(payload.existingProduct
         ? `Dit product bestaat al als artikel ${payload.existingProduct.articleNumber}.`
-        : `${applied} velden ingevuld. Controleer de productgegevens en prijs${payload.vatIncluded === null ? ', waaronder de btw status' : ''}.`)
+        : priceNeedsAttention
+          ? `${applied} velden ingevuld. De gevonden prijs is niet automatisch ingevuld omdat de btw status of markt niet betrouwbaar genoeg is.`
+          : `${applied} velden ingevuld. Controleer de productgegevens en prijs.`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
     } finally {
