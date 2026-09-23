@@ -280,7 +280,7 @@ export async function getCompetitorsOverview(companyId?: string) {
 
 export function deriveCompetitorMetrics(competitor: CompetitorWithRelations) {
   const matchedOffers = competitor.offers.filter((offer) => offer.productMatch)
-  const validPrices = competitor.offers.filter((offer) => {
+  const validPrices = matchedOffers.filter((offer) => {
     const competitorPrice = decimalToNumber(offer.normalizedPrice)
     const ownPrice = decimalToNumber(offer.productMatch?.product.ownPrice)
     return competitorPrice !== null
@@ -294,8 +294,8 @@ export function deriveCompetitorMetrics(competitor: CompetitorWithRelations) {
     return calculatePriceDifference(ownPrice, competitorPrice)
   })
   const lowerCount = positions.filter((position) => position.position === 'LAAGSTE').length
-  const failedChecks = competitor.offers.flatMap((offer) => offer.priceChecks).filter((check) => !check.isSuccess)
-  const totalChecks = competitor.offers.flatMap((offer) => offer.priceChecks)
+  const failedChecks = matchedOffers.flatMap((offer) => offer.priceChecks).filter((check) => !check.isSuccess)
+  const totalChecks = matchedOffers.flatMap((offer) => offer.priceChecks)
   const lastChecked = validPrices.map((offer) => offer.lastCheckedAt).filter((value): value is Date => Boolean(value)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
 
   return {
