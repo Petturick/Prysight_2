@@ -81,7 +81,12 @@ export function EanDiscoveryField() {
       const form = input.form
       const countryField = form?.elements.namedItem('countryId') as HTMLSelectElement | null
       const countryOption = countryField?.selectedOptions[0]
-      const countryCode = countryOption?.textContent?.trim() === 'Nederland' ? 'NL' : 'NL'
+      const countryName = countryOption?.textContent?.trim().toLowerCase() ?? ''
+      const countryCode = (
+        { nederland: 'NL', belgië: 'BE', belgium: 'BE', duitsland: 'DE', germany: 'DE',
+          frankrijk: 'FR', france: 'FR', portugal: 'PT', 'verenigd koninkrijk': 'GB',
+          'united kingdom': 'GB', engeland: 'GB' } as Record<string, string>
+      )[countryName] ?? 'NL'
       const response = await fetch('/api/products/recognize-ean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
