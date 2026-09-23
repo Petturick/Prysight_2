@@ -143,6 +143,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       where: { companyId: user.companyId, importedProductId: id },
       orderBy: { updatedAt: 'desc' },
       select: { rawData: true, mappedData: true },
+    }).catch((error) => {
+      // Feed enrichment is optional; a failed feed lookup must not take down the product page.
+      console.error('Optional product feed context unavailable', { companyId: user.companyId, productId: id, error })
+      return null
     }),
   ])
 
