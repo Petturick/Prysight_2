@@ -14,7 +14,7 @@ export default async function ProductgroepenBeheerPage() {
     orderBy: { name: 'asc' },
     include: { _count: { select: { products: true } } },
   }), [])
-  const groups = result.data.filter((group) => !mergedGroupTarget(group.description))
+  const groups = result.data.filter((group) => !mergedGroupTarget(group.description) && group.name.trim().toLowerCase() !== 'onbekend')
   const targets = groups.filter((group) => group.isActive && productGroupLabel(group) !== 'Nog niet ingedeeld')
 
   return (
