@@ -6,34 +6,40 @@ import { findExistingProduct } from '@/lib/product-duplicate'
 import { normalizeGtin, validGtin } from '@/lib/gtin'
 import { prisma } from '@/lib/prisma'
 import { webSearch } from '@/lib/ean-competitor-discovery'
-import { POST as previewProductUrl } from '@/app/api/products/preview-url/route'
+import { lookupOnlineProduct, type OnlineProduct } from '@/lib/online-ean-product'
 
 type Candidate = { title: string; url: string; snippet?: string }
 
 function hasExactEan(value: string, ean: string) {
   return value.replace(/\D/g, ' ').split(/\s+/).includes(ean)
 }
-
-function cleanTitle(value: string, ean: string) {
-  return value
-    .replace(/\s+[|–—]\s+.*$/, '')
-    .replace(new RegExp('(?:^|\\s)' + ean + '(?:\\s|$)', 'g'), ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 240)
-}
-
 function sourceHost(value: string) {
   try { return new URL(value).hostname.toLowerCase().replace(/^www\./, '') } catch { return null }
 }
-
 function isOwnHost(url: string, ownHosts: Set<string>) {
   const host = sourceHost(url)
   return !!host && [...ownHosts].some((own) => host === own || host.endsWith('.' + own))
 }
-
-function isUsableProductTitle(value: string) {
-  return value.length >= 7 && /[a-zà-ÿ]{3,}/i.test(value) && !/^(?:product|ean|gtin|zoekresultaten|search results)$/i.test(value)
+function mergeOnlineProducts(products: OnlineProduct[], ean: string) {
+  const preferred = [...products].sort((a, b) => Number(b.sourceType === 'OWN_SHOP') - Number(a.sourceType === 'OWN_SHOP'))
+  const own = preferred.find((product) => product.sourceType === 'OWN_SHOP')
+  const first = <K extends keyof OnlineProduct>(field: K): OnlineProduct[K] | null => {
+    for (const product of preferred) if (product[field] !== null && product[field] !== '') return product[field]
+    return null
+  }
+  // Identifiers and own sales values must originate from a verified own-shop page.
+  const ownPrice = own?.ownPrice ?? null
+  return {
+    ean, found: true, source: preferred.map((product) => product.sourceType).includes('OWN_SHOP') ? 'OWN_SHOP_AND_ONLINE' : 'ONLINE',
+    name: first('name'), articleNumber: own?.articleNumber ?? null,
+    brand: first('brand'), model: first('model'), mpn: first('mpn'),
+    productGroup: first('productGroup'), packagingQty: first('packagingQty'),
+    ownPrice, currency: ownPrice === null ? null : own?.currency ?? null,
+    vatIncluded: ownPrice === null ? null : own?.vatIncluded ?? null,
+    stockStatus: own?.stockStatus ?? null,
+    ownUrl: own?.ownUrl ?? null, image: first('image'), description: first('description'),
+    sources: preferred.map((product) => ({ url: product.sourceUrl, type: product.sourceType })),
+  }
 }
 
 export async function POST(request: Request) {
@@ -43,84 +49,58 @@ export async function POST(request: Request) {
     const ean = normalizeGtin(typeof body?.ean === 'string' ? body.ean : '')
     if (!validGtin(ean)) return NextResponse.json({ error: 'Controleer het EAN of GTIN.' }, { status: 400 })
     const countryCode = typeof body?.countryCode === 'string' ? body.countryCode.trim().toUpperCase() : 'NL'
-
     const existingProduct = await findExistingProduct({
-      companyId: actor.companyId,
-      ean,
-      gtin: ean,
+      companyId: actor.companyId, ean, gtin: ean,
     })
-    if (existingProduct) {
-      return NextResponse.json({ existingProduct, ean, found: true, source: 'EXISTING' })
-    }
 
     const [shops, search] = await Promise.all([
       prisma.webshop.findMany({
         where: { companyId: actor.companyId, competitorId: null, isActive: true },
-        select: { url: true },
-        take: 30,
+        select: { url: true }, take: 30,
       }),
       webSearch('"' + ean + '"', countryCode === 'UK' ? 'GB' : countryCode),
     ])
     const ownHosts = new Set(shops.map((shop) => sourceHost(shop.url)).filter((host): host is string => !!host))
-    const candidates = search.candidates
-      .filter((candidate) => hasExactEan(candidate.title + ' ' + (candidate.snippet ?? ''), ean))
+    const unique = new Set<string>()
+    const ranked = search.candidates
       .filter((candidate) => sourceHost(candidate.url))
-      .slice(0, 10) as Candidate[]
-
-    // A search result is not proof of an own selling price. Only an identified
-    // company webshop may supply ownPrice or ownUrl to the product form.
-    for (const candidate of candidates.filter((candidate) => isOwnHost(candidate.url, ownHosts)).slice(0, 3)) {
-      try {
-        const preview = await previewProductUrl(new Request('https://prysight.local/api/products/preview-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: candidate.url }),
-        }))
-        if (!preview.ok) continue
-        const payload = await preview.json() as Record<string, unknown>
-        const recognizedEan = normalizeGtin(typeof payload.ean === 'string' ? payload.ean : '')
-        // Do not copy a different product's identifiers or price into this EAN.
-        if (recognizedEan && recognizedEan !== ean) continue
-        const name = typeof payload.name === 'string' ? payload.name.trim() : ''
-        const searchTitle = cleanTitle(candidate.title, ean)
-        if (!isUsableProductTitle(name) && !isUsableProductTitle(searchTitle)) continue
-        return NextResponse.json({
-          ...payload,
-          ean,
-          name: isUsableProductTitle(name) ? name : searchTitle,
-          // A price may only be prefilled when the source explicitly confirms this EAN.
-          ownPrice: recognizedEan === ean ? payload.ownPrice ?? null : null,
-          articleNumber: recognizedEan === ean ? payload.articleNumber ?? null : null,
-          ownUrl: candidate.url,
-          found: true,
-          source: 'OWN_SHOP',
-        })
-      } catch (error) {
-        console.warn('Own-shop EAN product preview unavailable', {
-          companyId: actor.companyId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
-      }
-    }
-
-    const named = candidates.map((candidate) => ({
-      name: cleanTitle(candidate.title, ean),
-      url: candidate.url,
-    })).find((candidate) => isUsableProductTitle(candidate.name))
-    if (named) {
-      return NextResponse.json({
-        ean,
-        name: named.name,
-        articleNumber: null,
-        ownPrice: null,
-        ownUrl: null,
-        found: true,
-        source: 'EAN_SEARCH',
+      .filter((candidate) => {
+        try {
+          const u = new URL(candidate.url)
+          return u.protocol === 'https:' || u.protocol === 'http:'
+        } catch { return false }
       })
+      .filter((candidate) => {
+        const key = candidate.url.split('#')[0].replace(/\/$/, '')
+        if (unique.has(key)) return false
+        unique.add(key)
+        return true
+      })
+      .sort((a, b) =>
+        Number(isOwnHost(b.url, ownHosts)) - Number(isOwnHost(a.url, ownHosts))
+        || Number(hasExactEan(b.title + ' ' + (b.snippet ?? ''), ean))
+           - Number(hasExactEan(a.title + ' ' + (a.snippet ?? ''), ean)),
+      )
+      .slice(0, 8) as Candidate[]
+
+    // Search results are discovery hints only; actual product details require
+    // an exact EAN/GTIN match on a source page.
+    const selected = [
+      ...ranked.filter((candidate) => isOwnHost(candidate.url, ownHosts)).slice(0, 2),
+      ...ranked.filter((candidate) => !isOwnHost(candidate.url, ownHosts)).slice(0, 4),
+    ]
+    const outcomes = await Promise.allSettled(selected.map((candidate) =>
+      lookupOnlineProduct(candidate.url, ean, isOwnHost(candidate.url, ownHosts)),
+    ))
+    const verified = outcomes.flatMap((outcome) =>
+      outcome.status === 'fulfilled' && outcome.value ? [outcome.value] : [],
+    )
+    if (verified.length) {
+      return NextResponse.json({ ...mergeOnlineProducts(verified, ean), existingProduct })
     }
-    return NextResponse.json({ ean, found: false, source: search.provider })
+    return NextResponse.json({ ean, existingProduct, found: false, source: search.provider, sources: [] })
   } catch (error) {
-    console.error('EAN product recognition failed', error)
-    return NextResponse.json({ error: 'Automatische productherkenning is tijdelijk niet beschikbaar.' }, { status: 503 })
+    console.error('Online EAN product recognition failed', error)
+    return NextResponse.json({ error: 'Productgegevens konden tijdelijk niet worden opgehaald.' }, { status: 503 })
   }
 }
