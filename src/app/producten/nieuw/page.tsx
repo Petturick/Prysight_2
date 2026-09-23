@@ -3,6 +3,7 @@ import { createSmartProductAction } from '@/app/actions/smartProductActions'
 import { ProductUrlQuickStart } from '@/components/ProductUrlQuickStart'
 import { EanDiscoveryField } from '@/components/EanDiscoveryField'
 import { ProductCreateSubmitButton } from '@/components/ProductCreateSubmitButton'
+import { ProductGroupField } from '@/components/ProductGroupField'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { getActiveCompanyCountries } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
@@ -43,10 +44,10 @@ export default async function NewProductPage() {
             <label className="text-[11px] font-semibold text-[#4f5869]">Artikelnummer *<input name="articleNumber" required className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld PB-121076" /></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Productnaam *<input name="name" required className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld Palletbox 1200 x 1000" /></label>
             <EanDiscoveryField />
+            <ProductGroupField formId="new-product-form" groups={productGroups.map((group) => ({ name: group.name, description: group.description }))} />
             <details className="rounded-lg border border-[#e2e9f2] bg-[#fafcff] sm:col-span-2">
               <summary className="cursor-pointer px-4 py-3 text-[12px] font-medium text-[#416b9d]">Overige productgegevens (optioneel)</summary>
               <div className="grid gap-3 border-t border-[#e2e9f2] p-4 sm:grid-cols-2 lg:grid-cols-3">
-                <label className="text-[11px] font-semibold text-[#4f5869]">Productgroep<input name="productGroup" list="product-groups" className="toolbar-control mt-1.5 w-full" placeholder="Kies of typ een productgroep" /><datalist id="product-groups">{productGroups.map((group) => <option key={group.id} value={group.name} />)}</datalist></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">GTIN<input name="gtin" inputMode="numeric" className="toolbar-control mt-1.5 w-full" /></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">MPN<input name="mpn" className="toolbar-control mt-1.5 w-full" /></label>
                 <label className="text-[11px] font-semibold text-[#4f5869]">Merk<input name="brand" className="toolbar-control mt-1.5 w-full" /></label>
