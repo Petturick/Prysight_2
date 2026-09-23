@@ -58,7 +58,7 @@ function friendlyFailureReason(message: string | null | undefined) {
 export default async function ConcurrentenPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams
   const user = await requireAuthenticatedUser()
-  const canWrite = user.role !== 'READONLY' && user.membershipRole !== 'READONLY'
+  const canWrite = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
 
   const result = await profileStep('/concurrenten', 'overview', () => safeDatabaseQuery(async () => {
     const [competitors, companyCountries] = await Promise.all([
