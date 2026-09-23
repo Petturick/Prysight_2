@@ -34,7 +34,7 @@ export default async function NewProductPage() {
         </nav>
       </header>
 
-      <ProductUrlQuickStart formId="new-product-form" markets={countries.map((country) => ({ id: country.id, code: country.code, name: country.name, currency: country.currency }))} />
+      <ProductUrlQuickStart formId="new-product-form" markets={countries.map((country) => ({ id: country.id, code: country.code, name: country.name, currency: country.currency, vatRate: Number(country.vatRate) }))} />
 
       <form id="new-product-form" action={createSmartProductAction} className="space-y-3">
         <section className="ps-panel overflow-hidden">
