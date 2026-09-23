@@ -42,13 +42,18 @@ export async function saveCompetitorSourceAction(formData: FormData) {
   const offer = await prisma.competitorOffer.findFirst({
     where: { id: offerId, competitorId, companyId: actor.companyId, isActive: true },
     include: {
-      competitor: { select: { id: true, countryId: true, isActive: true } },
+      competitor: { select: { id: true, website: true, countryId: true, isActive: true } },
       productMatch: { select: { id: true, productId: true } },
     },
   })
   if (!offer) throw new Error('Prijsbron niet gevonden binnen deze organisatie of concurrent.')
   await requireLicensedCountry(actor.companyId, offer.competitor.countryId)
   const safeUrl = (await assertSafeRemoteHttpUrl(offerUrl)).toString()
+  const websiteHost = new URL(offer.competitor.website).hostname.replace(/^www\./, '')
+  const sourceHost = new URL(safeUrl).hostname.replace(/^www\./, '')
+  if (sourceHost !== websiteHost && !sourceHost.endsWith(`.${websiteHost}`)) {
+    throw new Error('De product URL hoort niet bij de website van deze concurrent. Wijzig eerst de concurrent of kies de juiste prijsbron.')
+  }
   const urlChanged = safeUrl !== offer.url
   const productChanged = (offer.productMatch?.productId ?? '') !== productId
   if (productChanged && productId && field(formData, 'confirmMatch') !== 'on') {
@@ -93,6 +98,9 @@ export async function saveCompetitorSourceAction(formData: FormData) {
         })
         if (existingMarket && !existingMarket.isActive) throw new Error('Dit product is in deze markt gepauzeerd. Activeer het product eerst bij Producten.')
         if (!existingMarket) {
+          if (actor.role !== 'SUPER_ADMIN' && !actor.permissions.includes('products.write')) {
+            throw new Error('Het product is nog niet actief in deze markt. Vraag een productbeheerder het product aan deze markt toe te voegen.')
+          }
           const country = await tx.country.findUnique({ where: { id: offer.competitor.countryId }, select: { currency: true } })
           if (!country) throw new Error('De markt bestaat niet meer.')
           await tx.productMarket.create({
