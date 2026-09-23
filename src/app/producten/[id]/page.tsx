@@ -7,6 +7,8 @@ import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetito
 import { approveMatchAction } from '@/app/actions/matchActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { EanPriceSuggestions } from '@/components/EanPriceSuggestions'
+import { OwnProductSyncSettings } from '@/components/OwnProductSyncSettings'
+import { ownProductSourceKey } from '@/lib/own-product-url-sync'
 import { ProductPriceHistoryPanel } from '@/components/ProductPriceHistoryPanel'
 import { PriceFetchSubmitButton } from '@/components/PriceFetchSubmitButton'
 import { RemoveCompetitorButton } from '@/components/RemoveCompetitorButton'
@@ -161,6 +163,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
     ?? countries.find((country) => country.code === 'NL')
     ?? countries[0]
   const selectedMarket = defaultCountry ? product.productMarkets.find((market) => market.countryId === defaultCountry.id) ?? null : null
+  const ownSyncSource = defaultCountry ? await prisma.feedSource.findUnique({
+    where: { companyId_sourceKey: { companyId: user.companyId, sourceKey: ownProductSourceKey(product.id, defaultCountry.id) } },
+    select: { id: true, url: true, syncFrequencyHours: true, lastRunStatus: true, lastRunAt: true, syncError: true },
+  }) : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
   const hasReadableProductName = /[a-zà-ÿ]{2,}/i.test(product.name)
@@ -310,6 +316,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <span>3. Prijzen vergelijken ({pricedMatches.length})</span><span aria-hidden="true">›</span>
         </a>
       </nav>
+
+      <OwnProductSyncSettings key={defaultCountry?.id ?? 'none'} productId={product.id} countryId={defaultCountry?.id ?? null}
+        marketName={defaultCountry?.name ?? null} hasUrl={Boolean(selectedMarket?.ownUrl)} canWrite={canEditProduct}
+        initialSource={ownSyncSource ? { ...ownSyncSource, lastRunAt: ownSyncSource.lastRunAt?.toISOString() ?? null } : null} />
 
       <EanPriceSuggestions
         productId={product.id}

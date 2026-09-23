@@ -2,6 +2,7 @@ import { FeedSourceType, FeedSyncStatus } from '@/generated/prisma/client'
 import { NextResponse } from 'next/server'
 import { verifyBearerSecret } from '@/lib/api-auth'
 import { dispatchFeedSync } from '@/lib/feed-sync-dispatch'
+import { dispatchOwnProductSync } from '@/lib/own-product-sync-dispatch'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -14,11 +15,12 @@ export async function POST(request: Request) {
   const now = Date.now()
   const candidates = await prisma.feedSource.findMany({
     where: {
-      isActive: true, sourceType: FeedSourceType.URL, url: { not: null },
+      isActive: true, url: { not: null },
+      OR: [{ sourceType: FeedSourceType.URL }, { sourceType: FeedSourceType.API, sourceKey: { startsWith: 'own-url:' } }],
       lastRunStatus: { not: FeedSyncStatus.RUNNING }, syncFrequencyHours: { lt: 8760 },
       company: { status: 'ACTIVE' },
     },
-    select: { id: true, companyId: true, lastRunAt: true, syncFrequencyHours: true },
+    select: { id: true, companyId: true, lastRunAt: true, syncFrequencyHours: true, sourceType: true, sourceKey: true },
     orderBy: [{ lastRunAt: 'asc' }, { createdAt: 'asc' }],
     take: 250,
   })
@@ -28,7 +30,8 @@ export async function POST(request: Request) {
     if (queued >= 20) break
     if (source.lastRunAt && now - source.lastRunAt.getTime() < source.syncFrequencyHours * 3_600_000) continue
     const claimed = await prisma.feedSource.updateMany({
-      where: { id: source.id, companyId: source.companyId, isActive: true, sourceType: FeedSourceType.URL,
+      where: { id: source.id, companyId: source.companyId, isActive: true,
+        sourceType: source.sourceType, sourceKey: source.sourceKey,
         syncFrequencyHours: { lt: 8760 }, lastRunStatus: { not: FeedSyncStatus.RUNNING },
         ...(source.lastRunAt ? { lastRunAt: source.lastRunAt } : { lastRunAt: null }),
       },
@@ -36,7 +39,8 @@ export async function POST(request: Request) {
     })
     if (claimed.count !== 1) continue
     try {
-      await dispatchFeedSync(request, source.id)
+      if (source.sourceType === FeedSourceType.URL) await dispatchFeedSync(request, source.id)
+      else await dispatchOwnProductSync(request, source.id)
       queued += 1
     } catch (error) {
       failed += 1

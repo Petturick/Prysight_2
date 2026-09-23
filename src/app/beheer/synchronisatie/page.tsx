@@ -11,6 +11,7 @@ export default async function SynchronisatiePage() {
   const actor = await requireAuthenticatedUser()
   const canReadFeeds = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('feeds.read')
   const canWriteFeeds = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('feeds.write')
+  const canWriteProducts = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('products.write')
   const canReadPrices = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.read')
   const canWritePrices = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage')
   const canEditCompetitors = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
@@ -26,7 +27,7 @@ export default async function SynchronisatiePage() {
     canReadFeeds ? prisma.feedSource.findMany({
       where: { companyId: actor.companyId, ...(scopedCode !== 'ALL' ? { countryCode: scopedCode } : {}) },
       orderBy: [{ countryCode: 'asc' }, { name: 'asc' }], take: 300,
-      select: { id: true, name: true, countryCode: true, isActive: true, sourceType: true,
+      select: { id: true, name: true, countryCode: true, isActive: true, sourceType: true, sourceKey: true,
         syncFrequencyHours: true, lastRunStatus: true, lastRunAt: true, lastItemCount: true, lastErrorCount: true, syncError: true },
     }) : Promise.resolve([]),
     canReadPrices ? prisma.competitor.findMany({
@@ -53,7 +54,7 @@ export default async function SynchronisatiePage() {
         frequency: competitor.checkFrequencyHours, lastCheckedAt: competitor.lastCheckedAt?.toISOString() ?? null,
         offerCount: competitor._count.offers,
       }))}
-      canReadFeeds={canReadFeeds} canWriteFeeds={canWriteFeeds}
+      canReadFeeds={canReadFeeds} canWriteFeeds={canWriteFeeds} canWriteProducts={canWriteProducts}
       canReadPrices={canReadPrices} canWritePrices={canWritePrices} canEditCompetitors={canEditCompetitors} />
   </div>
 }
