@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
 const main = read('src/app/concurrenten/page.tsx')
 const admin = read('src/app/beheer/concurrenten/page.tsx')
 const bulk = read('src/components/CompetitorBulkTable.tsx')
