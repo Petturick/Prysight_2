@@ -73,7 +73,7 @@ export default async function ProductgroepenBeheerPage() {
                       {mergeTargets.map((target) => <option key={target.id} value={target.id}>{productGroupLabel(target)}</option>)}
                     </select>
                   </label>
-                  <button type="submit" disabled={!mergeTargets.length} className="secondary-action disabled:opacity-40">Samenvoegen</button>
+                  <button type="submit" disabled={!mergeTargets.length || group.name.trim().toLowerCase() === 'onbekend'} className="secondary-action disabled:opacity-40" title={group.name.trim().toLowerCase() === 'onbekend' ? 'Onbekend is de standaardgroep voor nieuwe producten. Gebruik bulk toewijzing om bestaande producten te verplaatsen.' : ''}>Samenvoegen</button>
                 </form>
                 <form action={deleteProductGroupAction}>
                   <input type="hidden" name="id" value={group.id} />
