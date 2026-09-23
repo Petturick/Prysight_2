@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { createCompetitorAction } from '@/app/actions/productActions'
+import { activateCompanyCountryAction } from '@/app/actions/onboardingActions'
+import { CompetitorMarketPicker } from '@/components/CompetitorMarketPicker'
 import { DataTable } from '@/components/DataTable'
 import { CompetitorRowActions } from '@/components/CompetitorRowActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
@@ -59,38 +61,54 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
   const params = await searchParams
   const user = await requireAuthenticatedUser()
   const canWrite = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
+  const canManageMarkets = user.role === 'SUPER_ADMIN' || user.permissions.includes('settings.manage')
+  const requestedMarket = typeof params.markt === 'string' ? params.markt.trim().toUpperCase() : ''
 
   const result = await profileStep('/concurrenten', 'overview', () => safeDatabaseQuery(async () => {
-    const [competitors, companyCountries] = await Promise.all([
-      prisma.competitor.findMany({
-        relationLoadStrategy: 'join',
-        where: { companyId: user.companyId },
-        include: {
-          country: true,
-          _count: { select: { offers: true } },
-          offers: {
-            where: { isActive: true },
-            include: {
-              productMatch: { include: { product: true } },
-              priceChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
-              priceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
-            },
-          },
-        },
-        orderBy: [{ country: { name: 'asc' } }, { name: 'asc' }],
-      }),
+    const [companyCountries, availableCountries] = await Promise.all([
       prisma.companyCountry.findMany({
         relationLoadStrategy: 'join',
         where: { companyId: user.companyId, isActive: true, country: { isActive: true } },
         include: { country: true },
         orderBy: { country: { name: 'asc' } },
       }),
+      canManageMarkets
+        ? prisma.country.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true }, orderBy: { name: 'asc' } })
+        : Promise.resolve([]),
     ])
-    return { competitors, countries: companyCountries.map((item) => item.country) }
-  }, { competitors: [], countries: [] }), { companyId: user.companyId }, 300)
+    const countries = companyCountries.map((item) => item.country)
+    const selectedCountry = countries.find((country) => country.code.toUpperCase() === requestedMarket) ?? null
+    const hasInvalidSelection = Boolean(requestedMarket && requestedMarket !== 'ALLE' && !selectedCountry)
+    const competitors = await prisma.competitor.findMany({
+      relationLoadStrategy: 'join',
+      where: {
+        companyId: user.companyId,
+        ...(selectedCountry ? { countryId: selectedCountry.id } : {}),
+        ...(hasInvalidSelection ? { id: '__no_such_competitor_market__' } : {}),
+      },
+      include: {
+        country: true,
+        _count: { select: { offers: true } },
+        offers: {
+          where: { isActive: true },
+          include: {
+            productMatch: { include: { product: true } },
+            priceChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
+            priceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
+          },
+        },
+      },
+      orderBy: [{ country: { name: 'asc' } }, { name: 'asc' }],
+    })
+    return { competitors, countries, availableCountries, selectedCountryId: selectedCountry?.id ?? null, hasInvalidSelection }
+  }, { competitors: [], countries: [], availableCountries: [], selectedCountryId: null, hasInvalidSelection: false }), { companyId: user.companyId }, 300)
 
-  const { competitors, countries } = result.data
+  const { competitors, countries, availableCountries, selectedCountryId, hasInvalidSelection } = result.data
+  const selectedMarket = countries.find((country) => country.id === selectedCountryId) ?? null
+  const inactiveMarkets = availableCountries.filter((country) => !countries.some((activeCountry) => activeCountry.id === country.id))
+
   const added = params.toegevoegd === '1'
+  const marketAdded = params.marktoegevoegd === '1'
   const overview = competitors.map((competitor) => {
     const metrics = deriveCompetitorMetrics(competitor)
     const latestChecks = latestChecksForCompetitor(competitor)
@@ -114,7 +132,38 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
   return (
     <div className="space-y-4">
       {!result.available && <DatabaseNotice />}
-      {added ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrent toegevoegd. Koppel nu één of meer product URLs.</div> : null}
+      {added ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrent toegevoegd in de geselecteerde markt. Koppel nu één of meer product URLs.</div> : null}
+      {marketAdded ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">{selectedMarket?.name ?? 'De markt'} is geactiveerd. Je kunt nu concurrenten voor deze markt toevoegen.</div> : null}
+      {hasInvalidSelection ? <p role="alert" className="rounded-[12px] bg-[#fff3f4] px-4 py-3 text-[12px] text-[#913140]">Deze markt is niet actief voor je organisatie. Kies een actieve markt of voeg er één toe.</p> : null}
+
+      <section className="ps-panel flex flex-wrap items-end justify-between gap-3 px-5 py-4 sm:px-6" aria-label="Markt selecteren en toevoegen">
+        <div className="flex flex-wrap items-end gap-3">
+          <CompetitorMarketPicker countries={countries} selected={selectedMarket?.code ?? 'alle'} />
+          <div className="pb-1 text-[11px] text-[#718197]">{selectedMarket ? `Je bekijkt concurrenten in ${selectedMarket.name}.` : 'Je bekijkt de concurrenten van alle actieve markten.'}</div>
+        </div>
+        {canManageMarkets ? (
+          <details className="group w-full max-w-[360px] rounded-[10px] border border-[#dbe4ef] bg-white p-3">
+            <summary className="cursor-pointer text-[12px] font-semibold text-[#2f6edb]">+ Markt toevoegen</summary>
+            {inactiveMarkets.length ? (
+              <form action={activateCompanyCountryAction} className="mt-3 space-y-3">
+                <input type="hidden" name="returnTo" value="concurrenten" />
+                <label className="block space-y-1 text-[11px] font-medium text-[#4b5870]">
+                  <span>Land activeren voor je organisatie</span>
+                  <select name="countryId" className="toolbar-control w-full" defaultValue="" required>
+                    <option value="" disabled>Kies een land</option>
+                    {inactiveMarkets.map((country) => <option key={country.id} value={country.id}>{country.name} ({country.code})</option>)}
+                  </select>
+                </label>
+                <p className="text-[10px] leading-4 text-[#748296]">Activatie is afhankelijk van het aantal toegestane markten in je licentie.</p>
+                <button className="primary-action w-full" type="submit">Markt activeren</button>
+              </form>
+            ) : <p className="mt-2 text-[11px] text-[#718197]">Alle beschikbare markten zijn al geactiveerd.</p>}
+            <Link href="/instellingen/markten" className="mt-3 inline-block text-[11px] font-semibold text-[#356ccd]">Markten en licentie bekijken</Link>
+          </details>
+        ) : (
+          <p className="text-[11px] text-[#718197]">Nieuwe markten worden geactiveerd door een beheerder met instellingenrechten.</p>
+        )}
+      </section>
 
       <section className="strong-panel overflow-hidden">
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -146,9 +195,9 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
       ) : null}
 
       {canWrite ? (
-        <details className="ps-panel group overflow-hidden" open={competitors.length === 0}>
+        <details className="ps-panel group overflow-hidden" open={competitors.length === 0 && countries.length > 0}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
-            <div><h2 className="text-[14px] font-semibold text-[#23364d]">Concurrent toevoegen</h2><p className="mt-1 text-[11px] text-[#7a8798]">Naam, website, markt en controlefrequentie.</p></div>
+            <div><h2 className="text-[14px] font-semibold text-[#23364d]">Concurrent toevoegen</h2><p className="mt-1 text-[11px] text-[#7a8798]">Naam, website, land en controlefrequentie. De gekozen markt wordt automatisch ingevuld.</p></div>
             <span className="secondary-action min-h-0 px-3 py-2 text-[11px] group-open:hidden">Openen</span>
             <span className="hidden text-[11px] font-semibold text-[#69798a] group-open:inline">Sluiten</span>
           </summary>
@@ -156,7 +205,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
             <fieldset disabled={!result.available || countries.length === 0} className="contents disabled:opacity-50">
               <label className="space-y-1.5 text-[11px] font-medium text-[#4b5870]"><span>Naam</span><input name="name" placeholder="Bijvoorbeeld Kruizinga" className="toolbar-control w-full" required /></label>
               <label className="space-y-1.5 text-[11px] font-medium text-[#4b5870] lg:col-span-2"><span>Website</span><input name="website" type="url" placeholder="https://www.concurrent.nl" className="toolbar-control w-full" required /></label>
-              <label className="space-y-1.5 text-[11px] font-medium text-[#4b5870]"><span>Land</span><select name="countryId" className="toolbar-control w-full" defaultValue="" required><option value="" disabled>Kies land</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
+              <label className="space-y-1.5 text-[11px] font-medium text-[#4b5870]"><span>Land</span><select name="countryId" className="toolbar-control w-full" defaultValue={selectedCountryId ?? (countries.length === 1 ? countries[0].id : '')} required><option value="" disabled>Kies land</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
               <label className="space-y-1.5 text-[11px] font-medium text-[#4b5870]"><span>Frequentie</span><select name="checkFrequencyHours" className="toolbar-control w-full" defaultValue="24"><option value="6">Iedere 6 uur</option><option value="12">Iedere 12 uur</option><option value="24">Dagelijks</option><option value="48">Iedere 2 dagen</option><option value="168">Wekelijks</option><option value="876000">Handmatig</option></select></label>
               <div className="flex justify-end sm:col-span-2 lg:col-span-5"><button className="primary-action">Toevoegen</button></div>
             </fieldset>
@@ -165,9 +214,12 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
       ) : null}
 
       <section className="space-y-2.5">
-        <div className="px-1"><h2 className="text-[15px] font-semibold text-[#21364d]">Concurrenten</h2></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <h2 className="text-[15px] font-semibold text-[#21364d]">{selectedMarket ? `Concurrenten in ${selectedMarket.name}` : 'Concurrenten'}</h2>
+          <span className="text-[11px] text-[#748296]">{formatNumber(competitors.length)} concurrenten</span>
+        </div>
         <DataTable
-          emptyText="Nog geen concurrenten toegevoegd."
+          emptyText={hasInvalidSelection ? 'Kies eerst een actieve markt.' : selectedMarket ? `Nog geen concurrenten in ${selectedMarket.name}. Voeg hierboven een concurrent toe.` : 'Nog geen concurrenten toegevoegd. Kies een markt en voeg je eerste concurrent toe.'}
           columns={[
             { key: 'naam', header: 'Concurrent' },
             { key: 'markt', header: 'Markt' },
