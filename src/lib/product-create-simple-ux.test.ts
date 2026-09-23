@@ -6,6 +6,7 @@ const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta
 const page = read('src/app/producten/nieuw/page.tsx')
 const quickStart = read('src/components/ProductUrlQuickStart.tsx')
 const ean = read('src/components/EanDiscoveryField.tsx')
+const productGroupField = read('src/components/ProductGroupField.tsx')
 const create = read('src/app/actions/smartProductActions.ts')
 
 test('Product toevoegen heeft één compacte primaire route en verbergt alleen optionele velden', () => {
@@ -24,11 +25,14 @@ test('Product toevoegen heeft één compacte primaire route en verbergt alleen o
 
 test('Alle verplichte en bestaande optionele velden blijven beschikbaar voor dezelfde serveractie', () => {
   for (const field of ['articleNumber', 'name', 'ownPrice', 'countryId', 'vatIncluded', 'currency',
-    'productGroup', 'gtin', 'mpn', 'brand', 'model', 'ownPriceOther', 'ownShippingCost',
+    'gtin', 'mpn', 'brand', 'model', 'ownPriceOther', 'ownShippingCost',
     'ownShippingVatIncluded', 'ownUrl', 'stockStatus', 'packagingUnit', 'packagingQty']) {
     assert.equal(page.split(`name="${field}"`).length - 1, 1, `veld ${field} moet precies één keer voorkomen`)
   }
   assert.match(page, /<EanDiscoveryField \/>/)
+  assert.match(page, /<ProductGroupField formId="new-product-form"/)
+  assert.match(productGroupField, /name="productGroup"/)
+  assert.match(productGroupField, /suggestProductGroup/)
   assert.match(ean, /name="ean"/)
   assert.match(create, /validateVatPricePair/)
   assert.match(create, /discoverProductCandidates/)
@@ -37,9 +41,10 @@ test('Alle verplichte en bestaande optionele velden blijven beschikbaar voor dez
 
 test('URL herkenning vult ook verborgen velden in, met foutmelding en handmatige route', () => {
   for (const field of ['articleNumber', 'name', 'ean', 'ownPrice', 'currency', 'vatIncluded',
-    'productGroup', 'brand', 'model', 'mpn', 'countryId', 'ownUrl']) {
+    'brand', 'model', 'mpn', 'countryId', 'ownUrl']) {
     assert.match(quickStart, new RegExp(`apply\\('${field}'`))
   }
+  assert.doesNotMatch(quickStart, /apply\('productGroup'/)
   assert.match(quickStart, /fetch\('\/api\/products\/preview-url'/)
   assert.match(quickStart, /Geen URL\? Vul je product hieronder handmatig in/)
   assert.match(quickStart, /payload\.existingProduct/)
