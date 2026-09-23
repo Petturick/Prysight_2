@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { deleteSelectedCompetitorsAction } from '@/app/actions/competitorBulkActions'
 import { DataTable } from '@/components/DataTable'
 
@@ -22,24 +22,12 @@ type Props = {
 
 export function CompetitorBulkTable({ rows, columns, canWrite, emptyText }: Props) {
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const currentMarket = searchParams.toString()
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [confirming, setConfirming] = useState(false)
   const [confirmation, setConfirmation] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-
-  const rowKeys = rows.map(row => row.id).join('|')
-  useEffect(() => {
-    setSelected(new Set())
-    setConfirming(false)
-    setConfirmation('')
-    setError('')
-    setSuccess('')
-  }, [pathname, currentMarket, rowKeys])
 
   const selectedRows = useMemo(() => rows.filter(row => selected.has(row.id)), [rows, selected])
   const allSelected = rows.length > 0 && selectedRows.length === rows.length

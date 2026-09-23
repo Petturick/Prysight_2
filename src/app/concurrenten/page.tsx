@@ -230,6 +230,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
           <span className="text-[11px] text-[#748296]">{formatNumber(competitors.length)} concurrenten</span>
         </div>
         <CompetitorBulkTable
+          key={selectedMarket?.code ?? 'alle'}
           canWrite={canWrite && result.available}
           emptyText={hasInvalidSelection ? 'Kies eerst een actieve markt.' : selectedMarket ? `Nog geen concurrenten in ${selectedMarket.name}. Voeg hierboven een concurrent toe.` : 'Nog geen concurrenten toegevoegd. Kies een markt en voeg je eerste concurrent toe.'}
           columns={[

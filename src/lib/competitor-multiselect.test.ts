@@ -18,7 +18,7 @@ test('Bulkselectie werkt op beide concurrentenoverzichten en behoudt marktfilter
   assert.match(bulk, /Alle getoonde concurrenten selecteren/)
   assert.match(bulk, /selectedRows\.length/)
   assert.match(bulk, /new Set\(rows\.map\(row => row\.id\)\)/)
-  assert.match(bulk, /useSearchParams/)
+  assert.match(main, /key=\{selectedMarket\?\.code \?\? 'alle'\}/)
   assert.match(bulk, /router\.refresh\(\)/)
   assert.match(bulk, /role="dialog"/)
   assert.match(bulk, /selectedRows\.map\(row =>/)
