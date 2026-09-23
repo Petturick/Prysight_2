@@ -130,14 +130,14 @@ export default async function PriceSourceEditPage({
               <span>Ik bevestig dat de gekozen productpagina bij dit product hoort. Als ik het product, de URL, verpakking of btw wijzig, worden eerdere prijsmetingen en meldingen van alleen deze bron gewist. Andere bronnen blijven behouden.</span>
             </label>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CompetitorSourceDeleteButton competitorId={competitorId} offerId={offerId} url={offer.url} />
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/concurrenten/${competitorId}#prijsbronnen`} className="secondary-action">Annuleren</Link>
-              <button type="submit" className="primary-action">Prijsbron opslaan</button>
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link href={`/concurrenten/${competitorId}#prijsbronnen`} className="secondary-action">Annuleren</Link>
+            <button type="submit" className="primary-action">Prijsbron opslaan</button>
           </div>
         </form>
+        <div className="border-t border-[#e4eaf0] px-5 py-4 sm:px-6">
+          <CompetitorSourceDeleteButton competitorId={competitorId} offerId={offerId} url={offer.url} />
+        </div>
       </section>
     </div>
   )
