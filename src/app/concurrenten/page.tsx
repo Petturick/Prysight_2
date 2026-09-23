@@ -105,6 +105,17 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
     return { competitors, countries, availableCountries, selectedCountryId: selectedCountry?.id ?? null, hasInvalidSelection }
   }, { competitors: [], countries: [], availableCountries: [], selectedCountryId: null, hasInvalidSelection: false }), { companyId: user.companyId }, 300)
 
+  if (!result.available) {
+    return (
+      <div className="space-y-3">
+        <DatabaseNotice />
+        <Link href={requestedMarket ? `/concurrenten?markt=${encodeURIComponent(requestedMarket)}` : '/concurrenten'} className="primary-action inline-flex">
+          Opnieuw laden
+        </Link>
+      </div>
+    )
+  }
+
   const { competitors, countries, availableCountries, selectedCountryId, hasInvalidSelection } = result.data
   const selectedMarket = countries.find((country) => country.id === selectedCountryId) ?? null
   const inactiveMarkets = availableCountries.filter((country) => !countries.some((activeCountry) => activeCountry.id === country.id))
@@ -134,7 +145,6 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
 
   return (
     <div className="space-y-4">
-      {!result.available && <DatabaseNotice />}
       {added ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">Concurrent toegevoegd in de geselecteerde markt. Koppel nu één of meer product URLs.</div> : null}
       {marketAdded ? <div className="rounded-[12px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">{selectedMarket?.name ?? 'De markt'} is geactiveerd. Je kunt nu concurrenten voor deze markt toevoegen.</div> : null}
       {hasInvalidSelection ? <p role="alert" className="rounded-[12px] bg-[#fff3f4] px-4 py-3 text-[12px] text-[#913140]">Deze markt is niet actief voor je organisatie. Kies een actieve markt of voeg er één toe.</p> : null}
