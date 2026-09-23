@@ -17,6 +17,7 @@ export function CompetitorRowActions({ id, name, isActive, offerCount, canWrite 
       <Link href={`/concurrenten/${id}`} className="secondary-action min-h-0 px-3 py-2 text-[11px]">Bekijken</Link>
       {canWrite ? (
         <>
+          <Link href={`/concurrenten/${id}/bewerken`} className="secondary-action min-h-0 px-3 py-2 text-[11px]" aria-label={`Wijzig ${name}`}>Wijzigen</Link>
           <form action={setCompetitorActiveAction}>
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="isActive" value={String(!isActive)} />

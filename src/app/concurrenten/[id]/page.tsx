@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { updateCompetitorFrequencyAction } from '@/app/actions/productActions'
 import { DataTable } from '@/components/DataTable'
 import { requirePermission } from '@/lib/authz'
 import { deriveCompetitorMetrics } from '@/lib/dashboard'
@@ -42,10 +41,11 @@ function friendlyFailureReason(message: string | null | undefined) {
   return 'Prijs kon niet betrouwbaar worden opgehaald'
 }
 
-export default async function ConcurrentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ConcurrentDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ bijgewerkt?: string }> }) {
   const actor = await requirePermission('competitors.read')
   const { id } = await params
-  const canWrite = actor.permissions.includes('competitors.write')
+  const query = await searchParams
+  const canWrite = actor.role === 'SUPER_ADMIN' || actor.permissions.includes('competitors.write')
   const competitor = await prisma.competitor.findFirst({
     where: { id, companyId: actor.companyId },
     include: {
@@ -69,20 +69,15 @@ export default async function ConcurrentDetailPage({ params }: { params: Promise
 
   return (
     <div className="space-y-4">
+      {query.bijgewerkt === '1' ? <p role="status" className="rounded-[10px] bg-[#eaf8f0] px-4 py-3 text-[12px] font-semibold text-[#176a42]">De concurrentgegevens zijn opgeslagen. Gekoppelde product URL’s en prijshistorie zijn behouden.</p> : null}
       <section className="strong-panel overflow-hidden">
         <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div>
-            <Link href="/concurrenten" className="text-[11px] font-semibold text-[#2f6edb]">Terug naar Markt</Link>
+            <Link href={`/concurrenten?markt=${encodeURIComponent(competitor.country.code)}`} className="text-[11px] font-semibold text-[#2f6edb]">← Terug naar concurrenten in {competitor.country.name}</Link>
             <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.025em] text-[#18273a]">{competitor.name}</h1>
             <p className="mt-1 text-[12px] text-[#748296]">{competitor.country.name} · {competitor.website}</p>
           </div>
-          {canWrite ? (
-            <form action={updateCompetitorFrequencyAction} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="competitorId" value={competitor.id} />
-              <label className="text-[10px] font-medium text-[#69798a]">Controlefrequentie<select name="checkFrequencyHours" defaultValue={String(competitor.checkFrequencyHours)} className="toolbar-control mt-1 block min-w-[150px]"><option value="6">Iedere 6 uur</option><option value="12">Iedere 12 uur</option><option value="24">Dagelijks</option><option value="48">Iedere 2 dagen</option><option value="168">Wekelijks</option><option value="876000">Handmatig</option></select></label>
-              <button className="secondary-action min-h-[38px] px-3 py-2 text-[11px]">Opslaan</button>
-            </form>
-          ) : null}
+          {canWrite ? <Link href={`/concurrenten/${competitor.id}/bewerken`} className="primary-action">Concurrent wijzigen</Link> : null}
         </div>
         <div className="grid border-t border-[#e7edf3] sm:grid-cols-2 xl:grid-cols-4">
           <div className="px-5 py-3.5"><p className="text-[11px] text-[#7a8798]">Producten</p><p className="mt-1 text-[21px] font-semibold text-[#20344b]">{formatNumber(metrics.linkedProducts)}</p></div>

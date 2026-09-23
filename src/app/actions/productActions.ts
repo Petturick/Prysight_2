@@ -285,15 +285,70 @@ export async function createCompetitorAction(formData: FormData) {
   const countryId = text(formData, 'countryId')
   const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
   if (!name || !websiteInput || !countryId) throw new Error('Naam, website en land zijn verplicht.')
-  await requireLicensedCountry(user.companyId, countryId)
+  const country = await requireLicensedCountry(user.companyId, countryId)
   const safeWebsite = (await assertSafeRemoteHttpUrl(websiteInput)).toString()
   const website = new URL(safeWebsite).origin
   const where = { companyId_name_countryId: { companyId: user.companyId, name, countryId } }
   const existing = await prisma.competitor.findUnique({ where })
-  if (!existing) await assertCompanyCapacity(user.companyId, 'competitors')
-  await prisma.competitor.upsert({ where, update: { website, isActive: true, checkFrequencyHours }, create: { companyId: user.companyId, name, website, countryId, isActive: true, checkFrequencyHours } })
+  if (existing) redirect(`/concurrenten/${existing.id}/bewerken?bestaat=1`)
+  await assertCompanyCapacity(user.companyId, 'competitors')
+  await prisma.competitor.create({ data: { companyId: user.companyId, name, website, countryId, isActive: true, checkFrequencyHours } })
   revalidatePath('/dashboard'); revalidatePath('/producten'); revalidatePath('/concurrenten')
-  redirect('/concurrenten?toegevoegd=1')
+  redirect(`/concurrenten?markt=${encodeURIComponent(country.code)}&toegevoegd=1`)
+}
+
+export async function updateCompetitorDetailsAction(formData: FormData) {
+  const actor = await requirePermission('competitors.write')
+  const competitorId = text(formData, 'competitorId')
+  const name = text(formData, 'name')
+  const websiteInput = text(formData, 'website')
+  const countryId = text(formData, 'countryId')
+  const checkFrequencyHours = monitoringFrequency(text(formData, 'checkFrequencyHours'), 24)
+  if (!competitorId || name.length < 2 || name.length > 120 || !countryId || !websiteInput) {
+    throw new Error('Vul een geldige concurrentnaam, website en markt in.')
+  }
+
+  const competitor = await prisma.competitor.findFirst({
+    where: { id: competitorId, companyId: actor.companyId },
+    select: {
+      id: true, name: true, website: true, countryId: true, checkFrequencyHours: true,
+      _count: { select: { offers: true, webshops: true, alertRules: true } },
+    },
+  })
+  if (!competitor) throw new Error('Concurrent niet gevonden binnen deze organisatie.')
+  const marketChanged = competitor.countryId !== countryId
+  if (marketChanged && (competitor._count.offers > 0 || competitor._count.webshops > 0 || competitor._count.alertRules > 0)) {
+    throw new Error('Deze concurrent heeft al productprijzen of gekoppelde gegevens. Maak voor een andere markt een nieuwe concurrent aan zodat de bestaande prijzen en historie in het juiste land blijven.')
+  }
+  if (marketChanged) await requireLicensedCountry(actor.companyId, countryId)
+  const safeWebsite = (await assertSafeRemoteHttpUrl(websiteInput)).toString()
+  const website = new URL(safeWebsite).origin
+  const duplicate = await prisma.competitor.findUnique({
+    where: { companyId_name_countryId: { companyId: actor.companyId, name, countryId } },
+    select: { id: true },
+  })
+  if (duplicate && duplicate.id !== competitorId) throw new Error('Er bestaat al een concurrent met deze naam in deze markt.')
+
+  await prisma.competitor.update({
+    where: { id: competitorId, companyId: actor.companyId },
+    data: { name, website, countryId, checkFrequencyHours },
+  })
+  await createAuditLog({
+    companyId: actor.companyId,
+    userId: actor.id,
+    action: 'COMPETITOR_DETAILS_UPDATED',
+    entityType: 'Competitor',
+    entityId: competitorId,
+    oldValue: { name: competitor.name, website: competitor.website, countryId: competitor.countryId, checkFrequencyHours: competitor.checkFrequencyHours },
+    newValue: { name, website, countryId, checkFrequencyHours },
+  })
+  revalidatePath('/concurrenten')
+  revalidatePath(`/concurrenten/${competitorId}`)
+  revalidatePath(`/concurrenten/${competitorId}/bewerken`)
+  revalidatePath('/beheer/concurrenten')
+  revalidatePath('/monitoring')
+  revalidatePath('/dashboard')
+  redirect(`/concurrenten/${competitorId}?bijgewerkt=1`)
 }
 
 export async function addCompetitorOfferAction(formData: FormData) {
