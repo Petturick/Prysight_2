@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { createCompetitorAction } from '@/app/actions/productActions'
 import { DataTable } from '@/components/DataTable'
+import { CompetitorRowActions } from '@/components/CompetitorRowActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { deriveCompetitorMetrics } from '@/lib/dashboard'
@@ -63,9 +64,10 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
     const [competitors, companyCountries] = await Promise.all([
       prisma.competitor.findMany({
         relationLoadStrategy: 'join',
-        where: { companyId: user.companyId, isActive: true },
+        where: { companyId: user.companyId },
         include: {
           country: true,
+          _count: { select: { offers: true } },
           offers: {
             where: { isActive: true },
             include: {
@@ -104,10 +106,10 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
     }
   })
 
-  const linkedProducts = overview.reduce((sum, item) => sum + item.metrics.linkedProducts, 0)
-  const validPrices = overview.reduce((sum, item) => sum + item.metrics.validPrices, 0)
-  const failedSources = overview.reduce((sum, item) => sum + item.failedChecks.length, 0)
-  const competitorsWithCurrentFailures = overview.filter((item) => item.failedChecks.length > 0).length
+  const linkedProducts = overview.filter((item) => item.competitor.isActive).reduce((sum, item) => sum + item.metrics.linkedProducts, 0)
+  const validPrices = overview.filter((item) => item.competitor.isActive).reduce((sum, item) => sum + item.metrics.validPrices, 0)
+  const failedSources = overview.filter((item) => item.competitor.isActive).reduce((sum, item) => sum + item.failedChecks.length, 0)
+  const competitorsWithCurrentFailures = overview.filter((item) => item.competitor.isActive && item.failedChecks.length > 0).length
 
   return (
     <div className="space-y-4">
@@ -117,8 +119,8 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
       <section className="strong-panel overflow-hidden">
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
-            <h1>Markt</h1>
-            <p className="mt-1 text-[12px] text-[#6f7d90]">Concurrenten, prijsbronnen en meetstatus.</p>
+            <h1>Concurrenten</h1>
+            <p className="mt-1 text-[12px] text-[#6f7d90]">Voeg concurrenten toe, controleer prijzen en beheer je productkoppelingen.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canWrite ? <Link href="/import" className="secondary-action">URLs importeren</Link> : null}
@@ -126,7 +128,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
           </div>
         </div>
         <div className="grid border-t border-[#e7edf3] sm:grid-cols-2 xl:grid-cols-4">
-          <div className="px-5 py-3.5 sm:px-6"><p className="text-[11px] font-medium text-[#7a8798]">Concurrenten</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(competitors.length)}</p></div>
+          <div className="px-5 py-3.5 sm:px-6"><p className="text-[11px] font-medium text-[#7a8798]">Actieve concurrenten</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(competitors.filter((competitor) => competitor.isActive).length)}</p></div>
           <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Gekoppelde producten</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(linkedProducts)}</p></div>
           <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Geldige prijzen</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(validPrices)}</p></div>
           <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Aandacht nodig</p><p className={`mt-1 text-[22px] font-semibold ${failedSources ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{formatNumber(failedSources)}</p></div>
@@ -174,10 +176,12 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
             { key: 'status', header: 'Status' },
             { key: 'laatsteControle', header: 'Laatste controle' },
             { key: 'planning', header: 'Planning' },
-            { key: 'actie', header: '' },
+            { key: 'actie', header: 'Beheer' },
           ]}
           rows={overview.map(({ competitor, metrics, latestChecks, failedChecks, lastAttempt, latestFailureReason }) => {
-            const status = failedChecks.length > 0
+            const status = !competitor.isActive
+              ? <span className="ps-chip">Gepauzeerd</span>
+              : failedChecks.length > 0
               ? <div><span className="ps-chip ps-chip-red">{failedChecks.length} mislukt</span>{latestFailureReason ? <p className="mt-1 max-w-[230px] text-[10px] text-[#8d4652]">{latestFailureReason}</p> : null}</div>
               : latestChecks.length === 0 && metrics.linkedProducts > 0
                 ? <span className="ps-chip ps-chip-amber">Nog niet gemeten</span>
@@ -193,7 +197,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
               status,
               laatsteControle: lastAttempt ? formatDate(lastAttempt) : 'Nog niet gecontroleerd',
               planning: frequencyLabel(competitor.checkFrequencyHours),
-              actie: <Link href={`/concurrenten/${competitor.id}`} className="secondary-action min-h-0 px-3 py-2 text-[10px]">Bekijken</Link>,
+              actie: <CompetitorRowActions id={competitor.id} name={competitor.name} isActive={competitor.isActive} offerCount={competitor._count.offers} canWrite={canWrite} />,
             }
           })}
         />
