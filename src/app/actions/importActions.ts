@@ -9,6 +9,7 @@ import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { matchProducts } from '@/lib/product-matching'
 import { normalizePrice } from '@/lib/price-normalization'
 import { prisma } from '@/lib/prisma'
+import { mergedGroupTarget } from '@/lib/product-groups'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { importPayloadSchema } from '@/lib/validators'
 import { revalidatePath } from 'next/cache'
@@ -120,6 +121,20 @@ export async function processImportRowsAction(payload: unknown) {
   const countryByCode = new Map(countries.map((country) => [country.code.toUpperCase(), country]))
   const activeMarketIds = new Set(companyCountries.filter((item) => item.isActive).map((item) => item.countryId))
   const groupCache = new Map(existingGroups.map((group) => [group.name, group]))
+  // Keep the original feed key as an alias after a category merge.
+  const aliases = existingGroups.filter((group) => mergedGroupTarget(group.description))
+  if (aliases.length) {
+    const targetIds = [...new Set(aliases.map((group) => mergedGroupTarget(group.description)!))]
+    const targets = await prisma.productGroup.findMany({
+      where: { companyId, id: { in: targetIds }, isActive: true },
+    })
+    const targetById = new Map(targets.map((group) => [group.id, group]))
+    for (const alias of aliases) {
+      const target = targetById.get(mergedGroupTarget(alias.description)!)
+      if (!target) throw new Error('Een samengevoegde productgroep heeft geen actief doel. Controleer het productgroepenbeheer.')
+      groupCache.set(alias.name, target)
+    }
+  }
   for (const groupName of groupNames) {
     if (groupCache.has(groupName)) continue
     const group = await prisma.productGroup.upsert({
