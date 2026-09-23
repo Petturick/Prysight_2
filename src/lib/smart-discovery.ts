@@ -1,49 +1,16 @@
 import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { assertCompanyCapacity } from '@/lib/company-license'
-import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
+import { discoverCompetitorUrlsByEan, webSearch as searchWeb } from '@/lib/ean-competitor-discovery'
+import { validGtin } from '@/lib/gtin'
 import { prisma } from '@/lib/prisma'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 
 type Extra = { mpn:string|null; brand:string|null; model:string|null }
 type Hit = { title:string; url:string; snippet?:string }
 
-async function webSearch(query:string):Promise<Hit[]> {
-  const serperKey=process.env.SERPER_API_KEY
-  if(serperKey){
-    const response=await fetch('https://google.serper.dev/search',{method:'POST',headers:{'content-type':'application/json','X-API-KEY':serperKey},body:JSON.stringify({q:query,num:8}),cache:'no-store'})
-    if(response.ok){
-      const data=await response.json() as {organic?:Array<{title?:string;link?:string;snippet?:string}>}
-      const hits=(data.organic??[]).flatMap((item)=>item.link?[{title:item.title??item.link,url:item.link,snippet:item.snippet}]:[])
-      if(hits.length)return hits
-    }
-  }
-
-  const braveKey=process.env.BRAVE_SEARCH_API_KEY
-  if(braveKey){
-    const response=await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=8`,{headers:{Accept:'application/json','X-Subscription-Token':braveKey},cache:'no-store'})
-    if(response.ok){
-      const data=await response.json() as {web?:{results?:Array<{title?:string;url?:string;description?:string}>}}
-      const hits=(data.web?.results??[]).flatMap((item)=>item.url?[{title:item.title??item.url,url:item.url,snippet:item.description}]:[])
-      if(hits.length)return hits
-    }
-  }
-
-  const response=await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,{headers:{'user-agent':'Mozilla/5.0 (compatible; PrysightBot/1.0)'},cache:'no-store'})
-  if(!response.ok)return[]
-  const html=await response.text()
-  const hits:Hit[]=[]
-  const pattern=/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
-  for(const match of html.matchAll(pattern)){
-    try{
-      const parsed=new URL(match[1],'https://duckduckgo.com')
-      const redirected=parsed.searchParams.get('uddg')
-      const url=redirected?decodeURIComponent(redirected):match[1]
-      const title=match[2].replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').trim()
-      hits.push({title:title||url,url})
-    }catch{}
-    if(hits.length>=8)break
-  }
-  return hits
+async function webSearch(query: string, countryCode: string): Promise<Hit[]> {
+  const response = await searchWeb(query, countryCode)
+  return response.candidates
 }
 
 export async function discoverProductCandidates(input:{companyId:string;productId:string;countryId:string}) {
@@ -54,11 +21,11 @@ export async function discoverProductCandidates(input:{companyId:string;productI
   ])
   if(!product)return{found:0,created:0,reason:'Product ontbreekt'}
   if(!country)return{found:0,created:0,reason:'Markt ontbreekt'}
-  if(product.ean)return discoverCompetitorUrlsByEan(input)
+  if ([product.ean, product.gtin].some(validGtin)) return discoverCompetitorUrlsByEan(input)
   const extra=(await prisma.$queryRaw<Extra[]>(Prisma.sql`select mpn,brand,model from products where id=${input.productId} and company_id=${input.companyId} limit 1`))[0]
   const identifier=(product.gtin||extra?.mpn||product.articleNumber||'').trim()
   if(!identifier)return{found:0,created:0,reason:'Productidentificatie ontbreekt'}
-  const hits=await webSearch(`"${identifier}" ${extra?.brand??''} ${extra?.model??''} ${product.name} ${country.name} ${country.code}`)
+  const hits=await webSearch(`"${identifier}" ${extra?.brand??''} ${extra?.model??''} ${product.name} ${country.name} ${country.code}`, country.code)
   const ownHosts=new Set(companyWebshops.flatMap((shop)=>{try{return[new URL(shop.url).hostname.replace(/^www\./,'')]}catch{return[]}}))
   const suffix=(country.code.toUpperCase()==='GB'||country.code.toUpperCase()==='UK')?'.uk':`.${country.code.toLowerCase()}`
   let created=0
