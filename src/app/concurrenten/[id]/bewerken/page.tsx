@@ -6,9 +6,10 @@ import { updateCompetitorDetailsAction } from '@/app/actions/productActions'
 import { requirePermission } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 
-export default async function ConcurrentBewerkenPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ConcurrentBewerkenPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ bestaat?: string }> }) {
   const actor = await requirePermission('competitors.write')
   const { id } = await params
+  const query = await searchParams
   const [competitor, memberships] = await Promise.all([
     prisma.competitor.findFirst({
       where: { id, companyId: actor.companyId },
@@ -30,6 +31,7 @@ export default async function ConcurrentBewerkenPage({ params }: { params: Promi
 
   return (
     <div className="mx-auto max-w-[780px] space-y-4">
+      {query.bestaat === '1' ? <p role="status" className="rounded-[10px] border border-[#e8d9af] bg-[#fff9e8] px-4 py-3 text-[12px] text-[#755c29]">Deze concurrent bestaat al in de gekozen markt. Wijzig hieronder de bestaande concurrent zonder zijn productgegevens of prijshistorie te verliezen.</p> : null}
       <Link href={`/concurrenten/${competitor.id}`} className="inline-flex text-[12px] font-semibold text-[#356ccd]">← Terug naar concurrent</Link>
       <section className="ps-panel overflow-hidden">
         <div className="border-b border-[#e4eaf0] px-5 py-5 sm:px-6">
