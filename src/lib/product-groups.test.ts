@@ -5,6 +5,7 @@ import { isUnnamedGroup, productGroupLabel, suggestProductGroup } from './produc
 test('numeric feed codes are never exposed as descriptive labels', () => {
   assert.equal(isUnnamedGroup('102'), true)
   assert.equal(productGroupLabel({ name: '102' }), 'Nog niet ingedeeld')
+  assert.equal(productGroupLabel({ name: '102', description: 'Automatisch aangemaakt vanuit productfeed.' }), 'Nog niet ingedeeld')
   assert.equal(productGroupLabel({ name: '102', description: 'Inklapbare bakken' }), 'Inklapbare bakken')
   assert.equal(productGroupLabel({ name: 'Palletboxen' }), 'Palletboxen')
 })
