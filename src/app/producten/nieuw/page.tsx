@@ -61,23 +61,59 @@ export default async function NewProductPage() {
 
         <section className="ps-panel overflow-hidden" id="prijs">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e7edf3] px-5 py-3 sm:px-6">
-            <h2 className="text-[14px] font-semibold text-[#21364d]">Prijs en markt</h2>
+            <div>
+              <h2 className="text-[14px] font-semibold text-[#21364d]">Prijs en markt</h2>
+              <p className="mt-0.5 text-[10px] text-[#7b8999]">Voer de consumentenprijs in. Prysight gebruikt de gekozen markt voor de btw berekening.</p>
+            </div>
             <span className="text-[11px] text-[#738298]">Je eigen verkoopprijs</span>
           </div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
-            <label className="text-[11px] font-semibold text-[#4f5869]">Jouw verkoopprijs *<input name="ownPrice" required inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="0,00" /></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Markt<select name="countryId" defaultValue={defaultCountry?.id} className="toolbar-control mt-1.5 w-full"><option value="">Algemeen</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Valuta<select name="currency" defaultValue={defaultCountry?.currency ?? 'EUR'} className="toolbar-control mt-1.5 w-full"><option>EUR</option><option>GBP</option><option>DKK</option><option>USD</option></select></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Btw status<select name="vatIncluded" defaultValue="true" className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
-          </div>
-          <details className="border-t border-[#e7edf3]">
-            <summary className="cursor-pointer px-5 py-3 text-[12px] font-medium text-[#416b9d] sm:px-6">Verzendkosten en extra prijsgegevens (optioneel)</summary>
-            <div className="grid gap-3 border-t border-[#e7edf3] p-4 sm:grid-cols-2 sm:p-5">
-            <label className="text-[11px] font-semibold text-[#4f5869]">Prijs in andere btw variant (optioneel)<input name="ownPriceOther" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld 100,00" /><span className="mt-1 block text-[10px] font-normal text-[#7b8999]">Basisprijs incl. btw? Vul hier excl. btw in, en omgekeerd. Prysight controleert het bedrag op basis van het gekozen land.</span></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Verzendkosten (optioneel)<input name="ownShippingCost" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Leeg is onbekend, 0 is gratis" /><span className="mt-1 block text-[10px] font-normal text-[#7b8999]">Vul 0 in als verzending aantoonbaar gratis is.</span></label>
-            <label className="text-[11px] font-semibold text-[#4f5869]">Btw op verzendkosten<select name="ownShippingVatIncluded" defaultValue="true" className="toolbar-control mt-1.5 w-full"><option value="true">Inclusief btw</option><option value="false">Exclusief btw</option></select></label>
+
+          <div className="space-y-4 p-4 sm:p-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-[11px] font-semibold text-[#4f5869]">Markt<select name="countryId" defaultValue={defaultCountry?.id} className="toolbar-control mt-1.5 w-full"><option value="">Algemeen</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></label>
+              <label className="text-[11px] font-semibold text-[#4f5869]">Valuta<select name="currency" defaultValue={defaultCountry?.currency ?? 'EUR'} className="toolbar-control mt-1.5 w-full"><option>EUR</option><option>GBP</option><option>DKK</option><option>USD</option></select></label>
             </div>
-          </details>
+
+            <input type="hidden" name="vatIncluded" value="true" />
+            <input type="hidden" name="ownShippingVatIncluded" value="true" />
+
+            <div className="grid gap-4 lg:grid-cols-[1.08fr_.92fr]">
+              <div className="rounded-[12px] border border-[#dce5ef] bg-[#fbfcfe] p-4">
+                <div className="mb-3">
+                  <p className="text-[12px] font-semibold text-[#30465d]">Verkoopprijs</p>
+                  <p className="mt-1 text-[10px] leading-4 text-[#7b8999]">De prijs inclusief btw is leidend. De exclusieve prijs kun je eronder controleren of handmatig invullen.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-[11px] font-semibold text-[#4f5869]">
+                    Prijs inclusief btw *
+                    <input name="ownPrice" required inputMode="decimal" className="toolbar-control mt-1.5 w-full text-[14px] font-semibold" placeholder="0,00" />
+                  </label>
+                  <label className="block text-[11px] font-semibold text-[#4f5869]">
+                    Prijs exclusief btw <span className="font-normal text-[#8b98a8]">(optioneel)</span>
+                    <input name="ownPriceOther" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Wordt automatisch berekend als je dit leeg laat" />
+                    <span className="mt-1.5 block text-[10px] font-normal leading-4 text-[#7b8999]">Vul dit alleen in wanneer je beide bedragen wilt controleren. Prysight valideert het bedrag met het btw tarief van de gekozen markt.</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-[12px] border border-[#dce5ef] bg-white p-4">
+                <div className="mb-3">
+                  <p className="text-[12px] font-semibold text-[#30465d]">Verzendkosten</p>
+                  <p className="mt-1 text-[10px] leading-4 text-[#7b8999]">Verzendkosten worden als bedrag inclusief btw vastgelegd en meegenomen in de totale prijsvergelijking.</p>
+                </div>
+
+                <label className="block text-[11px] font-semibold text-[#4f5869]">
+                  Verzendkosten inclusief btw <span className="font-normal text-[#8b98a8]">(optioneel)</span>
+                  <input name="ownShippingCost" inputMode="decimal" className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld 6,95" />
+                </label>
+
+                <div className="mt-3 rounded-[9px] bg-[#f4f7fb] px-3 py-2.5 text-[10px] leading-4 text-[#65758a]">
+                  Laat leeg als de verzendkosten onbekend zijn. Vul 0 in wanneer verzending gratis is. Prysight berekent de exclusieve verzendkosten automatisch op basis van de markt.
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <details className="ps-panel overflow-hidden">
