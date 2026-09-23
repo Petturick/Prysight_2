@@ -49,12 +49,14 @@ export async function saveCompetitorSourceAction(formData: FormData) {
   if (!offer) throw new Error('Prijsbron niet gevonden binnen deze organisatie of concurrent.')
   await requireLicensedCountry(actor.companyId, offer.competitor.countryId)
   const safeUrl = (await assertSafeRemoteHttpUrl(offerUrl)).toString()
-  const websiteHost = new URL(offer.competitor.website).hostname.replace(/^www\./, '')
-  const sourceHost = new URL(safeUrl).hostname.replace(/^www\./, '')
-  if (sourceHost !== websiteHost && !sourceHost.endsWith(`.${websiteHost}`)) {
-    throw new Error('De product URL hoort niet bij de website van deze concurrent. Wijzig eerst de concurrent of kies de juiste prijsbron.')
-  }
   const urlChanged = safeUrl !== offer.url
+  if (urlChanged) {
+    const websiteHost = new URL(offer.competitor.website).hostname.replace(/^www\./, '')
+    const sourceHost = new URL(safeUrl).hostname.replace(/^www\./, '')
+    if (sourceHost !== websiteHost && !sourceHost.endsWith(`.${websiteHost}`)) {
+      throw new Error('De nieuwe product URL hoort niet bij de website van deze concurrent. Wijzig eerst de concurrent of kies de juiste prijsbron.')
+    }
+  }
   const productChanged = (offer.productMatch?.productId ?? '') !== productId
   if (productChanged && productId && field(formData, 'confirmMatch') !== 'on') {
     throw new Error('Bevestig dat de gekozen productpagina overeenkomt met het geselecteerde product.')
