@@ -86,16 +86,16 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       }
 
       apply('ownUrl', payload.url || rawUrl, true)
-      apply('articleNumber', payload.articleNumber)
-      apply('name', payload.name)
-      apply('ean', payload.ean)
-      apply('ownPrice', payload.ownPrice)
+      apply('articleNumber', payload.articleNumber, true)
+      apply('name', payload.name, true)
+      apply('ean', payload.ean, true)
+      apply('ownPrice', payload.ownPrice, true)
       apply('currency', payload.currency, true)
-      apply('stockStatus', payload.stockStatus)
-      apply('packagingQty', payload.packagingQty)
-      apply('brand', payload.brand)
-      apply('model', payload.model)
-      apply('mpn', payload.mpn)
+      apply('stockStatus', payload.stockStatus, true)
+      apply('packagingQty', payload.packagingQty, true)
+      apply('brand', payload.brand, true)
+      apply('model', payload.model, true)
+      apply('mpn', payload.mpn, true)
 
       if (payload.vatIncluded !== null) apply('vatIncluded', payload.vatIncluded, true)
 
