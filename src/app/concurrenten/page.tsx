@@ -32,8 +32,9 @@ function frequencyLabel(hours: number) {
   return `Iedere ${hours} uur`
 }
 
-function latestChecksForCompetitor(competitor: { offers: Array<{ priceChecks: LatestCheck[] }> }) {
+function latestChecksForCompetitor(competitor: { offers: Array<{ productMatch: unknown; priceChecks: LatestCheck[] }> }) {
   return competitor.offers
+    .filter((offer) => Boolean(offer.productMatch))
     .map((offer) => offer.priceChecks[0])
     .filter((check): check is LatestCheck => Boolean(check))
 }
@@ -117,6 +118,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
     return {
       competitor,
       metrics,
+      unlinkedSources: competitor.offers.filter((offer) => !offer.productMatch).length,
       latestChecks,
       failedChecks,
       lastAttempt: latestAttempt(latestChecks),
@@ -239,16 +241,18 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
             { key: 'planning', header: 'Planning' },
             { key: 'actie', header: 'Beheer' },
           ]}
-          rows={overview.map(({ competitor, metrics, latestChecks, failedChecks, lastAttempt, latestFailureReason }) => {
+          rows={overview.map(({ competitor, metrics, unlinkedSources, latestChecks, failedChecks, lastAttempt, latestFailureReason }) => {
             const status = !competitor.isActive
               ? <span className="ps-chip">Gepauzeerd</span>
               : failedChecks.length > 0
               ? <div><span className="ps-chip ps-chip-red">{failedChecks.length} mislukt</span>{latestFailureReason ? <p className="mt-1 max-w-[230px] text-[10px] text-[#8d4652]">{latestFailureReason}</p> : null}</div>
               : latestChecks.length === 0 && metrics.linkedProducts > 0
                 ? <span className="ps-chip ps-chip-amber">Nog niet gemeten</span>
-                : metrics.linkedProducts === 0
-                  ? <span className="ps-chip">Geen producten</span>
-                  : <span className="ps-chip ps-chip-green">Actueel</span>
+                : unlinkedSources > 0
+                  ? <span className="ps-chip ps-chip-amber">{unlinkedSources} product{unlinkedSources === 1 ? '' : 'en'} koppelen</span>
+                  : metrics.linkedProducts === 0
+                    ? <span className="ps-chip">Geen producten</span>
+                    : <span className="ps-chip ps-chip-green">Actueel</span>
 
             return {
               naam: <Link href={`/concurrenten/${competitor.id}`} className="font-semibold text-[#2f6edb]">{competitor.name}</Link>,
