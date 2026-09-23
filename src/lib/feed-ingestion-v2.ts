@@ -5,7 +5,7 @@ import { fetchAndParseFeed, type ParsedFeed } from '@/lib/feed-parser'
 import { FEED_TARGET_FIELDS, inferHeaderTarget, normalizeHeader } from '@/lib/import-mapping'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
 import { prisma } from '@/lib/prisma'
-import { mergedGroupTarget } from '@/lib/product-groups'
+import { mergedGroupTarget, productGroupLabel } from '@/lib/product-groups'
 
 export type CanonicalFeedProduct = {
   articleNumber?: unknown
@@ -202,9 +202,12 @@ async function importProduct(
   const name = usableProductText(mapped.name)
   if (!articleNumber || !name) throw new Error('Artikelnummer/SKU en een leesbare productnaam zijn verplicht.')
 
-  const groupName = text(mapped.productGroup) ?? 'Onbekend'
-  const group = context.groupCache.get(groupName)
-  if (!group) throw new Error(`Productgroep ${groupName} kon niet worden geladen.`)
+  const rawGroupName = text(mapped.productGroup) ?? 'Onbekend'
+  const incomingGroup = context.groupCache.get(rawGroupName)
+  // A numeric feed identifier is not a product category unless its category name was explicitly configured.
+  const hasReadableCategory = !/^\d+$/.test(rawGroupName) || Boolean(incomingGroup && productGroupLabel(incomingGroup) !== 'Nog niet ingedeeld')
+  const group = hasReadableCategory ? incomingGroup ?? context.groupCache.get('Onbekend') : context.groupCache.get('Onbekend')
+  if (!group) throw new Error('De standaardcategorie voor niet ingedeelde producten ontbreekt.')
 
   const ownPrice = dec(mapped.ownPrice)
   const existing = context.productCache.get(articleNumber) ?? null
@@ -214,7 +217,8 @@ async function importProduct(
       name,
       ean: text(mapped.ean) ?? undefined,
       gtin: text(mapped.gtin) ?? undefined,
-      productGroupId: group.id,
+      // Do not overwrite a manually assigned category with a raw numeric code from a feed.
+      productGroupId: hasReadableCategory ? group.id : undefined,
       ...(ownPrice ? { ownPrice } : {}),
       vatIncluded: bool(mapped.vatIncluded, existing?.vatIncluded ?? true),
       currency: text(mapped.currency) ?? undefined,
@@ -292,7 +296,8 @@ async function importProduct(
 
 async function processRows(companyId: string, feedSourceId: string, rows: ProcessRow[]) {
   const articleNumbers = [...new Set(rows.map((row) => text(row.mapped.articleNumber)).filter((value): value is string => Boolean(value)))]
-  const groupNames = [...new Set(rows.map((row) => text(row.mapped.productGroup) ?? 'Onbekend') )]
+  const sourceGroupNames = [...new Set(rows.map((row) => text(row.mapped.productGroup) ?? 'Onbekend'))]
+  const groupNames = [...new Set([...sourceGroupNames.filter((name) => !/^\d+$/.test(name)), 'Onbekend'])]
   const countryCodes = [...new Set(rows.map((row) => text(row.mapped.countryCode)?.toUpperCase()).filter((value): value is string => Boolean(value)))]
 
   const [existingProducts, existingGroups, countries, companyCountries] = await Promise.all([
@@ -300,7 +305,7 @@ async function processRows(companyId: string, feedSourceId: string, rows: Proces
       ? prisma.product.findMany({ where: { companyId, articleNumber: { in: articleNumbers } } })
       : Promise.resolve([]),
     groupNames.length
-      ? prisma.productGroup.findMany({ where: { companyId, name: { in: groupNames } } })
+      ? prisma.productGroup.findMany({ where: { companyId, name: { in: [...new Set([...groupNames, ...sourceGroupNames])] } } })
       : Promise.resolve([]),
     countryCodes.length
       ? prisma.country.findMany({ where: { code: { in: countryCodes } } })
