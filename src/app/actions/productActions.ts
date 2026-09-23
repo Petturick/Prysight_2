@@ -17,6 +17,7 @@ import { normalizePrice } from '@/lib/price-normalization'
 import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assertSafeRemoteHttpUrl } from '@/lib/safe-remote-url'
 import { findExistingProduct } from '@/lib/product-duplicate'
+import { normalizeGtin, validGtin } from '@/lib/gtin'
 
 const MANUAL_CHECK_FREQUENCY_HOURS = 876000
 
@@ -43,25 +44,14 @@ function requiredPrice(value: string) {
   return parsed
 }
 
-function normalizedBarcode(value: string) {
-  return value.replace(/[^0-9]/g, '')
-}
-
-function validGtinChecksum(value: string) {
-  if (![8, 12, 13, 14].includes(value.length)) return false
-  const digits = value.split('').map(Number)
-  const check = digits.pop()
-  if (check === undefined) return false
-  const sum = digits.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0)
-  return (10 - (sum % 10)) % 10 === check
-}
 
 
 export async function createProductAction(formData: FormData) {
   const user = await requirePermission('products.write')
   const articleNumber = text(formData, 'articleNumber')
   const name = text(formData, 'name')
-  const ean = text(formData, 'ean')
+  const ean = normalizeGtin(text(formData, 'ean'))
+  if (ean && !validGtin(ean)) throw new Error('Ongeldige EAN of GTIN. Controleer het aantal cijfers en de controlecode.')
   const productGroup = text(formData, 'productGroup') || 'Onbekend'
   const vatIncluded = text(formData, 'vatIncluded') !== 'false'
   const rawOwnPrice = text(formData, 'ownPrice')
@@ -211,12 +201,12 @@ export async function updateProductIdentifiersAction(formData: FormData) {
   const user = await requirePermission('products.write')
   const productId = text(formData, 'productId')
   const countryId = text(formData, 'countryId')
-  const ean = normalizedBarcode(text(formData, 'ean'))
-  const gtinInput = normalizedBarcode(text(formData, 'gtin'))
+  const ean = normalizeGtin(text(formData, 'ean'))
+  const gtinInput = normalizeGtin(text(formData, 'gtin'))
 
   if (!productId) throw new Error('Product ontbreekt.')
-  if (ean && !validGtinChecksum(ean)) throw new Error('Controleer het EAN. De controlecode klopt niet.')
-  if (gtinInput && !validGtinChecksum(gtinInput)) throw new Error('Controleer het GTIN. De controlecode klopt niet.')
+  if (ean && !validGtin(ean)) throw new Error('Controleer het EAN. De controlecode klopt niet.')
+  if (gtinInput && !validGtin(gtinInput)) throw new Error('Controleer het GTIN. De controlecode klopt niet.')
 
   const product = await prisma.product.findFirst({
     where: { id: productId, companyId: user.companyId, isActive: true },
@@ -575,7 +565,7 @@ export async function refreshProductIntelligenceAction(formData: FormData) {
     select: { id: true, ean: true, gtin: true },
   })
   if (!product) throw new Error('Product niet gevonden.')
-  if (!product.ean && !product.gtin) throw new Error('Voeg eerst een EAN of GTIN toe om automatisch te kunnen zoeken.')
+  if (![product.ean, product.gtin].some(validGtin)) throw new Error('Voeg een geldige EAN of GTIN toe om automatisch te kunnen zoeken.')
 
   let discovery = { found: 0, created: 0, alreadyLinked: 0, reason: null as string | null, provider: null as string | null }
   try {
