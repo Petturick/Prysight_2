@@ -95,7 +95,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
           where: { isActive: true },
           include: {
             productMatch: { include: { product: true } },
-            priceChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
+            priceChecks: { orderBy: { checkedAt: 'desc' }, take: 1 },
             priceHistory: { orderBy: { recordedAt: 'desc' }, take: 1 },
           },
         },
