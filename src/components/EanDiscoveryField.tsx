@@ -48,18 +48,18 @@ export function EanDiscoveryField() {
     if (!normalized) {
       return {
         tone: 'text-[#7b8999]',
-        label: 'Met een EAN zoekt Prysight na opslaan automatisch naar hetzelfde product bij concurrenten in de gekozen markt.',
+        label: 'Optioneel. Helpt bij het vinden van concurrenten.',
       }
     }
     if (gtinChecksumValid(normalized)) {
       return {
         tone: 'text-[#20814d]',
-        label: 'EAN herkend. Na opslaan start automatisch de concurrentherkenning.',
+        label: 'EAN geldig.',
       }
     }
     return {
       tone: 'text-[#a36816]',
-      label: 'Controleer het EAN. Een geldig EAN geeft de betrouwbaarste concurrentmatches.',
+      label: 'Controleer het EAN.',
     }
   }, [value, checking, existing])
 
