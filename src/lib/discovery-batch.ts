@@ -14,7 +14,7 @@ export async function runDiscoveryBatch(companyId: string, limit = 8, prefetched
       select: {
         id: true, articleNumber: true, productGroupId: true, ean: true, gtin: true,
         productMarkets: { where: { companyId, isActive: true }, select: { countryId: true }, take: 1 },
-        matches: { where: { companyId, matchStatus: MatchStatus.CERTAIN }, select: { id: true }, take: 2 },
+        matches: { where: { companyId, matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] }, competitorOffer: { isActive: true, competitor: { isActive: true } } }, select: { id: true }, take: 2 },
       },
       orderBy: { updatedAt: 'desc' },
       take: 500,
@@ -46,16 +46,16 @@ export async function runDiscoveryBatch(companyId: string, limit = 8, prefetched
     if (!countryId) continue
     try {
       const discovery = await discoverProductCandidates({ companyId, productId: product.id, countryId })
+      if (discovery.reason?.startsWith('Zoekopdracht kon niet worden uitgevoerd')) throw new Error(discovery.reason)
       created += discovery.created
       if (discovery.created > 0) {
         const measurement = await runDuePriceChecks({ companyId, productId: product.id, force: true, limit: 6 })
         checked += measurement.successful
       }
+      await markProductDiscovery(companyId, product.id)
     } catch (error) {
       failed += 1
       console.error('Discovery batch failed for product', product.id, error)
-    } finally {
-      await markProductDiscovery(companyId, product.id)
     }
   }
   return { products: due.length, created, checked, failed }
