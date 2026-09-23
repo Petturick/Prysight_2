@@ -42,3 +42,12 @@ test('never treats an unavailable database as successfully loaded empty data', a
     console.error = previousError
   }
 })
+
+test('does not retry a unique constraint error', async () => {
+  let attempts = 0
+  await assert.rejects(() => retryTransientDatabaseRead(async () => {
+    attempts += 1
+    throw Object.assign(new Error('unique constraint failed'), { code: 'P2002' })
+  }), /unique constraint failed/)
+  assert.equal(attempts, 1)
+})
