@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test from 'node:test'
+
+const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
+
+test('Product URL synchronisatie is tenant-bound en vereist een actieve licentiemarkt', () => {
+  const route = read('src/app/api/synchronisatie/product-url/route.ts')
+  const service = read('src/lib/own-product-url-sync.ts')
+  assert.match(route, /requirePermission\('products.write'\)/)
+  assert.match(route, /requireLicensedCountry\(companyId, countryId\)/)
+  assert.match(route, /companyId: actor.companyId, sourceKey/)
+  assert.match(route, /lastRunStatus: FeedSyncStatus.RUNNING/)
+  assert.match(route, /assertSafeRemoteHttpUrl/)
+  assert.match(service, /companyId: source.companyId, productId: config.productId, countryId: config.countryId/)
+  assert.match(service, /market\.ownUrl\.trim\(\) !== source\.url\.trim\(\)/)
+  assert.match(service, /companyId: source.companyId, countryId: config.countryId, isActive: true/)
+  assert.match(service, /!skuMatch && !eanMatch/)
+  assert.match(service, /vat\.confidence !== 'HIGH'/)
+  assert.match(service, /currency !== market\.currency\.toUpperCase\(\)/)
+  assert.match(service, /updatedAt: market.updatedAt/)
+  assert.match(service, /tx\.ownPriceHistory\.create/)
+})
+
+test('Geplande synchronisatie respecteert frequentie, handmatige keuze en de bronstatus', () => {
+  const scheduler = read('src/app/api/internal/scheduled-feed-sync/route.ts')
+  const trigger = read('netlify/functions/scheduled-feed-sync.ts')
+  const ownWorker = read('netlify/functions/own-product-sync-background.ts')
+  assert.match(scheduler, /verifyBearerSecret\(request, 'FEED_SYNC_API_KEY'\)/)
+  assert.match(scheduler, /syncFrequencyHours: \{ lt: 8760 \}/)
+  assert.match(scheduler, /lastRunStatus: \{ not: FeedSyncStatus.RUNNING \}/)
+  assert.match(scheduler, /sourceKey: \{ startsWith: 'own-url:' \}/)
+  assert.match(scheduler, /source\.syncFrequencyHours \* 3_600_000/)
+  assert.match(scheduler, /dispatchOwnProductSync/)
+  assert.match(trigger, /schedule: '@hourly'/)
+  assert.match(ownWorker, /request\.headers\.get\('authorization'\)/)
+  assert.match(ownWorker, /syncOwnProductUrlSource/)
+})
+
+test('Actieve markt geldt voor prijzen en alle belangrijke productcontexten', () => {
+  const marketApi = read('src/app/api/markten/context/route.ts')
+  const priceApi = read('src/app/api/synchronisatie/prijzen/route.ts')
+  const priceService = read('src/lib/price-monitoring.ts')
+  const products = read('src/app/producten/page.tsx')
+  const detail = read('src/app/producten/[id]/page.tsx')
+  const feeds = read('src/app/instellingen/feedbeheer/page.tsx')
+  const hub = read('src/components/SynchronizationHub.tsx')
+  assert.match(marketApi, /getActiveCompanyCountries\(actor.companyId\)/)
+  assert.match(marketApi, /marketCookieName\(actor.companyId\)/)
+  assert.match(priceApi, /countryIds: selected\.map\(market => market.id\)/)
+  assert.match(priceService, /countryId: \{ in: countryIds \}/)
+  assert.match(products, /activeMarkets\.find\(market => market.id === requestedMarket\)/)
+  assert.match(detail, /<OwnProductSyncSettings/)
+  assert.match(feeds, /initialMarket=\{marketCode === 'ALL' \? '' : marketCode\}/)
+  assert.match(hub, /own-url:/)
+  assert.match(hub, /Nu synchroniseren/)
+})
