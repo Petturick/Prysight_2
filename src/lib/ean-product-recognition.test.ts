@@ -12,9 +12,10 @@ test('EAN lookup uses validated identifiers, tenant scope, and a matching source
   assert.match(eanApi, /validGtin\(ean\)/)
   assert.match(eanApi, /companyId: actor\.companyId/)
   assert.match(eanApi, /hasExactEan/)
-  assert.match(eanApi, /recognizedEan && recognizedEan !== ean/)
-  assert.match(eanApi, /ownPrice: recognizedEan === ean/)
-  assert.match(eanApi, /return NextResponse\.json\(\{ ean, found: false/)
+  assert.match(eanApi, /lookupOnlineProduct\(candidate\.url, ean/)
+  assert.match(eanApi, /ownPrice = own\?\.ownPrice \?\? null/)
+  assert.match(eanApi, /actual product details require|exact EAN\/GTIN match on a source page/)
+  assert.match(eanApi, /return NextResponse\.json\(\{ ean, existingProduct, found: false/)
 })
 
 test('EAN auto-recognition fills fields without overwriting manual input', () => {
@@ -25,6 +26,8 @@ test('EAN auto-recognition fills fields without overwriting manual input', () =>
     assert.match(eanInput, new RegExp("apply\\('" + name + "'"))
   }
   assert.match(eanInput, /payload\.existingProduct/)
+  assert.match(eanInput, /apply\('gtin', payload\.ean\)/)
+  assert.match(eanInput, /onlinePreview\.sources/)
 })
 
 test('Product pages preserve optional feed failures and do not misdiagnose all crashes as database errors', () => {
