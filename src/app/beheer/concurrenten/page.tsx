@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import Link from 'next/link'
-import { deleteCompetitorAdminAction, saveCompetitorAdminAction } from '@/app/actions/adminActions'
+import { saveCompetitorAdminAction } from '@/app/actions/adminActions'
+import { CompetitorRowActions } from '@/components/CompetitorRowActions'
 import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAdmin } from '@/lib/authz'
@@ -10,7 +11,7 @@ import { safeDatabaseQuery } from '@/lib/safe-database'
 export default async function BeheerConcurrentenPage() {
   const actor = await requireAdmin()
   const result = await safeDatabaseQuery(() => Promise.all([
-    prisma.competitor.findMany({ where: { companyId: actor.companyId }, include: { country: true }, orderBy: { name: 'asc' } }),
+    prisma.competitor.findMany({ where: { companyId: actor.companyId }, include: { country: true, _count: { select: { offers: true } } }, orderBy: { name: 'asc' } }),
     prisma.companyCountry.findMany({ where: { companyId: actor.companyId, isActive: true, country: { isActive: true } }, include: { country: true }, orderBy: { country: { name: 'asc' } } }),
   ]), [[], []])
   const [competitors, companyCountries] = result.data
@@ -20,7 +21,7 @@ export default async function BeheerConcurrentenPage() {
     <div className="space-y-6">
       {!result.available && <DatabaseNotice />}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold">Concurrenten beheer</h1>
+        <div><h1 className="text-[22px] font-semibold text-[#172033]">Concurrenten beheren</h1><p className="mt-1 text-[12px] text-[#6b788b]">Pauzeer of verwijder een concurrent. Verwijderen wist ook de gekoppelde prijsbronnen en prijshistorie.</p></div>
         {actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-xl border border-rose-300 bg-white px-3 py-2 text-xs font-medium text-rose-700">Alle concurrenten verwijderen</Link> : null}
       </div>
       <form action={saveCompetitorAdminAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
@@ -49,9 +50,9 @@ export default async function BeheerConcurrentenPage() {
           naam: competitor.name,
           land: competitor.country.name,
           website: competitor.website,
-          frequentie: `${competitor.checkFrequencyHours} uur`,
+          frequentie: competitor.checkFrequencyHours >= 876000 ? 'Handmatig' : `Iedere ${competitor.checkFrequencyHours} uur`,
           status: competitor.isActive ? 'Actief' : 'Inactief',
-          actie: <form action={deleteCompetitorAdminAction}><input type="hidden" name="id" value={competitor.id} /><button className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-medium text-rose-700">Verwijderen</button></form>,
+          actie: <CompetitorRowActions id={competitor.id} name={competitor.name} isActive={competitor.isActive} offerCount={competitor._count.offers} canWrite />,
         }))}
       />
     </div>
