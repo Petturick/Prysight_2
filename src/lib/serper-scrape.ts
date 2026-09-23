@@ -46,12 +46,19 @@ function parseMoney(raw: string): number | null {
 }
 
 /** Never turn a generic scraped currency amount into a price. Require exact GTIN, matching page title, one distinct prominent amount and explicit VAT. */
-export function verifiedSerperOffer(page: SerperScrapePage, expectedGtin: string, productName: string): SerperVerifiedOffer | null {
+export function verifiedSerperOffer(page: SerperScrapePage, expectedGtin: string, productName: string, expectedPackagingQty = 1): SerperVerifiedOffer | null {
   const ean = normalizeGtin(expectedGtin)
   if (!validGtin(ean) || !page.title || !productTitleMatches(page.title, productName)) return null
   const index = page.text.indexOf(ean)
   if (index < 0 || index > 6_000 || (index > 0 && /\d/.test(page.text[index - 1])) || /\d/.test(page.text[index + ean.length] ?? '')) return null
   const leading = page.text.slice(0, 1_800)
+  // A multipack cannot be compared to one item when the product's package size differs.
+  const packageHint = page.title.match(/\b(?:verpakking(?:\s+van)?|pack\s+of|per)\s*(\d{1,4})\s*(?:stuks?|pcs?|pieces|units?)\b/i)
+    ?? page.title.match(/\b(\d{1,4})\s*(?:stuks?|pcs?|pieces|units?)\b/i)
+  if (packageHint) {
+    const claimedQty = Number(packageHint[1])
+    if (claimedQty !== expectedPackagingQty) return null
+  }
   const eur = [...leading.matchAll(/(?:€\s*(\d{1,5}(?:[. ]\d{3})*(?:[.,]\d{2})?)|(\d{1,5}(?:[. ]\d{3})*(?:[.,]\d{2})?)\s*€)/g)]
   const gbp = [...leading.matchAll(/(?:£\s*(\d{1,5}(?:[,.]\d{2})?)|(\d{1,5}(?:[,.]\d{2})?)\s*£)/g)]
   if (eur.length && gbp.length) return null
