@@ -294,6 +294,18 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       </section>
 
+      <nav aria-label="Productacties" className="grid gap-2 rounded-[13px] border border-[#e1e8f0] bg-white p-3 sm:grid-cols-3">
+        <a href="#eigen-prijs" className="flex items-center justify-between rounded-[9px] bg-[#f5f8fc] px-3 py-3 text-[12px] font-semibold text-[#2c4058] transition hover:bg-[#ebf2ff]">
+          <span>1. Eigen prijs {ownPrice === null ? 'toevoegen' : 'bekijken'}</span><span aria-hidden="true">›</span>
+        </a>
+        <a href="#concurrenten-vinden" className="flex items-center justify-between rounded-[9px] bg-[#f5f8fc] px-3 py-3 text-[12px] font-semibold text-[#2c4058] transition hover:bg-[#ebf2ff]">
+          <span>2. Concurrenten vinden</span><span aria-hidden="true">›</span>
+        </a>
+        <a href="#concurrentieprijzen" className="flex items-center justify-between rounded-[9px] bg-[#f5f8fc] px-3 py-3 text-[12px] font-semibold text-[#2c4058] transition hover:bg-[#ebf2ff]">
+          <span>3. Prijzen vergelijken ({pricedMatches.length})</span><span aria-hidden="true">›</span>
+        </a>
+      </nav>
+
       <EanPriceSuggestions
         productId={product.id}
         ean={product.ean || product.gtin}
@@ -310,7 +322,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[13px] font-semibold text-[#30465d]">Productinstellingen</p>
-              <p className="mt-1 text-[10px] text-[#7d8b9a]">Alleen openen als je productdata, prijs of bron handmatig wilt aanpassen.</p>
+              <p className="mt-1 text-[11px] text-[#7d8b9a]">{ownPrice === null ? 'Stel je eigen verkoopprijs in om prijsverschillen te berekenen.' : `Huidige prijs: ${formatCurrency(ownPrice, ownCurrency)}. Klik om de prijs of productdata te wijzigen.`}</p>
             </div>
             <span className="text-[10px] font-semibold text-[#60758d]">Open instellingen</span>
           </div>
@@ -381,7 +393,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-[16px] font-semibold text-[#21364d]">Marktpositie</h2>
-              <p className="mt-1 text-[10px] text-[#7f8ea0]">Prijsafstand, verzendkosten, totaalprijs, voorraad en automatische monitoring in één overzicht.</p>
+              <p className="mt-1 text-[11px] text-[#7f8ea0]">Eigen prijs, concurrentieprijzen en actuele prijspositie.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : null}
@@ -449,7 +461,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-[15px] font-semibold text-[#24384f]">Prijsvergelijking</h2>
-            <p className="mt-1 text-[10px] text-[#7b8999]">Alle bruikbare concurrentieprijzen zonder brede tabel of horizontaal scrollen.</p>
+            <p className="mt-1 text-[11px] text-[#7b8999]">Vergelijk prijzen inclusief en exclusief btw en bekijk verzendkosten per bron.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="ps-chip ps-chip-blue">{pricedMatches.length} met prijs</span>
