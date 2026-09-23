@@ -25,6 +25,10 @@ type EanResult = {
   mpn?: string | null
   packagingQty?: number | null
   vatIncluded?: boolean | null
+  productGroup?: string | null
+  image?: string | null
+  description?: string | null
+  sources?: Array<{ url: string; type: 'OWN_SHOP' | 'ONLINE' }>
   existingProduct?: ExistingProduct | null
   error?: string
 }
@@ -49,6 +53,7 @@ export function EanDiscoveryField() {
   const [checking, setChecking] = useState(false)
   const [existing, setExisting] = useState<ExistingProduct | null>(null)
   const [message, setMessage] = useState('')
+  const [onlinePreview, setOnlinePreview] = useState<EanResult | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestId = useRef(0)
   const lastLookup = useRef('')
@@ -76,6 +81,7 @@ export function EanDiscoveryField() {
     setChecking(true)
     setExisting(null)
     setMessage('')
+    setOnlinePreview(null)
 
     try {
       const form = input.form
@@ -98,9 +104,10 @@ export function EanDiscoveryField() {
 
       const duplicate = payload.existingProduct ?? null
       setExisting(duplicate)
+      setOnlinePreview(payload.found && (payload.sources?.length ?? 0) > 0 ? payload : null)
       input.setCustomValidity(duplicate ? 'Dit EAN bestaat al in Prysight. Open het bestaande product.' : '')
       if (duplicate) {
-        setMessage('')
+        setMessage('Online gegevens gecontroleerd. Gebruik de bestaande productpagina om dubbele artikelen te voorkomen.')
         return
       }
       if (!payload.found) {
@@ -133,9 +140,18 @@ export function EanDiscoveryField() {
       apply('mpn', payload.mpn)
       apply('packagingQty', payload.packagingQty)
       apply('vatIncluded', payload.vatIncluded)
+      apply('gtin', payload.ean)
+      if (payload.productGroup && form) {
+        const group = form.elements.namedItem('productGroup') as HTMLSelectElement | null
+        const option = [...(group?.options ?? [])].find((item) =>
+          item.value.toLowerCase() === payload.productGroup?.toLowerCase()
+          || item.textContent?.trim().toLowerCase() === payload.productGroup?.toLowerCase()
+        )
+        if (option) apply('productGroup', option.value)
+      }
       setMessage(applied
-        ? `${applied} productgegevens automatisch ingevuld. Controleer de overige velden.`
-        : 'Product herkend. Controleer de overige verplichte velden.')
+        ? `${applied} productgegevens online herkend en ingevuld. Controleer de overige velden.`
+        : 'Product online herkend. Controleer de ontbrekende verplichte gegevens.')
     } catch (error) {
       if (currentRequest !== requestId.current) return
       lastLookup.current = ''
@@ -162,6 +178,7 @@ export function EanDiscoveryField() {
             input.setCustomValidity('')
             setExisting(null)
             setMessage('')
+            setOnlinePreview(null)
             setValue(normalized)
             if (timer.current) clearTimeout(timer.current)
             requestId.current += 1
@@ -190,6 +207,22 @@ export function EanDiscoveryField() {
       </div>
       <span role="status" className={`mt-1.5 block text-[10px] font-normal leading-4 ${status.tone}`}>{status.label}</span>
       {existing ? <a href={`/producten/${existing.id}`} className="mt-1.5 inline-flex text-[10px] font-semibold text-[#2f6edb] underline underline-offset-2">Open bestaand product</a> : null}
+      {onlinePreview ? (
+        <div className="mt-2 rounded-lg border border-[#dce6f2] bg-[#f8fbff] p-3 text-[11px] text-[#475d76]">
+          <p className="font-semibold text-[#20344b]">Online gevonden: {onlinePreview.name ?? 'Productgegevens'}</p>
+          {onlinePreview.description ? <p className="mt-1 line-clamp-3">{onlinePreview.description}</p> : null}
+          {onlinePreview.productGroup ? <p className="mt-1">Categorie: {onlinePreview.productGroup}</p> : null}
+          {onlinePreview.image ? <a href={onlinePreview.image} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-[#2f6edb] underline">Bekijk productafbeelding</a> : null}
+          <p className="mt-1 text-[#64748b]">Gecontroleerde online bronnen: {onlinePreview.sources?.length ?? 0}. Eigen verkoopprijs wordt alleen ingevuld wanneer die bij je eigen webshop en dit EAN hoort.</p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {onlinePreview.sources?.slice(0, 3).map((source) => (
+              <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#2f6edb] underline">
+                {source.type === 'OWN_SHOP' ? 'Eigen webshop' : 'Online bron'}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
