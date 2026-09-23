@@ -8,6 +8,7 @@ import { requireLicensedCountry } from '@/lib/company-countries'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { prisma } from '@/lib/prisma'
+import { isUnnamedGroup } from '@/lib/product-groups'
 import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
 import { findExistingProduct } from '@/lib/product-duplicate'
 
@@ -58,7 +59,7 @@ export async function createSmartProductAction(formData: FormData) {
       brand:text(formData,'brand')||undefined,
       model:text(formData,'model')||undefined,
       name,
-      productGroup:text(formData,'productGroup')||'Onbekend',
+      productGroup:isUnnamedGroup(text(formData,'productGroup')) ? 'Onbekend' : text(formData,'productGroup'),
       ownPrice,
       vatIncluded,
       costPrice:text(formData,'costPrice')||undefined,
