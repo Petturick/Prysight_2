@@ -94,7 +94,6 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       apply('stockStatus', payload.stockStatus, true)
       apply('packagingQty', payload.packagingQty, true)
       apply('brand', payload.brand, true)
-      apply('productGroup', payload.productGroup, true)
       apply('model', payload.model, true)
       apply('mpn', payload.mpn, true)
 

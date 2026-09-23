@@ -5,6 +5,7 @@ import { fetchAndParseFeed, type ParsedFeed } from '@/lib/feed-parser'
 import { FEED_TARGET_FIELDS, inferHeaderTarget, normalizeHeader } from '@/lib/import-mapping'
 import { saveProductOnboardingFields } from '@/lib/product-onboarding-fields'
 import { prisma } from '@/lib/prisma'
+import { mergedGroupTarget } from '@/lib/product-groups'
 
 export type CanonicalFeedProduct = {
   articleNumber?: unknown
@@ -312,6 +313,20 @@ async function processRows(companyId: string, feedSourceId: string, rows: Proces
   if (newSkuCount > 0) await assertCompanyCapacity(companyId, 'skus', newSkuCount)
 
   const groupCache = new Map(existingGroups.map((group) => [group.name, group]))
+  // Keep the original feed key as an alias after a category merge.
+  const aliases = existingGroups.filter((group) => mergedGroupTarget(group.description))
+  if (aliases.length) {
+    const targetIds = [...new Set(aliases.map((group) => mergedGroupTarget(group.description)!))]
+    const targets = await prisma.productGroup.findMany({
+      where: { companyId, id: { in: targetIds }, isActive: true },
+    })
+    const targetById = new Map(targets.map((group) => [group.id, group]))
+    for (const alias of aliases) {
+      const target = targetById.get(mergedGroupTarget(alias.description)!)
+      if (!target) throw new Error('Een samengevoegde productgroep heeft geen actief doel. Controleer het productgroepenbeheer.')
+      groupCache.set(alias.name, target)
+    }
+  }
   for (const groupName of groupNames) {
     if (groupCache.has(groupName)) continue
     const group = await prisma.productGroup.upsert({

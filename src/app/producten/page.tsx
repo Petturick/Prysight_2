@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
+import { assignProductGroupAction, deleteSelectedProductsAction } from '@/app/actions/productBulkActions'
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { ProductOverviewGrid, type ProductGridRow } from '@/components/ProductOverviewGrid'
@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
 import { safeDatabaseQuery } from '@/lib/safe-database'
+import { productGroupLabel } from '@/lib/product-groups'
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -155,7 +156,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       articleNumber: product.articleNumber,
       name: product.name,
       ean: product.ean || product.gtin || '',
-      group: product.productGroup.name,
+      group: productGroupLabel(product.productGroup),
       markets: product.productMarkets.map((market) => market.country.code).join(', ') || '—',
       ownEx: price(ownEx, metrics.ownCurrency),
       ownInc: price(ownInc, metrics.ownCurrency),
@@ -196,6 +197,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-3">
       {!result.available ? <DatabaseNotice /> : null}
+      {Number(readParam(params.groepBijgewerkt) || '0') > 0 ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] font-semibold text-[#20814d]">Productgroep aangepast voor {readParam(params.groepBijgewerkt)} producten.</p> : null}
       {deleted > 0 ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] font-semibold text-[#20814d]">{deleted} producten verwijderd.</p> : null}
       {selectionMessage === 'leeg' || selectionMessage === 'ongeldig' ? <p role="alert" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Selecteer één of meerdere geldige producten.</p> : null}
       {resultMessage === 'klaar' ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] text-[#20814d]">Prijscontrole afgerond. {readParam(params.bronnen) || '0'} bronnen gecontroleerd, resultaat {readParam(params.crawl) || 'onbekend'}.{readParam(params.limiet) === '1' ? ' De maximale batchgrootte is bereikt.' : ''}</p> : null}
@@ -228,7 +230,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           </select>
           <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
             <option value="">Alle productgroepen</option>
-            {filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            {filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}
           </select>
           <details className="relative">
             <summary className="secondary-action cursor-pointer list-none">Filters</summary>
@@ -269,6 +271,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         canCrawl={canCrawl}
         canDelete={canDelete}
         deleteAction={deleteSelectedProductsAction}
+        assignGroupAction={assignProductGroupAction}
+        productGroups={filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => ({ id: group.id, name: productGroupLabel(group) }))}
         refreshPricesAction={refreshSelectedProductPricesAction}
         refreshSinglePriceAction={refreshSingleProductPriceAction}
         filters={filters}
