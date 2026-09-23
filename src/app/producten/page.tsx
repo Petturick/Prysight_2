@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
 import { safeDatabaseQuery } from '@/lib/safe-database'
+import { productGroupLabel } from '@/lib/product-groups'
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -155,7 +156,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       articleNumber: product.articleNumber,
       name: product.name,
       ean: product.ean || product.gtin || '',
-      group: product.productGroup.name,
+      group: productGroupLabel(product.productGroup),
       markets: product.productMarkets.map((market) => market.country.code).join(', ') || '—',
       ownEx: price(ownEx, metrics.ownCurrency),
       ownInc: price(ownInc, metrics.ownCurrency),
@@ -228,7 +229,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           </select>
           <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
             <option value="">Alle productgroepen</option>
-            {filterOptions.productGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            {filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}
           </select>
           <details className="relative">
             <summary className="secondary-action cursor-pointer list-none">Filters</summary>
