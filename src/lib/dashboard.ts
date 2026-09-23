@@ -176,38 +176,68 @@ export function deriveProductMetrics(product: ProductWithRelations, filters: Das
   }
 }
 
-async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string) {
-  const [products, failedChecks, staleOffers, filterOptions] = await Promise.all([
+type ReportingPeriod = { from: Date; to: Date }
+
+async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string, period?: ReportingPeriod) {
+  const checkedUntil = period?.to ?? new Date()
+  const checkedSince = period?.from ?? new Date(checkedUntil.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const competitorWhere: Prisma.CompetitorWhereInput = {
+    companyId: companyId || undefined,
+    isActive: true,
+    countryId: filters.countryId || undefined,
+    id: filters.competitorId || undefined,
+  }
+  // Only active sources connected to active products belong to current monitoring.
+  // Orphaned checks and checks for deleted products remain outside the live counters.
+  const activeOfferWhere: Prisma.CompetitorOfferWhereInput = {
+    companyId: companyId || undefined,
+    isActive: true,
+    competitor: competitorWhere,
+    productMatch: {
+      is: {
+        companyId: companyId || undefined,
+        matchStatus: filters.matchStatus || undefined,
+        product: { companyId: companyId || undefined, isActive: true },
+      },
+    },
+  }
+  const failedWhere: Prisma.PriceCheckWhereInput = {
+    companyId: companyId || undefined,
+    isSuccess: false,
+    checkedAt: { gte: checkedSince, lte: checkedUntil },
+    competitorOffer: activeOfferWhere,
+  }
+  const staleWhere: Prisma.CompetitorOfferWhereInput = {
+    ...activeOfferWhere,
+    OR: [
+      { lastCheckedAt: null },
+      { lastCheckedAt: { lt: new Date(checkedUntil.getTime() - 72 * 60 * 60 * 1000) } },
+    ],
+  }
+  const [products, failedCheckCount, failedChecks, staleOfferCount, staleOffers, filterOptions] = await Promise.all([
     getFilteredProducts(filters, companyId),
+    prisma.priceCheck.count({ where: failedWhere }),
     prisma.priceCheck.findMany({
       relationLoadStrategy: 'join',
-      where: {
-        companyId: companyId || undefined,
-        isSuccess: false,
-        competitorOffer: filters.countryId ? { companyId: companyId || undefined, competitor: { companyId: companyId || undefined, countryId: filters.countryId } } : undefined,
-      },
+      where: failedWhere,
       select: {
         errorMessage: true, checkedAt: true,
         competitorOffer: { select: { competitor: { select: { name: true } }, productMatch: { select: { product: { select: { name: true } } } } } },
       },
       orderBy: { checkedAt: 'desc' },
-      take: 10,
+      take: 25,
     }),
+    prisma.competitorOffer.count({ where: staleWhere }),
     prisma.competitorOffer.findMany({
       relationLoadStrategy: 'join',
-      where: {
-        companyId: companyId || undefined,
-        isActive: true,
-        competitor: filters.countryId ? { companyId: companyId || undefined, isActive: true, countryId: filters.countryId } : { companyId: companyId || undefined, isActive: true },
-        OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lt: new Date(Date.now() - 72 * 60 * 60 * 1000) } }],
-      },
+      where: staleWhere,
       select: {
         normalizedPrice: true, lastCheckedAt: true,
         competitor: { select: { name: true } },
         productMatch: { select: { product: { select: { name: true } } } },
       },
       orderBy: { lastCheckedAt: 'asc' },
-      take: 10,
+      take: 25,
     }),
     getFilterOptions(companyId),
   ])
@@ -246,8 +276,8 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
       engelsLowest: metrics.filter((item) => item.marketPosition === 'Engels laagste').length,
       engelsHigher: metrics.filter((item) => item.marketPosition === 'Engels duurder').length,
       averagePriceIndex,
-      failedChecks: failedChecks.length,
-      staleData: staleOffers.length,
+      failedChecks: failedCheckCount,
+      staleData: staleOfferCount,
     },
     biggestIncreases: allOfferMoves.slice(0, 5),
     biggestDecreases: [...allOfferMoves].sort((a, b) => a.delta - b.delta).slice(0, 5),
@@ -257,14 +287,20 @@ async function buildDashboardSnapshot(filters: DashboardFilters = {}, companyId?
 }
 
 const getCachedDashboardSnapshot = unstable_cache(
-  async (companyId: string, filters: DashboardFilters) => buildDashboardSnapshot(filters, companyId),
+  async (companyId: string, filters: DashboardFilters, from?: string, to?: string) =>
+    buildDashboardSnapshot(filters, companyId, from && to ? { from: new Date(from), to: new Date(to) } : undefined),
   ['prysight-dashboard-snapshot-v4-price-quality'],
   { revalidate: 15 },
 )
 
-export async function getDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string) {
-  if (!companyId) return buildDashboardSnapshot(filters)
-  return getCachedDashboardSnapshot(companyId, filters)
+export async function getDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string, period?: ReportingPeriod) {
+  if (!companyId) return buildDashboardSnapshot(filters, undefined, period)
+  return getCachedDashboardSnapshot(companyId, filters, period?.from.toISOString(), period?.to.toISOString())
+}
+
+// Reports and the current-status panel must not show a cached product count after deletion.
+export async function getFreshDashboardSnapshot(filters: DashboardFilters = {}, companyId?: string, period?: ReportingPeriod) {
+  return buildDashboardSnapshot(filters, companyId, period)
 }
 
 export type DashboardSnapshot = Awaited<ReturnType<typeof getDashboardSnapshot>>

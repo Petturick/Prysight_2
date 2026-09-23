@@ -3,7 +3,7 @@
 import { Prisma, ReportStatus } from '@/generated/prisma/client'
 import { createAuditLog } from '@/lib/audit'
 import { requirePermission } from '@/lib/authz'
-import { getDashboardSnapshot } from '@/lib/dashboard'
+import { getFreshDashboardSnapshot } from '@/lib/dashboard'
 import { decimalToNumber } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
@@ -23,8 +23,8 @@ function endOfWeek(date: Date) {
   return copy
 }
 
-export async function buildWeeklyReportPayload(companyId: string) {
-  const snapshot = await getDashboardSnapshot({}, companyId)
+export async function buildWeeklyReportPayload(companyId: string, weekStart: Date, weekEnd: Date) {
+  const snapshot = await getFreshDashboardSnapshot({}, companyId, { from: weekStart, to: weekEnd })
   return {
     samenvatting: snapshot.kpis,
     topStijgers: snapshot.biggestIncreases,
@@ -49,7 +49,7 @@ export async function generateWeeklyReportAction() {
   const today = new Date()
   const weekStart = startOfWeek(today)
   const weekEnd = endOfWeek(today)
-  const content = await buildWeeklyReportPayload(actor.companyId)
+  const content = await buildWeeklyReportPayload(actor.companyId, weekStart, new Date())
 
   const report = await prisma.report.create({
     data: {

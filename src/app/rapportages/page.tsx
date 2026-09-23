@@ -6,6 +6,7 @@ import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requirePermission } from '@/lib/authz'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
+import { getFreshDashboardSnapshot } from '@/lib/dashboard'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
@@ -142,6 +143,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
     [],
   )
   const reports = result.data
+  const live = await safeDatabaseQuery(() => getFreshDashboardSnapshot({}, actor.companyId), null)
   const requestedReportId = readParam(params.rapport)
   const selectedReport = reports.find((report) => report.id === requestedReportId) ?? reports[0] ?? null
   const selectedContent = reportContent(selectedReport?.content)
@@ -159,7 +161,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-6">
-      {!result.available && <DatabaseNotice />}
+      {(!result.available || !live.available) && <DatabaseNotice />}
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
@@ -175,6 +177,29 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
         </form>
       </div>
 
+      <section className="surface-card p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[17px] font-semibold text-[#25324a]">Actuele stand</h2>
+            <p className="mt-1 text-[11px] text-[#7a8699]">Rechtstreeks uit de huidige actieve producten en prijsbronnen, los van opgeslagen weekrapporten.</p>
+          </div>
+          <Link href="/producten" className="rounded-[10px] border border-[#dfe5ec] px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">Producten bekijken</Link>
+        </div>
+        {live.available && live.data ? (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCard label="Actieve producten nu" value={formatNumber(live.data.kpis.monitoredProducts)} helper="Bestaande, actieve producten in deze organisatie." />
+              <KpiCard label="Actieve prijsmetingen nu" value={formatNumber(live.data.kpis.activeOffers)} helper="Bruikbare prijsmetingen voor actieve producten." />
+              <KpiCard label="Mislukte controles, 7 dagen" value={formatNumber(live.data.kpis.failedChecks)} helper="Alle mislukte pogingen in de afgelopen 7 dagen, niet alleen de laatste 10." tone={live.data.kpis.failedChecks ? 'danger' : 'good'} />
+              <KpiCard label="Zonder concurrentieprijs nu" value={formatNumber(live.data.kpis.withoutCompetitorPrice)} helper="Actieve producten zonder verifieerbare marktprijs." tone={live.data.kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
+            </div>
+            {live.data.kpis.monitoredProducts === 0 && <p className="mt-4 rounded-[10px] bg-[#f3f6fb] px-4 py-3 text-[12px] text-[#526071]">Er zijn momenteel geen actieve producten. Oudere weekrapporten hieronder blijven bewaard als historische momentopname.</p>}
+          </>
+        ) : (
+          <p className="mt-4 rounded-[10px] bg-[#fff2f2] px-4 py-3 text-[12px] text-[#8f3f44]">Actuele aantallen konden niet worden geladen. Oude rapportcijfers worden daarom niet als actuele stand getoond.</p>
+        )}
+      </section>
+
       {selectedReport ? (
         <>
           <section className="surface-card overflow-hidden">
@@ -182,10 +207,12 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-[#edf8f3] px-2.5 py-1 text-[10px] font-semibold text-[#16785a]">{statusLabel(selectedReport.status)}</span>
+                  <span className="rounded-full bg-[#f3f6fb] px-2.5 py-1 text-[10px] font-semibold text-[#475467]">Historische momentopname</span>
                   <span className="text-[10px] text-[#98a2b3]">Gegenereerd {formatDate(selectedReport.generatedAt)}</span>
                 </div>
                 <h2 className="mt-3 text-[20px] font-semibold tracking-[-0.03em] text-[#25324a]">{selectedReport.title}</h2>
                 <p className="mt-1 text-[11px] text-[#7a8699]">{formatDate(selectedReport.weekStart, false)} tot {formatDate(selectedReport.weekEnd, false)}</p>
+                <p className="mt-2 max-w-[650px] text-[11px] leading-5 text-[#7a8699]">Deze cijfers zijn vastgelegd op {formatDate(selectedReport.generatedAt)} en veranderen niet als producten later worden gewijzigd of verwijderd. Bekijk de actuele stand hierboven.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link href={`/api/rapportages?id=${selectedReport.id}&format=csv`} className="rounded-[10px] border border-[#dfe5ec] bg-white px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">CSV export</Link>
@@ -204,7 +231,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
                   <KpiCard label="Engels laagste" value={formatNumber(kpis.engelsLowest)} helper="Producten op of onder de laagste gemeten marktprijs" tone="good" />
                   <KpiCard label="Engels duurder" value={formatNumber(kpis.engelsHigher)} helper="Producten boven de laagste gemeten marktprijs" tone={kpis.engelsHigher ? 'danger' : 'good'} />
                   <KpiCard label="Gemiddelde prijsindex" value={formatNumber(kpis.averagePriceIndex, 1)} helper="Index 100 betekent gelijk aan de laagste gemeten marktprijs" />
-                  <KpiCard label="Mislukte controles" value={formatNumber(kpis.failedChecks)} helper="Prijscontroles met een technische of inhoudelijke fout" tone={kpis.failedChecks ? 'danger' : 'good'} />
+                  <KpiCard label="Mislukte controles" value={formatNumber(kpis.failedChecks)} helper="Bij nieuwe rapporten, alle mislukte pogingen in de rapportweek voor actieve producten. Oude rapporten volgen de toenmalige berekening." tone={kpis.failedChecks ? 'danger' : 'good'} />
                   <KpiCard label="Verouderde data" value={formatNumber(kpis.staleData)} helper="Prijsdata die langer dan 72 uur niet succesvol is vernieuwd" tone={kpis.staleData ? 'warning' : 'good'} />
                 </div>
               </div>
@@ -281,7 +308,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
             <div className="surface-card overflow-hidden">
               <div className="px-5 py-4 sm:px-6">
                 <h3 className="text-[15px] font-semibold text-[#25324a]">Mislukte controles</h3>
-                <p className="mt-1 text-[10px] text-[#98a2b3]">De concrete controles die in deze rapportage aandacht vragen.</p>
+                <p className="mt-1 text-[10px] text-[#98a2b3]">De recentste mislukte controles uit de rapportage. {kpis && kpis.failedChecks > failedChecks.length ? `De lijst toont ${failedChecks.length} van ${formatNumber(kpis.failedChecks)} registraties.` : ''}</p>
               </div>
               <div className="border-t border-[#edf0f3]">
                 {failedChecks.length ? (
@@ -306,7 +333,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
             <div className="surface-card overflow-hidden">
               <div className="px-5 py-4 sm:px-6">
                 <h3 className="text-[15px] font-semibold text-[#25324a]">Verouderde prijsdata</h3>
-                <p className="mt-1 text-[10px] text-[#98a2b3]">Bronnen waarvan de prijs opnieuw gecontroleerd moet worden.</p>
+                <p className="mt-1 text-[10px] text-[#98a2b3]">Bronnen waarvan de prijs opnieuw gecontroleerd moet worden. {kpis && kpis.staleData > staleOffers.length ? `De lijst toont ${staleOffers.length} van ${formatNumber(kpis.staleData)} bronnen.` : ''}</p>
               </div>
               <div className="border-t border-[#edf0f3]">
                 {staleOffers.length ? (

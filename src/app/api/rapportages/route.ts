@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       weekStart,
       weekEnd,
       status: ReportStatus.GENERATED,
-      content: (await buildWeeklyReportPayload(company.id)) as never,
+      content: (await buildWeeklyReportPayload(company.id, weekStart, new Date())) as never,
       generatedAt: new Date(),
     },
   })
