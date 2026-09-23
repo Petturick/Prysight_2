@@ -11,7 +11,7 @@ const create = read('src/app/actions/smartProductActions.ts')
 test('Product toevoegen heeft één compacte primaire route en verbergt alleen optionele velden', () => {
   assert.match(page, /<h1[^>]*>Product toevoegen<\/h1>/)
   assert.doesNotMatch(page, /Eén product invoeren|Huidige keuze|Veel producten|Automatisch bijhouden/)
-  assert.match(page, /Product URL/)
+  assert.match(quickStart, /Product URL/)
   assert.match(page, /<ProductUrlQuickStart formId="new-product-form"/)
   assert.match(page, /<form id="new-product-form" action=\{createSmartProductAction\}/)
   assert.match(page, /Overige productgegevens \(optioneel\)/)
