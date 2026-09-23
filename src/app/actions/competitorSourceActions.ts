@@ -51,6 +51,9 @@ export async function saveCompetitorSourceAction(formData: FormData) {
   const safeUrl = (await assertSafeRemoteHttpUrl(offerUrl)).toString()
   const urlChanged = safeUrl !== offer.url
   const productChanged = (offer.productMatch?.productId ?? '') !== productId
+  if (productChanged && productId && field(formData, 'confirmMatch') !== 'on') {
+    throw new Error('Bevestig dat de gekozen productpagina overeenkomt met het geselecteerde product.')
+  }
   const packagingChanged = packagingQty !== (offer.packagingQty ?? 1) || packagingUnit !== (offer.packagingUnit ?? 'stuks') || vatIncluded !== offer.vatIncluded
   const resetMeasurements = urlChanged || productChanged || packagingChanged
   if (resetMeasurements && !confirmedReset) {
