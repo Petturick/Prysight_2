@@ -19,8 +19,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm install --package-lock-only --ignore-scripts
+      - run: git diff -- package-lock.json
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build
