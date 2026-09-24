@@ -46,8 +46,8 @@ export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction
               {!hasOwnPrice ? <p className="mt-2 text-[11px] text-[#96651c]">Voeg je eigen prijs toe om een prijsverschil te berekenen.</p> : null}
             </div>
             <div className="grid grid-cols-2 gap-4 border-t border-[#e2e9f1] pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-              <LabelValue label="Laagste bevestigde productprijs, incl. btw" value={row.marketInc} emphasis />
-              <LabelValue label="Verschil met jouw prijs" value={row.difference} emphasis />
+              <LabelValue label="Laagste bevestigde productprijs, incl. btw" value={row.comparisonLowest} emphasis />
+              <LabelValue label="Verschil met jouw prijs" value={row.comparisonDifference} emphasis />
               <LabelValue label="Bevestigde bronnen" value={String(sortedOffers.filter(offer => offer.priceInc !== '—').length)} />
               <LabelValue label="Laatste meting" value={row.lastChecked} />
             </div>
