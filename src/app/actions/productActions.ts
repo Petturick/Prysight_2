@@ -758,10 +758,13 @@ export async function verifyBricoPraxisPricesAction(formData: FormData) {
       },
     },
     select: {
+      matchStatus: true,
       competitorOfferId: true,
       competitorOffer: { select: { competitor: { select: { name: true } } } },
     },
   })
+  matches.sort((a, b) => Number(b.matchStatus === MatchStatus.CERTAIN) - Number(a.matchStatus === MatchStatus.CERTAIN) ||
+    a.competitorOfferId.localeCompare(b.competitorOfferId))
   const selected: string[] = []
   for (const retailer of ['brico', 'praxis']) {
     const match = matches.find((item) => item.competitorOffer.competitor.name.trim().toLowerCase() === retailer)
