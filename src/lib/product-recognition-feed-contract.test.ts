@@ -18,7 +18,7 @@ test('EAN first checks tenant-owned active product feeds and requires exact GTIN
   assert.match(feed, /normalizeGtin\(str\(value\)\) === normalized/)
   assert.match(feed, /vatIncluded: ownPrice === null \? null : vat\(data.vatIncluded\)/)
   assert.match(eanRoute, /lookupOwnFeedByEan\(actor.companyId, ean, countryCode\)/)
-  assert.match(eanRoute, /if \(feedResult\) verified.unshift\(feedResult\)/)
+  assert.match(eanRoute, /origin: 'OWN_FEED' as const/)
 })
 
 test('EAN onboarding never treats ex VAT source prices as incl VAT and shows feed provenance', () => {
