@@ -351,7 +351,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf3] px-5 py-4 sm:px-6">
           <div>
             <h2 id="bronverificatie-titel" className="text-[16px] font-semibold text-[#21364d]">Controleer Brico en Praxis</h2>
-            <p className="mt-1 text-[12px] text-[#66778a]">Haal de prijzen opnieuw op uit de gekoppelde productpagina's. Je ziet per bron of de prijs en productmatch daadwerkelijk zijn bevestigd.</p>
+            <p className="mt-1 text-[12px] text-[#66778a]">Haal de prijzen opnieuw op uit de gekoppelde productpagina&apos;s. Je ziet per bron of de prijs en productmatch daadwerkelijk zijn bevestigd.</p>
           </div>
           {canVerifySources && defaultCountry && retailerVerificationMatches.some(Boolean) ? (
             <form action={verifyBricoPraxisPricesAction}>
