@@ -39,6 +39,7 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
   const normalized = normalizeGtin(ean)
   if (!normalized) return null
   const market = countryCode.toUpperCase() === 'UK' ? 'GB' : countryCode.toUpperCase()
+  const numericEan = !normalized.startsWith('0') && Number.isSafeInteger(Number(normalized)) ? Number(normalized) : null
   const items = await prisma.feedItem.findMany({
     where: {
       companyId,
@@ -51,6 +52,10 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
       OR: [
         { mappedData: { path: ['ean'], equals: normalized } },
         { mappedData: { path: ['gtin'], equals: normalized } },
+        ...(numericEan === null ? [] : [
+          { mappedData: { path: ['ean'], equals: numericEan } },
+          { mappedData: { path: ['gtin'], equals: numericEan } },
+        ]),
       ],
     },
     include: { feedSource: { select: { name: true, url: true, countryCode: true } } },
