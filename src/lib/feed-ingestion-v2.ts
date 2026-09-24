@@ -1,5 +1,4 @@
 import { FeedFormat, FeedSourceType, FeedSyncStatus, Prisma } from '@/generated/prisma/client'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { fetchAndParseFeed, type ParsedFeed } from '@/lib/feed-parser'
 import { FEED_TARGET_FIELDS, inferHeaderTarget, normalizeHeader } from '@/lib/import-mapping'
@@ -455,7 +454,7 @@ export async function syncFeedSource(feedSourceId: string) {
 }
 
 export async function ingestCanonicalProducts(input: {
-  companyId?: string
+  companyId: string
   sourceKey: string
   sourceName: string
   sourceType?: FeedSourceType
@@ -463,7 +462,8 @@ export async function ingestCanonicalProducts(input: {
   products: CanonicalFeedProduct[]
   config?: Prisma.InputJsonValue
 }) {
-  const companyId = input.companyId ?? DEFAULT_COMPANY_ID
+  const companyId = input.companyId.trim()
+  if (!companyId) throw new Error('companyId is verplicht voor feed ingestion.')
   const source = await prisma.feedSource.upsert({
     where: { companyId_sourceKey: { companyId, sourceKey: input.sourceKey } },
     update: { name: input.sourceName, sourceType: input.sourceType ?? FeedSourceType.API, countryCode: input.countryCode ?? 'GLOBAL', isActive: true, config: input.config },
