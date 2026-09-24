@@ -7,6 +7,7 @@ import { normalizeGtin, validGtin } from '@/lib/gtin'
 import { prisma } from '@/lib/prisma'
 import { webSearch } from '@/lib/ean-competitor-discovery'
 import { lookupOnlineProduct, type OnlineProduct } from '@/lib/online-ean-product'
+import { lookupOwnFeedByEan } from '@/lib/feed-ean-lookup'
 
 type Candidate = { title: string; url: string; snippet?: string }
 
@@ -38,7 +39,7 @@ function mergeOnlineProducts(products: OnlineProduct[], ean: string) {
     vatIncluded: ownPrice === null ? null : own?.vatIncluded ?? null,
     stockStatus: own?.stockStatus ?? null,
     ownUrl: own?.ownUrl ?? null, image: first('image'), description: first('description'),
-    sources: preferred.map((product) => ({ url: product.sourceUrl, type: product.sourceType })),
+    sources: preferred.filter((product) => product.sourceUrl).map((product) => ({ url: product.sourceUrl, type: product.sourceType })),
   }
 }
 
@@ -53,12 +54,16 @@ export async function POST(request: Request) {
       companyId: actor.companyId, ean, gtin: ean,
     })
 
-    const [shops, search] = await Promise.all([
+    const [shops, search, feedResult] = await Promise.all([
       prisma.webshop.findMany({
         where: { companyId: actor.companyId, competitorId: null, isActive: true },
         select: { url: true }, take: 30,
       }),
       webSearch('"' + ean + '"', countryCode === 'UK' ? 'GB' : countryCode),
+      lookupOwnFeedByEan(actor.companyId, ean, countryCode).catch((error) => {
+        console.error('EAN lookup in product feed failed', error)
+        return null
+      }),
     ])
     const ownHosts = new Set(shops.map((shop) => sourceHost(shop.url)).filter((host): host is string => !!host))
     const unique = new Set<string>()
@@ -95,8 +100,11 @@ export async function POST(request: Request) {
     const verified = outcomes.flatMap((outcome) =>
       outcome.status === 'fulfilled' && outcome.value ? [outcome.value] : [],
     )
+    if (feedResult) verified.unshift(feedResult)
     if (verified.length) {
-      return NextResponse.json({ ...mergeOnlineProducts(verified, ean), existingProduct })
+      const merged = mergeOnlineProducts(verified, ean)
+      return NextResponse.json({ ...merged, source: feedResult ? 'FEED_AND_ONLINE' : merged.source,
+        feedMatched: Boolean(feedResult), existingProduct })
     }
     return NextResponse.json({ ean, existingProduct, found: false, source: search.provider, sources: [] })
   } catch (error) {
