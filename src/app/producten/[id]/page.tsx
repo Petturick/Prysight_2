@@ -19,6 +19,7 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { getPricingRecommendations } from '@/lib/pricing-engine'
 import { prisma } from '@/lib/prisma'
 import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
+import { evaluateSourceVerification } from '@/lib/competitor-source-verification'
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -169,6 +170,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   }) : null
   const canEditProduct = user.role === 'SUPER_ADMIN' || user.permissions.includes('products.write')
   const canEditCompetitors = user.role === 'SUPER_ADMIN' || user.permissions.includes('competitors.write')
+  const canVerifySources = user.role === 'SUPER_ADMIN' || user.permissions.includes('pricing.manage')
   const hasReadableProductName = /[a-zà-ÿ]{2,}/i.test(product.name)
   const feedName = feedDisplayName(feedContext?.rawData) ?? feedDisplayName(feedContext?.mappedData)
   const displayProductName = hasReadableProductName ? product.name : feedName ?? `Artikel ${product.articleNumber}`
@@ -351,7 +353,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             <h2 id="bronverificatie-titel" className="text-[16px] font-semibold text-[#21364d]">Controleer Brico en Praxis</h2>
             <p className="mt-1 text-[12px] text-[#66778a]">Haal de prijzen opnieuw op uit de gekoppelde productpagina's. Je ziet per bron of de prijs en productmatch daadwerkelijk zijn bevestigd.</p>
           </div>
-          {canEditCompetitors && defaultCountry && retailerVerificationMatches.some(Boolean) ? (
+          {canVerifySources && defaultCountry && retailerVerificationMatches.some(Boolean) ? (
             <form action={verifyBricoPraxisPricesAction}>
               <input type="hidden" name="productId" value={product.id} />
               <input type="hidden" name="countryId" value={defaultCountry.id} />
@@ -370,24 +372,27 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             const match = retailerVerificationMatches[index]
             const offer = match?.competitorOffer
             const check = offer?.priceChecks[0]
-            const fresh = Boolean(check && Date.now() - check.checkedAt.getTime() <= 24 * 60 * 60 * 1000)
-            const accepted = Boolean(
-              offer && match?.matchStatus === 'CERTAIN' &&
-              check?.isSuccess && check.checkMethod !== 'MANUAL' &&
-              check.sourceUrl === offer.url && fresh &&
-              numberValue(check.foundPrice) !== null && Number(check.foundPrice) > 0 &&
-              numberValue(offer.normalizedPrice) !== null && Number(offer.normalizedPrice) > 0 &&
-              offer.lastCheckedAt && check.checkedAt.getTime() === offer.lastCheckedAt.getTime(),
-            )
+            const result = evaluateSourceVerification({
+              linked: Boolean(offer),
+              matchStatus: match?.matchStatus,
+              price: offer?.normalizedPrice,
+              url: offer?.url,
+              lastCheckedAt: offer?.lastCheckedAt,
+              check,
+            })
+            const accepted = result.verified
             const failed = Boolean(check && !check.isSuccess)
             const pendingMatch = match?.matchStatus === 'REVIEW'
-            const status = !offer ? 'Nog niet gekoppeld'
-              : failed ? 'Nieuwe controle mislukt'
-                : !check ? 'Nog niet gecontroleerd'
-                  : pendingMatch ? 'Productmatch nog bevestigen'
-                    : !fresh ? 'Controle verouderd'
-                      : accepted ? 'Prijs en product geverifieerd'
-                        : 'Prijs nog niet geverifieerd'
+            const statusLabels = {
+              'not-linked': 'Nog niet gekoppeld',
+              failed: 'Nieuwe controle mislukt',
+              'not-checked': 'Nog niet gecontroleerd',
+              'match-review': 'Productmatch nog bevestigen',
+              stale: 'Controle verouderd',
+              verified: 'Prijs en product geverifieerd',
+              unverified: 'Prijs nog niet geverifieerd',
+            } as const
+            const status = statusLabels[result.status]
             const tone = accepted ? 'ps-chip-green' : 'ps-chip-amber'
             return (
               <article key={retailer} className="rounded-[12px] border border-[#e1e8f0] bg-white p-4">
@@ -416,7 +421,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {offer && canEditCompetitors ? (
+                    {offer && canVerifySources ? (
                       <form action={runCompetitorOfferResearchAction}>
                         <input type="hidden" name="productId" value={product.id} />
                         <input type="hidden" name="competitorOfferId" value={offer.id} />
