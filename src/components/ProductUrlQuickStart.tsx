@@ -98,7 +98,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       if (!form) throw new Error('Het productformulier kon niet worden gevonden.')
 
       if (payload.partial) {
-        setControl(form, 'ownUrl', payload.url || rawUrl, true)
+        // A blocked or unknown webshop URL cannot be trusted as the user's own product URL.
         setPreview(payload)
         setMessage(payload.reason || 'Er zijn geen betrouwbare gegevens gevonden. Vul ontbrekende velden handmatig in of gebruik de productfeed of het EAN.')
         return
@@ -134,7 +134,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
             : null
       const money = (value: number | null) => value === null ? null : value.toFixed(2).replace('.', ',')
 
-      apply('ownUrl', payload.url || rawUrl, true)
+      apply('ownUrl', payload.ownUrl ?? (payload.priceTrusted ? payload.url : null), true)
       apply('description', payload.description)
       apply('imageUrl', payload.image)
       apply('recognitionSources', payload.sources?.map((item) => item.url).join(' | '))
