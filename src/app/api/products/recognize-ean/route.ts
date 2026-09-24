@@ -59,7 +59,10 @@ export async function POST(request: Request) {
         where: { companyId: actor.companyId, competitorId: null, isActive: true },
         select: { url: true }, take: 30,
       }),
-      webSearch('"' + ean + '"', countryCode === 'UK' ? 'GB' : countryCode),
+      webSearch('"' + ean + '"', countryCode === 'UK' ? 'GB' : countryCode).catch((error) => {
+        console.error('Online EAN search unavailable; continuing with own feed', error)
+        return { candidates: [], provider: 'Online bron tijdelijk niet beschikbaar' }
+      }),
       lookupOwnFeedByEan(actor.companyId, ean, countryCode).catch((error) => {
         console.error('EAN lookup in product feed failed', error)
         return null
