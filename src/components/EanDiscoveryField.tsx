@@ -95,6 +95,7 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       const countryField = form?.elements.namedItem('countryId') as HTMLSelectElement | null
       const countryOption = countryField?.selectedOptions[0]
       const countryName = countryOption?.textContent?.trim().toLowerCase() ?? ''
+      const requestedMarketId = countryField?.value
       const countryCode = markets.find((market) => market.id === countryField?.value)?.code ?? (
         { nederland: 'NL', belgië: 'BE', belgium: 'BE', duitsland: 'DE', germany: 'DE',
           frankrijk: 'FR', france: 'FR', portugal: 'PT', 'verenigd koninkrijk': 'GB',
@@ -107,7 +108,13 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
         signal: AbortSignal.timeout(28_000),
       })
       const payload = await response.json() as EanResult
-      if (currentRequest !== requestId.current || normalize(input.value) !== ean) return
+      if (currentRequest !== requestId.current || normalize(input.value) !== ean || countryField?.value !== requestedMarketId) {
+        if (currentRequest === requestId.current && countryField?.value !== requestedMarketId) {
+          setMessage('De markt is gewijzigd. Klik opnieuw op Herkennen voor de juiste prijzen.')
+          lastLookup.current = ''
+        }
+        return
+      }
       if (!response.ok) throw new Error(payload.error || 'Herkenning is tijdelijk niet beschikbaar.')
 
       const duplicate = payload.existingProduct ?? null
