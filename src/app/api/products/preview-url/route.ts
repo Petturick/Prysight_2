@@ -173,7 +173,7 @@ async function readLimitedHtml(response: Response) {
 export async function POST(request: Request) {
   try {
     const actor = await requirePermission('products.write')
-    const body = await request.json() as { url?: unknown }
+    const body = await request.json() as { url?: unknown; countryCode?: unknown }
     const rawUrl = typeof body.url === 'string' ? body.url.trim() : ''
     if (!rawUrl) return NextResponse.json({ error: 'Vul eerst een product URL in.' }, { status: 400 })
 
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
               const owned = trustedOwnUrl(resolvedUrl)
               const verifiedEan = extractedEan && validGtin(extractedEan) ? extractedEan : null
               const ownFeed = verifiedEan
-                ? await lookupOwnFeedByEan(actor.companyId, verifiedEan, 'GLOBAL').catch((error) => {
+                ? await lookupOwnFeedByEan(actor.companyId, verifiedEan, typeof body.countryCode === 'string' ? body.countryCode : 'GLOBAL').catch((error) => {
                     console.warn('Optional feed enrichment of product URL unavailable', error)
                     return null
                   })
