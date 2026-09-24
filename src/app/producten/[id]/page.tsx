@@ -265,6 +265,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const discoveryProvider = readParam(query.zoekbron)
   const discoveryMode = readParam(query.zoekmodus)
   const discoveryReason = readParam(query.reden)
+  const firstPriceCheck = readParam(query.prijscontrole)
   const discoveryAttempted = query.suggesties !== undefined
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
   const identifiersUpdated = readParam(query.identiteit) === 'bijgewerkt'
@@ -295,7 +296,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       {(readParam(query.toegevoegd) || readParam(query.bron) === 'toegevoegd' || controlMessage || sourceControlMessage) ? (
         <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">
           {readParam(query.toegevoegd)
-            ? `Product toegevoegd${discovered > 0 ? `, ${discovered} concurrent suggesties gevonden.` : '.'}`
+            ? `Product toegevoegd${discovered > 0 ? `, ${discovered} concurrent suggesties gevonden. ${firstPriceCheck === 'gestart' ? 'De eerste prijscontroles zijn op de achtergrond gestart. Matches moeten nog gecontroleerd worden.' : 'Prijscontroles volgen via de ingestelde monitoring. Matches moeten nog gecontroleerd worden.'}` : '.'}`
             : readParam(query.bron) === 'toegevoegd'
               ? 'Concurrentbron gekoppeld. Je kunt nu direct crawlen.'
               : sourceControlMessage
