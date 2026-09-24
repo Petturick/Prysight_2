@@ -6,6 +6,7 @@ import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
 import { monitoringLockUntil, nextFailureCheckAt, nextSuccessfulCheckAt } from '@/lib/monitoring-schedule'
+import { createCorrelationId, logOperationalEvent } from '@/lib/observability'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
 import { extractShippingSnapshot } from '@/lib/shipping-extraction'
@@ -660,7 +661,7 @@ function isManuallyConfirmedMatch(value: unknown) {
   return String((value as Record<string, unknown>).source ?? '').trim().toLowerCase() === 'manual'
 }
 
-type PriceCheckExecutionOptions = { force?: boolean }
+type PriceCheckExecutionOptions = { force?: boolean; correlationId?: string }
 
 async function claimPriceCheck(competitorOfferId: string, companyId: string, force: boolean) {
   const startedAt = new Date()
@@ -694,6 +695,7 @@ export async function runPriceCheck(
   execution: PriceCheckExecutionOptions = { force: true },
 ) {
   if (!companyId?.trim()) throw new Error('companyId is verplicht voor prijscontrole.')
+  const correlationId = execution.correlationId ?? createCorrelationId('pricecheck')
   const claim = await claimPriceCheck(competitorOfferId, companyId, execution.force !== false)
   if (!claim) {
     return {
@@ -702,6 +704,7 @@ export async function runPriceCheck(
       skipped: true,
       checkedAt: new Date(),
       error: 'Prijscontrole wordt al uitgevoerd of is nog niet gepland.',
+      correlationId,
     }
   }
 
@@ -986,10 +989,22 @@ export async function runPriceCheck(
       currentStockStatus: extracted.stockStatus ?? offer.stockStatus,
     })
 
+    logOperationalEvent('info', 'price_check_succeeded', {
+      correlationId,
+      companyId: offer.companyId,
+      competitorOfferId: offer.id,
+      competitorId: offer.competitorId,
+      fetchMode,
+      method: checkMethod,
+      normalizedPrice: normalized.toNumber(),
+      hasShipping: normalizedShipping !== null,
+    })
+
     return {
       competitorOfferId: offer.id,
       success: true,
       checkedAt,
+      correlationId,
       price: extracted.price,
       normalizedPrice: normalized.toNumber(),
       currency,
@@ -1008,10 +1023,14 @@ export async function runPriceCheck(
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Onbekende fout tijdens prijscontrole.'
     const message = publicPriceCheckErrorMessage(error)
-    console.warn('Price check failed', {
+    logOperationalEvent('warn', 'price_check_failed', {
+      correlationId,
       companyId: offer.companyId,
       competitorOfferId: offer.id,
+      competitorId: offer.competitorId,
       error: rawMessage,
+      publicError: message,
+      consecutiveFailures: offer.consecutiveFailures + 1,
     })
     await prisma.$transaction([
       prisma.priceCheck.create({
@@ -1047,8 +1066,12 @@ export async function runPriceCheck(
       }),
       prisma.competitor.update({ where: { id: offer.competitorId }, data: { lastCheckedAt: checkedAt } }),
     ])
-    return { competitorOfferId: offer.id, success: false, checkedAt, error: message }
+    return { competitorOfferId: offer.id, success: false, checkedAt, error: message, correlationId }
   }
+}
+
+function failedCount(results: Array<{ success: boolean; skipped?: boolean }>) {
+  return results.filter((result) => !result.success && !result.skipped).length
 }
 
 export async function runDuePriceChecks({
@@ -1095,17 +1118,29 @@ export async function runDuePriceChecks({
 
   if (due.length > 0) await assertCompanyCapacity(companyId, 'checksPerDay', due.length)
   const results = []
+  const runCorrelationId = createCorrelationId('monitoring')
   const concurrency = Math.min(4, due.length)
   for (let index = 0; index < due.length; index += concurrency) {
     const batch = due.slice(index, index + concurrency)
-    results.push(...await Promise.all(batch.map((offer) => runPriceCheck(offer.id, companyId, true, { force: force || Boolean(competitorOfferId) }))))
+    results.push(...await Promise.all(batch.map((offer) => runPriceCheck(offer.id, companyId, true, { force: force || Boolean(competitorOfferId), correlationId: runCorrelationId }))))
   }
 
-  return {
+  logOperationalEvent(failedCount(results) > 0 ? 'warn' : 'info', 'monitoring_batch_completed', {
+    correlationId: runCorrelationId,
+    companyId,
     requested: cappedLimit,
     due: due.length,
     successful: results.filter((result) => result.success).length,
-    failed: results.filter((result) => !result.success && !('skipped' in result && result.skipped)).length,
+    failed: failedCount(results),
+    skipped: results.filter((result) => 'skipped' in result && result.skipped).length,
+  })
+
+  return {
+    correlationId: runCorrelationId,
+    requested: cappedLimit,
+    due: due.length,
+    successful: results.filter((result) => result.success).length,
+    failed: failedCount(results),
     skipped: results.filter((result) => 'skipped' in result && result.skipped).length,
     results,
   }
