@@ -58,7 +58,7 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
         ]),
       ],
     },
-    include: { feedSource: { select: { name: true, url: true, countryCode: true } } },
+    include: { feedSource: { select: { countryCode: true } } },
     orderBy: { updatedAt: 'desc' },
     take: 12,
   })
@@ -94,7 +94,8 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
       ? 0 : price(data.ownShippingCost),
     ownShippingVatIncluded: vat(data.ownShippingVatIncluded),
     shippingCurrency: str(data.shippingCurrency)?.toUpperCase() ?? str(data.currency)?.toUpperCase() ?? null,
-    sourceUrl: ownUrl ?? validUrl(item.feedSource.url) ?? '',
+    // Never expose the source feed URL, which may contain signed access tokens.
+    sourceUrl: ownUrl ?? '',
     sourceType: 'OWN_SHOP',
   }
 }
