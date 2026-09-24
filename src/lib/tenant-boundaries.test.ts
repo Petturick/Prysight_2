@@ -83,3 +83,32 @@ test('rapport toont een verse productstand en telt alle fouten voor uitsluitend 
   assert.ok(reports.includes('Historische momentopname'))
   assert.ok(actions.includes('getFreshDashboardSnapshot({}, companyId, { from: weekStart, to: weekEnd })'))
 })
+
+
+test('operationele tenantcode heeft geen impliciete Engels Group fallback', () => {
+  const files = [
+    'src/app/api/rapportages/route.ts',
+    'src/app/api/integraties/product-feed/route.ts',
+    'src/app/api/feeds/publicaties/products/route.ts',
+    'src/app/api/integraties/syntrx/route.ts',
+    'src/lib/feed-ingestion-v2.ts',
+    'src/lib/price-monitoring.ts',
+  ]
+  for (const file of files) {
+    const text = source(file)
+    assert.equal(text.includes('DEFAULT_COMPANY_ID'), false, `${file} mag geen standaardtenant gebruiken`)
+    assert.equal(text.includes("'cmp_engels_group'"), false, `${file} mag geen hardcoded Engels Group tenant gebruiken`)
+  }
+})
+
+test('Prisma domeinmodellen hebben geen companyId database default', () => {
+  const schema = source('prisma/schema.prisma')
+  assert.equal(schema.includes('@default("cmp_engels_group")'), false)
+})
+
+test('tenant hardening migration verwijdert legacy browser policies en company defaults', () => {
+  const migration = source('supabase/migrations/20260924155000_tenant_boundary_hardening.sql')
+  assert.match(migration, /policyname like 'anon_%'/)
+  assert.match(migration, /revoke all on table public\.%I from anon, authenticated/)
+  assert.match(migration, /alter column company_id drop default/)
+})

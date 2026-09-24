@@ -6,7 +6,6 @@ import { ReportStatus } from '@/generated/prisma/client'
 import { buildWeeklyReportPayload } from '@/app/actions/reportActions'
 import { verifyBearerSecret } from '@/lib/api-auth'
 import { requirePermission } from '@/lib/authz'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { hasLicenseAccess } from '@/lib/licensing'
 import { prisma } from '@/lib/prisma'
 
@@ -46,7 +45,8 @@ export async function POST(request: Request) {
   if (!access.ok) return NextResponse.json({ error: access.message }, { status: access.status })
 
   const body = await request.json().catch(() => ({})) as { companyId?: string }
-  const companyId = body.companyId?.trim() || request.headers.get('x-prysight-company-id')?.trim() || DEFAULT_COMPANY_ID
+  const companyId = body.companyId?.trim() || request.headers.get('x-prysight-company-id')?.trim()
+  if (!companyId) return NextResponse.json({ error: 'companyId is verplicht voor server-tot-server rapportgeneratie.' }, { status: 400 })
   const company = await prisma.company.findFirst({ where: { id: companyId, status: 'ACTIVE' }, include: { license: true } })
   if (!company?.license) return NextResponse.json({ error: 'Organisatie niet gevonden of zonder licentie.' }, { status: 404 })
   if (!hasLicenseAccess(company.license)) return NextResponse.json({ error: 'De licentie van deze organisatie staat rapportgeneratie niet toe.' }, { status: 403 })

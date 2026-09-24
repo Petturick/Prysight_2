@@ -311,7 +311,7 @@ model Country {
 
 model Webshop {
   id           String      @id @default(cuid())
-  companyId    String      @default("cmp_engels_group") @map("company_id")
+  companyId    String      @map("company_id")
   name         String
   url          String
   countryId    String      @map("country_id")
@@ -330,7 +330,7 @@ model Webshop {
 
 model ProductGroup {
   id          String      @id @default(cuid())
-  companyId   String      @default("cmp_engels_group") @map("company_id")
+  companyId   String      @map("company_id")
   name        String
   description String?
   isActive    Boolean     @default(true) @map("is_active")
@@ -346,7 +346,7 @@ model ProductGroup {
 
 model Product {
   id              String            @id @default(cuid())
-  companyId       String            @default("cmp_engels_group") @map("company_id")
+  companyId       String            @map("company_id")
   articleNumber   String            @map("article_number")
   ean             String?
   gtin            String?
@@ -379,7 +379,7 @@ model Product {
 
 model Competitor {
   id                  String            @id @default(cuid())
-  companyId           String            @default("cmp_engels_group") @map("company_id")
+  companyId           String            @map("company_id")
   name                String
   website             String
   countryId           String            @map("country_id")
@@ -401,7 +401,7 @@ model Competitor {
 
 model CompetitorOffer {
   id              String         @id @default(cuid())
-  companyId       String         @default("cmp_engels_group") @map("company_id")
+  companyId       String         @map("company_id")
   competitorId    String         @map("competitor_id")
   productMatchId  String?        @map("product_match_id")
   url             String
@@ -436,7 +436,7 @@ model CompetitorOffer {
 
 model ProductMatch {
   id                String          @id @default(cuid())
-  companyId         String          @default("cmp_engels_group") @map("company_id")
+  companyId         String          @map("company_id")
   productId         String          @map("product_id")
   competitorOfferId String          @unique @map("competitor_offer_id")
   confidenceScore   Int             @map("confidence_score")
@@ -458,7 +458,7 @@ model ProductMatch {
 
 model PriceCheck {
   id                String          @id @default(cuid())
-  companyId         String          @default("cmp_engels_group") @map("company_id")
+  companyId         String          @map("company_id")
   competitorOfferId String          @map("competitor_offer_id")
   checkedAt         DateTime        @map("checked_at")
   foundPrice             Decimal?        @map("found_price")
@@ -487,7 +487,7 @@ model PriceCheck {
 
 model PriceHistory {
   id                String          @id @default(cuid())
-  companyId         String          @default("cmp_engels_group") @map("company_id")
+  companyId         String          @map("company_id")
   competitorOfferId String          @map("competitor_offer_id")
   recordedAt        DateTime        @map("recorded_at")
   price                  Decimal
@@ -511,7 +511,7 @@ model PriceHistory {
 
 model OwnPriceHistory {
   id         String   @id @default(cuid())
-  companyId  String   @default("cmp_engels_group") @map("company_id")
+  companyId  String   @map("company_id")
   productId  String   @map("product_id")
   countryId  String?  @map("country_id")
   recordedAt DateTime @map("recorded_at")
@@ -530,7 +530,7 @@ model OwnPriceHistory {
 
 model ProductMarket {
   id          String   @id @default(cuid())
-  companyId   String   @default("cmp_engels_group") @map("company_id")
+  companyId   String   @map("company_id")
   productId   String   @map("product_id")
   countryId   String   @map("country_id")
   ownPrice    Decimal? @map("own_price")
@@ -554,7 +554,7 @@ model ProductMarket {
 
 model Alert {
   id                String           @id @default(cuid())
-  companyId         String           @default("cmp_engels_group") @map("company_id")
+  companyId         String           @map("company_id")
   type              String
   productId         String?          @map("product_id")
   competitorOfferId String?          @map("competitor_offer_id")
@@ -574,7 +574,7 @@ model Alert {
 
 model AlertRule {
   id             String        @id @default(cuid())
-  companyId      String        @default("cmp_engels_group") @map("company_id")
+  companyId      String        @map("company_id")
   type           String
   threshold      Decimal?
   isActive       Boolean       @default(true) @map("is_active")
@@ -594,7 +594,7 @@ model AlertRule {
 
 model ImportTask {
   id            String       @id @default(cuid())
-  companyId     String       @default("cmp_engels_group") @map("company_id")
+  companyId     String       @map("company_id")
   filename      String
   format        ImportFormat
   status        ImportStatus @default(PENDING)
@@ -615,7 +615,7 @@ model ImportTask {
 
 model Report {
   id          String       @id @default(cuid())
-  companyId   String       @default("cmp_engels_group") @map("company_id")
+  companyId   String       @map("company_id")
   title       String
   weekStart   DateTime     @map("week_start")
   weekEnd     DateTime     @map("week_end")
@@ -631,7 +631,7 @@ model Report {
 
 model AuditLog {
   id         String   @id @default(cuid())
-  companyId  String   @default("cmp_engels_group") @map("company_id")
+  companyId  String   @map("company_id")
   userId     String   @map("user_id")
   action     String
   entityType String   @map("entity_type")
@@ -649,7 +649,7 @@ model AuditLog {
 
 model FeedSource {
   id                 String              @id @default(cuid())
-  companyId          String              @default("cmp_engels_group") @map("company_id")
+  companyId          String              @map("company_id")
   sourceKey          String              @map("source_key")
   name               String
   sourceType         FeedSourceType      @map("source_type")
@@ -681,7 +681,7 @@ model FeedSource {
 
 model FeedColumnMapping {
   id           String     @id @default(cuid())
-  companyId    String     @default("cmp_engels_group") @map("company_id")
+  companyId    String     @map("company_id")
   feedSourceId String     @map("feed_source_id")
   sourceColumn String     @map("source_column")
   targetField  String?    @map("target_field")
@@ -701,7 +701,7 @@ model FeedColumnMapping {
 
 model FeedItem {
   id                String     @id @default(cuid())
-  companyId         String     @default("cmp_engels_group") @map("company_id")
+  companyId         String     @map("company_id")
   feedSourceId      String     @map("feed_source_id")
   externalKey       String?    @map("external_key")
   rowIndex          Int        @map("row_index")
@@ -723,7 +723,7 @@ model FeedItem {
 
 model FeedSyncRun {
   id           String         @id @default(cuid())
-  companyId    String         @default("cmp_engels_group") @map("company_id")
+  companyId    String         @map("company_id")
   feedSourceId String         @map("feed_source_id")
   status       FeedSyncStatus
   startedAt    DateTime       @default(now()) @map("started_at")
@@ -744,7 +744,7 @@ model FeedSyncRun {
 
 model ProductFeedLink {
   id              String     @id @default(cuid())
-  companyId       String     @default("cmp_engels_group") @map("company_id")
+  companyId       String     @map("company_id")
   feedSourceId    String     @map("feed_source_id")
   productId       String     @map("product_id")
   externalKey     String     @map("external_key")

@@ -3,11 +3,13 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { FeedSourceType } from '@/generated/prisma/client'
 import { ingestCanonicalProducts, type CanonicalFeedProduct } from '@/lib/feed-ingestion'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
+import { hasLicenseAccess } from '@/lib/licensing'
+import { prisma } from '@/lib/prisma'
 
 const SYNTRX_URL = process.env.SYNTRX_SUPABASE_URL ?? 'https://cieqifmizthutfvfgfny.supabase.co'
 const SYNTRX_PUBLISHABLE_KEY = process.env.SYNTRX_SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_TMhAYLP5vYiChEbZyhBcvw__tGpowal'
 const ENGELS_ORGANIZATION_ID = process.env.SYNTRX_ENGELS_ORGANIZATION_ID ?? '4cd85d1b-f834-4e68-b26d-1eae649b4c1f'
+const PRYSIGHT_SYNTRX_COMPANY_ID = process.env.PRYSIGHT_SYNTRX_COMPANY_ID?.trim() ?? ''
 const ALLOWED_ROLES = new Set(['admin', 'manager', 'import_manager'])
 
 const corsHeaders = {
@@ -78,8 +80,13 @@ export async function POST(request: Request) {
   const countryCode = body.countryCode?.trim().toUpperCase() || 'GLOBAL'
   if (countryCode !== 'GLOBAL' && !/^[A-Z]{2}$/.test(countryCode)) return json({ error: 'Ongeldige landcode.' }, { status: 400 })
 
+  if (!PRYSIGHT_SYNTRX_COMPANY_ID) return json({ error: 'Prysight tenantkoppeling voor Syntrx ontbreekt.' }, { status: 503 })
+  const company = await prisma.company.findFirst({ where: { id: PRYSIGHT_SYNTRX_COMPANY_ID, status: 'ACTIVE' }, include: { license: true } })
+  if (!company?.license) return json({ error: 'De gekoppelde Prysight organisatie bestaat niet of heeft geen licentie.' }, { status: 503 })
+  if (!hasLicenseAccess(company.license)) return json({ error: 'De gekoppelde Prysight organisatie heeft geen actieve licentie.' }, { status: 403 })
+
   const result = await ingestCanonicalProducts({
-    companyId: DEFAULT_COMPANY_ID,
+    companyId: company.id,
     sourceKey: `syntrx:cieqifmizthutfvfgfny:${ENGELS_ORGANIZATION_ID}:${countryCode}`,
     sourceName: body.sourceName?.trim() || `Syntrx PIM · Engels Group · ${countryCode}`,
     sourceType: FeedSourceType.SYNTRX,

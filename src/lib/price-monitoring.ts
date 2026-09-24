@@ -1,6 +1,5 @@
 import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { evaluateMonitoringAlerts } from '@/lib/alert-engine'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assessPriceQuality } from '@/lib/price-quality'
@@ -659,7 +658,8 @@ function isManuallyConfirmedMatch(value: unknown) {
   return String((value as Record<string, unknown>).source ?? '').trim().toLowerCase() === 'manual'
 }
 
-export async function runPriceCheck(competitorOfferId: string, companyId = DEFAULT_COMPANY_ID, capacityVerified = false) {
+export async function runPriceCheck(competitorOfferId: string, companyId: string, capacityVerified = false) {
+  if (!companyId?.trim()) throw new Error('companyId is verplicht voor prijscontrole.')
   const offer = await prisma.competitorOffer.findFirst({
     where: { id: competitorOfferId, companyId },
     include: { competitor: { include: { country: true } }, productMatch: { include: { product: true } } },
@@ -979,20 +979,21 @@ export async function runPriceCheck(competitorOfferId: string, companyId = DEFAU
 }
 
 export async function runDuePriceChecks({
-  companyId = DEFAULT_COMPANY_ID,
+  companyId,
   limit = 40,
   competitorOfferId,
   productId,
   countryIds,
   force = false,
 }: {
-  companyId?: string
+  companyId: string
   limit?: number
   competitorOfferId?: string
   productId?: string
   countryIds?: string[]
   force?: boolean
-} = {}) {
+}) {
+  if (!companyId?.trim()) throw new Error('companyId is verplicht voor prijsmonitoring.')
   const cappedLimit = Math.min(Math.max(limit, 1), 200)
   const offers = await prisma.competitorOffer.findMany({
     where: {
