@@ -42,7 +42,7 @@ export default async function PriceChangesPage() {
 
   return (
     <div className="space-y-5">
-      <section className="strong-panel overflow-hidden">
+      <section className="ps-panel overflow-hidden">
         <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-end lg:justify-between sm:px-6">
           <div>
             <p className="eyebrow">Prijsuitvoering</p>
@@ -53,18 +53,18 @@ export default async function PriceChangesPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Prijswijzigingsstatus">
         {[
           ['Wacht op akkoord', pending, 'Aanvragen die beoordeeld moeten worden'],
           ['Goedgekeurd', approved, 'Klaar voor gecontroleerde publicatie'],
           ['Mislukt', failed, 'Technische of veiligheidsblokkade'],
-          ['Live gepubliceerd', applied, 'Kan nog gecontroleerd worden teruggedraaid'],
-          ['Magento', magentoReady ? 'Gereed' : 'Niet gekoppeld', magentoReady ? 'Writeback configuratie voor deze organisatie volledig' : 'Publicatie blijft technisch geblokkeerd'],
-        ].map(([label, value, helper]) => <div key={String(label)} className="surface-card-flat p-4"><p className="text-[10px] font-black uppercase tracking-[0.06em] text-[#6f7b91]">{label}</p><p className="mt-2 text-[24px] font-black text-[#171b28]">{String(value)}</p><p className="mt-1 text-[10px] leading-5 text-[#8790a2]">{helper}</p></div>)}
+          ['Live gepubliceerd', applied, 'Kan gecontroleerd worden teruggedraaid'],
+          ['Magento', magentoReady ? 'Gereed' : 'Niet gekoppeld', magentoReady ? 'Writeback is gecontroleerd geconfigureerd' : 'Publicatie blijft technisch geblokkeerd'],
+        ].map(([label, value, helper]) => <div key={String(label)} className="premium-kpi-card p-4"><p className="text-[11px] font-semibold text-[#65758a]">{label}</p><p className="mt-2 text-[24px] font-semibold tabular-nums text-[#17233a]">{String(value)}</p><p className="mt-1 text-[10px] leading-5 text-[#8790a2]">{helper}</p></div>)}
       </section>
 
-      {!canPublish ? <section className="rounded-[12px] border-2 border-[#afc5e7] bg-[#edf3fb] p-4"><p className="text-[12px] font-black text-[#355a91]">Gescheiden publicatierecht actief</p><p className="mt-1 text-[11px] leading-5 text-[#526d95]">Je kunt prijsadviezen aanvragen en de status volgen. Goedkeuren, afwijzen, publiceren en rollback vereisen het aparte recht <strong>Prijswijzigingen publiceren</strong>.</p></section> : null}
-      {!magentoReady ? <section className="rounded-[12px] border-2 border-[#e1c98d] bg-[#fbf4df] p-4"><p className="text-[12px] font-black text-[#6f5218]">Magento writeback staat veilig uit</p><p className="mt-1 text-[11px] leading-5 text-[#7b6534]">Aanvragen kunnen wel worden aangemaakt en beheerd. Publiceren blijft geblokkeerd totdat Magento 2 onder <Link href="/integraties" className="font-black underline">Integraties</Link> succesvol is getest en gekoppeld.</p></section> : null}
+      {!canPublish ? <section className="rounded-[12px] border border-[#d6e5fb] bg-[#f6f9ff] p-4"><p className="text-[12px] font-semibold text-[#355a91]">Gescheiden publicatierecht actief</p><p className="mt-1 text-[11px] leading-5 text-[#526d95]">Je kunt prijsadviezen aanvragen en de status volgen. Goedkeuren, afwijzen, publiceren en rollback vereisen het aparte recht <strong>Prijswijzigingen publiceren</strong>.</p></section> : null}
+      {!magentoReady ? <section className="rounded-[12px] border border-[#f2ddb1] bg-[#fff9eb] p-4"><p className="text-[12px] font-semibold text-[#6f5218]">Magento writeback staat veilig uit</p><p className="mt-1 text-[11px] leading-5 text-[#7b6534]">Aanvragen kunnen wel worden aangemaakt en beheerd. Publiceren blijft geblokkeerd totdat Magento 2 onder <Link href="/integraties" className="font-semibold underline">Integraties</Link> succesvol is getest en gekoppeld.</p></section> : null}
 
       <section className="space-y-3">
         {requests.length === 0 ? <div className="surface-card p-8 text-center"><p className="text-[13px] font-semibold text-[#34445b]">Nog geen prijswijzigingen</p><p className="mt-2 text-[11px] text-[#7b889a]">Maak vanuit Prijsstrategie een aanvraag van een actieadvies.</p></div> : requests.map((item) => {
@@ -72,14 +72,14 @@ export default async function PriceChangesPage() {
           return <article key={item.id} className="surface-card overflow-hidden">
             <div className="flex flex-col gap-4 border-b border-[#e6eaf0] px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[9px] font-black ${statusClass(item.status)}`}>{statusLabels[item.status]}</span><span className="text-[10px] font-semibold text-[#8790a2]">{item.countryCode ?? item.countryName ?? 'Algemeen'}</span></div>
-                <h2 className="mt-2 text-[14px] font-black text-[#202b3b]">{item.articleNumber} · {item.productName}</h2>
+                <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${statusClass(item.status)}`}>{statusLabels[item.status]}</span><span className="text-[10px] font-semibold text-[#8790a2]">{item.countryCode ?? item.countryName ?? 'Algemeen'}</span></div>
+                <h2 className="mt-2 text-[14px] font-semibold text-[#202b3b]">{item.articleNumber} · {item.productName}</h2>
                 <p className="mt-1 text-[10px] text-[#8790a2]">Aangevraagd {formatDate(item.createdAt)}{item.requestedByName ? ` door ${item.requestedByName}` : ''}</p>
               </div>
               <div className="grid min-w-[320px] grid-cols-3 gap-2 text-right">
-                <div><p className="text-[9px] font-bold uppercase text-[#8790a2]">Huidig</p><p className="mt-1 text-[14px] font-black text-[#27364a]">{formatCurrency(item.currentPrice, item.currency)}</p></div>
-                <div><p className="text-[9px] font-bold uppercase text-[#8790a2]">Advies</p><p className="mt-1 text-[14px] font-black text-[#355a91]">{formatCurrency(item.recommendedPrice, item.currency)}</p></div>
-                <div><p className="text-[9px] font-bold uppercase text-[#8790a2]">Doel</p><p className="mt-1 text-[14px] font-black text-[#17603a]">{formatCurrency(target, item.currency)}</p></div>
+                <div><p className="text-[9px] font-bold uppercase text-[#8790a2]">Huidig</p><p className="mt-1 text-[14px] font-semibold text-[#27364a]">{formatCurrency(item.currentPrice, item.currency)}</p></div>
+                <div><p className="text-[9px] font-bold uppercase text-[#8790a2]">Advies</p><p className="mt-1 text-[14px] font-semibold text-[#355a91]">{formatCurrency(item.recommendedPrice, item.currency)}</p></div>
+                <div><p className="text-[9px] font-bold uppercase text-[#8790a2]">Doel</p><p className="mt-1 text-[14px] font-semibold text-[#17603a]">{formatCurrency(target, item.currency)}</p></div>
               </div>
             </div>
 
