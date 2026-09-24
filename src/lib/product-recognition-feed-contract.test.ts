@@ -22,7 +22,7 @@ test('EAN first checks tenant-owned active product feeds and requires exact GTIN
 })
 
 test('EAN onboarding never treats ex VAT source prices as incl VAT and shows feed provenance', () => {
-  assert.match(eanField, /payload.vatIncluded === false && factor \? payload.ownPrice \* factor/)
+  assert.match(eanField, /payload.vatIncluded === false && factor \? safePrice \* factor/)
   assert.match(eanField, /apply\('ownPrice', money\(incl\)\)/)
   assert.match(eanField, /apply\('ownPriceOther', money\(excl\)\)/)
   assert.doesNotMatch(eanField, /apply\('vatIncluded', payload.vatIncluded\)/)
