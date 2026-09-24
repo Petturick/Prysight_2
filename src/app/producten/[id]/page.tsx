@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, updateCompetitorOfferAction, updateProductIdentifiersAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
+import { addCompetitorOfferAction, discoverCompetitorUrlsAction, removeCompetitorOfferAction, runCompetitorOfferResearchAction, refreshProductIntelligenceAction, verifyBricoPraxisPricesAction, updateCompetitorOfferAction, updateProductIdentifiersAction, updateProductOwnPriceAction } from '@/app/actions/productActions'
 import { approveMatchAction } from '@/app/actions/matchActions'
 import { ProductCheckHistoryPanel } from '@/components/ProductCheckHistoryPanel'
 import { EanPriceSuggestions } from '@/components/EanPriceSuggestions'
@@ -174,6 +174,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const displayProductName = hasReadableProductName ? product.name : feedName ?? `Artikel ${product.articleNumber}`
   const productNameNeedsAttention = !hasReadableProductName && !feedName
   const marketMatches = product.matches.filter((match) => match.competitorOffer.competitor.isActive && (!defaultCountry || match.competitorOffer.competitor.countryId === defaultCountry.id))
+  const retailerVerificationMatches = ['brico', 'praxis'].map((retailer) =>
+    marketMatches.find((match) =>
+      match.competitorOffer.isActive &&
+      match.competitorOffer.competitor.name.trim().toLowerCase() === retailer &&
+      (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW'),
+    ) ?? null,
+  )
+  const verificationRequested = readParam(query.verificatie)
   const confirmedMatches = marketMatches.filter((match) => match.matchStatus === 'CERTAIN' && match.competitorOffer.isActive)
   const reviewMatches = marketMatches.filter((match) => match.matchStatus === 'REVIEW' && match.competitorOffer.isActive)
   const crawlableMatches = marketMatches.filter((match) => (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW') && match.competitorOffer.isActive)
@@ -334,6 +342,94 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             reviewMatches.length ? 'Volgende stap: controleer de gevonden producten voordat hun prijzen meetellen in je vergelijking.' :
               pricedMatches.length === 0 ? 'Volgende stap: zoek concurrenten en haal hun prijzen op. Nog geen bruikbare, bevestigde prijs gevonden.' :
                 'Bekijk de bevestigde concurrentieprijzen en beoordeel daarna je prijsadvies.'}
+        </div>
+      </section>
+
+      <section id="bronverificatie" aria-labelledby="bronverificatie-titel" className="ps-panel scroll-mt-24 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf3] px-5 py-4 sm:px-6">
+          <div>
+            <h2 id="bronverificatie-titel" className="text-[16px] font-semibold text-[#21364d]">Controleer Brico en Praxis</h2>
+            <p className="mt-1 text-[12px] text-[#66778a]">Haal de prijzen opnieuw op uit de gekoppelde productpagina's. Je ziet per bron of de prijs en productmatch daadwerkelijk zijn bevestigd.</p>
+          </div>
+          {canEditCompetitors && defaultCountry && retailerVerificationMatches.some(Boolean) ? (
+            <form action={verifyBricoPraxisPricesAction}>
+              <input type="hidden" name="productId" value={product.id} />
+              <input type="hidden" name="countryId" value={defaultCountry.id} />
+              <PriceFetchSubmitButton idleLabel="Brico en Praxis nu controleren" pendingLabel="Bronnen worden gecontroleerd…" />
+            </form>
+          ) : null}
+        </div>
+        <div className="space-y-3 p-5 sm:px-6">
+          {verificationRequested === 'uitgevoerd' ? (
+            <p role="status" className="rounded-[10px] border border-[#dce5ef] bg-[#f5f8fc] p-3 text-[12px] text-[#30465d]">
+              Nieuwe prijscontrole afgerond. {readParam(query.vgeslaagd) ?? '0'} broncontrole(s) geslaagd, {readParam(query.vmislukt) ?? '0'} mislukt. Bekijk de status per concurrent hieronder. Alleen bevestigde productmatches met een geslaagde recente broncontrole tellen als geverifieerd.
+            </p>
+          ) : null}
+          {verificationRequested === 'geen-bronnen' ? <p role="status" className="rounded-[10px] bg-[#fff8eb] p-3 text-[12px] text-[#76591d]">Brico en Praxis zijn voor deze markt nog niet aan dit product gekoppeld. Zoek of voeg eerst een bron toe.</p> : null}
+          {(['Brico', 'Praxis'] as const).map((retailer, index) => {
+            const match = retailerVerificationMatches[index]
+            const offer = match?.competitorOffer
+            const check = offer?.priceChecks[0]
+            const fresh = Boolean(check && Date.now() - check.checkedAt.getTime() <= 24 * 60 * 60 * 1000)
+            const accepted = Boolean(
+              offer && match?.matchStatus === 'CERTAIN' &&
+              check?.isSuccess && check.checkMethod !== 'MANUAL' &&
+              check.sourceUrl === offer.url && fresh &&
+              numberValue(check.foundPrice) !== null && Number(check.foundPrice) > 0 &&
+              numberValue(offer.normalizedPrice) !== null && Number(offer.normalizedPrice) > 0 &&
+              offer.lastCheckedAt && check.checkedAt.getTime() === offer.lastCheckedAt.getTime(),
+            )
+            const failed = Boolean(check && !check.isSuccess)
+            const pendingMatch = match?.matchStatus === 'REVIEW'
+            const status = !offer ? 'Nog niet gekoppeld'
+              : failed ? 'Nieuwe controle mislukt'
+                : !check ? 'Nog niet gecontroleerd'
+                  : pendingMatch ? 'Productmatch nog bevestigen'
+                    : !fresh ? 'Controle verouderd'
+                      : accepted ? 'Prijs en product geverifieerd'
+                        : 'Prijs nog niet geverifieerd'
+            const tone = accepted ? 'ps-chip-green' : 'ps-chip-amber'
+            return (
+              <article key={retailer} className="rounded-[12px] border border-[#e1e8f0] bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-[14px] font-semibold text-[#273b51]">{retailer}</h3>
+                      <span className={`ps-chip ${tone}`}>{status}</span>
+                    </div>
+                    {offer ? (
+                      <>
+                        <p className="mt-2 text-[12px] text-[#526780]">
+                          {accepted ? `Geverifieerde prijs incl. btw: ${formatCurrency(offer.normalizedPrice, offer.currency)}`
+                            : check?.foundPrice ? `Waargenomen bedrag: ${formatCurrency(check.foundPrice, check.currency)}, niet bevestigd als vergelijkbare prijs.`
+                              : 'Er is nog geen recente, geverifieerde productprijs beschikbaar.'}
+                        </p>
+                        <p className="mt-1 text-[11px] text-[#78889a]">
+                          {check ? `Laatste controle ${formatDate(check.checkedAt)} · Methode: ${check.checkMethod}${check.statusCode ? ` · HTTP ${check.statusCode}` : ''}` : 'Nog geen controlehistorie'}.
+                        </p>
+                        {failed ? <p className="mt-2 text-[12px] text-[#9a6810]">{sourceIssueLabel(check?.errorMessage) ?? 'De bron kon niet betrouwbaar worden gecontroleerd.'} De vorige prijs is hiermee niet opnieuw bevestigd.</p> : null}
+                        {pendingMatch ? <p className="mt-2 text-[12px] text-[#76591d]">Controleer eerst of de gevonden productpagina hetzelfde artikel toont. De opgehaalde prijs telt nog niet mee.</p> : null}
+                        <a href={offer.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] font-semibold text-[#2f6edb]">Bekijk de gecontroleerde productpagina</a>
+                      </>
+                    ) : (
+                      <p className="mt-2 text-[12px] text-[#66778a]">Er is geen gekoppelde productpagina voor {retailer} in {defaultCountry?.name ?? 'deze markt'}.</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {offer && canEditCompetitors ? (
+                      <form action={runCompetitorOfferResearchAction}>
+                        <input type="hidden" name="productId" value={product.id} />
+                        <input type="hidden" name="competitorOfferId" value={offer.id} />
+                        <PriceFetchSubmitButton compact idleLabel="Opnieuw testen" pendingLabel="Controleren…" />
+                      </form>
+                    ) : <a href="#concurrenten-vinden" className="secondary-action">Concurrent zoeken</a>}
+                    {pendingMatch ? <a href="#concurrenten-vinden" className="secondary-action">Productmatch controleren</a> : null}
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+          <p className="text-[11px] text-[#78889a]">Een ontbrekende of geblokkeerde bron is geen bevestigde prijs. De controle gebruikt de actuele gekoppelde URL, zonder handmatig ingevoerde of eerder gevonden prijzen als nieuw resultaat voor te stellen.</p>
         </div>
       </section>
       <details id="eigen-prijs" open={ownPrice === null || readParam(query.instellingen) === '1'} className="ps-panel scroll-mt-24 overflow-hidden">
