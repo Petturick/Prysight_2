@@ -31,6 +31,21 @@ test('accepts a plausible structured price with exact EAN', () => {
   assert.equal(result.confidence, 'HIGH')
 })
 
+test('accepts exact EAN despite retailer-specific SKU differences', () => {
+  const result = assessPriceQuality({
+    extractedPrice: 34.95,
+    normalizedPrice: 34.95,
+    method: 'JSON_LD',
+    extractedEan: '8719667010643',
+    productEan: '8719667010643',
+    extractedSku: 'OTHER-RETAILER-SKU',
+    articleNumber: 'MGB 120.700',
+    ownPrice: 38.2,
+  })
+  assert.equal(result.accepted, true)
+  assert.equal(result.confidence, 'HIGH')
+})
+
 test('rejects an explicit EAN mismatch', () => {
   const result = assessPriceQuality({
     extractedPrice: 34.95,
