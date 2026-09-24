@@ -97,6 +97,10 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
 
       const form = document.getElementById(formId) as HTMLFormElement | null
       if (!form) throw new Error('Het productformulier kon niet worden gevonden.')
+      if (control(form, 'countryId')?.value !== selectedMarket?.id) {
+        setMessage('De geselecteerde markt is gewijzigd. Herken het product opnieuw voor de juiste prijzen.')
+        return
+      }
 
       if (payload.partial) {
         // A blocked or unknown webshop URL cannot be trusted as the user's own product URL.
@@ -111,14 +115,16 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
 
       const marketCode = marketCodeFromUrl(payload.url || rawUrl)
       const selectedMarketId = control(form, 'countryId')?.value
-      const market = (marketCode
-        ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK'))
-        : null) ?? markets.find((item) => item.id === selectedMarketId) ?? null
+      const market = markets.find((item) => item.id === selectedMarketId)
+        ?? (marketCode ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK')) : null)
+        ?? null
+      const marketMatchesUrl = !marketCode || market?.code.toUpperCase() === marketCode
+        || (marketCode === 'GB' && market?.code.toUpperCase() === 'UK')
       setLastMarket(market)
       const validVatRate = market && Number.isFinite(market.vatRate) && market.vatRate >= 0 && market.vatRate <= 100
       const vatFactor = validVatRate ? 1 + market.vatRate / 100 : null
       const verifiedCurrency = !!market && !!payload.currency && payload.currency.toUpperCase() === market.currency.toUpperCase()
-      const detectedPrice = verifiedCurrency && payload.priceTrusted !== false ? payload.ownPrice : null
+      const detectedPrice = verifiedCurrency && marketMatchesUrl && payload.priceTrusted !== false ? payload.ownPrice : null
       const priceIncludingVat = detectedPrice === null
         ? null
         : payload.vatIncluded === true
@@ -166,7 +172,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       articleControl?.setCustomValidity(payload.existingProduct ? 'Dit product bestaat al in Prysight.' : '')
 
       if (market) {
-        apply('countryId', market.id, true)
+        apply('countryId', market.id)
         apply('currency', market.currency)
       }
 
@@ -176,7 +182,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       setMessage(payload.existingProduct
         ? `Dit product bestaat al als artikel ${payload.existingProduct.articleNumber}.`
         : priceNeedsAttention
-          ? `${applied} velden ingevuld. De prijs is niet overgenomen omdat de webshop, btw status, het markttarief of de valuta niet betrouwbaar overeenkomt.${warnings}`
+          ? `${applied} velden ingevuld. De prijs is niet overgenomen omdat de webshop, de gekozen markt, btw status, het markttarief of de valuta niet betrouwbaar overeenkomt.${warnings}`
           : `${applied} velden ingevuld. Controleer de productgegevens en prijs.${warnings}`)
     } catch (error) {
       setMessage(error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
