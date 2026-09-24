@@ -138,8 +138,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       shippingVatIncluded: metrics.selectedMarket?.ownShippingVatIncluded ?? product.ownShippingVatIncluded ?? true,
       vatRate: validOwnRate ? ownVatRate : null,
     })
-    const ownEx = ownAmounts.priceEx
-    const ownInc = ownAmounts.priceInc
+    const hasOwnPriceInMarket = !selectedCountry || Boolean(metrics.selectedMarket)
+    const ownEx = hasOwnPriceInMarket ? ownAmounts.priceEx : null
+    const ownInc = hasOwnPriceInMarket ? ownAmounts.priceInc : null
     const lowestOffer = metrics.lowestOffer?.competitorOffer
     const lowestRate = lowestOffer ? Number(lowestOffer.competitor.country.vatRate) : null
     const marketEx = metrics.lowestPrice !== null && lowestRate !== null && Number.isFinite(lowestRate)
@@ -185,8 +186,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       }
     })
     const lowestConfirmed = confirmedOffers.length ? Number(confirmedOffers[0].competitorOffer.normalizedPrice) : null
-    const comparisonDifference = metrics.ownCurrency === 'EUR' && ownAmounts.priceInc !== null && lowestConfirmed !== null && lowestConfirmed > 0
-      ? (ownAmounts.priceInc - lowestConfirmed) / lowestConfirmed * 100 : null
+    const comparisonDifference = metrics.ownCurrency === 'EUR' && ownInc !== null && lowestConfirmed !== null && lowestConfirmed > 0
+      ? (ownInc - lowestConfirmed) / lowestConfirmed * 100 : null
     const status = lastCheckFailed ? 'Controle mislukt'
       : metrics.reviewMatches > 0 ? 'Beoordelen'
         : metrics.stale ? 'Vernieuwen'
@@ -201,8 +202,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       markets: product.productMarkets.map((market) => market.country.code).join(', ') || '—',
       ownEx: price(ownEx, metrics.ownCurrency),
       ownInc: price(ownInc, metrics.ownCurrency),
-      ownShipping: ownShipping === 0 ? 'Gratis' : price(ownAmounts.shippingInc, metrics.ownCurrency),
-      ownDelivered: price(ownAmounts.totalInc, metrics.ownCurrency),
+      ownShipping: hasOwnPriceInMarket ? (ownShipping === 0 ? 'Gratis' : price(ownAmounts.shippingInc, metrics.ownCurrency)) : '—',
+      ownDelivered: price(hasOwnPriceInMarket ? ownAmounts.totalInc : null, metrics.ownCurrency),
       marketEx: price(marketEx),
       marketInc: price(metrics.lowestPrice),
       shipping: shipping === 0 ? 'Gratis' : price(shipping),
@@ -324,7 +325,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         </div>
       </div>
       {view === 'vergelijking' ? (
-        <ProductComparisonView rows={rows} canCrawl={canCrawl} refreshSinglePriceAction={refreshSingleProductPriceAction} />
+        selectedCountry ? <ProductComparisonView rows={rows} canCrawl={canCrawl} refreshSinglePriceAction={refreshSingleProductPriceAction} />
+          : <section className="rounded-xl border border-[#dce5ef] bg-white px-6 py-10 text-center"><h3 className="text-[15px] font-semibold text-[#253a50]">Kies een markt om productprijzen te vergelijken</h3><p className="mt-2 text-[12px] text-[#687d95]">Zo blijven btw, valuta en concurrentieprijzen per land correct. Gebruik de marktkeuze bovenaan of open de tabel voor een overzicht van alle producten.</p><Link href={tableHref} className="secondary-action mt-4 inline-flex">Alle producten in tabel bekijken</Link></section>
       ) : <ProductOverviewGrid
         rows={rows}
         totalCount={totalCount}
