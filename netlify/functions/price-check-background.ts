@@ -12,11 +12,18 @@ export default async (request: Request) => {
   }
 
   const origin = new URL(request.url).origin
+  const payload = request.method === 'POST'
+    ? await request.json().catch(() => null) as { companyId?: unknown; productId?: unknown } | null
+    : null
+  const targeted = payload && typeof payload.companyId === 'string' && typeof payload.productId === 'string'
+    && payload.companyId.length < 150 && payload.productId.length < 150
   try {
     const response = await fetch(`${origin}/api/prijscontroles`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${expected}`, 'Content-Type': 'application/json', 'User-Agent': 'PrysightBackgroundMonitor/3.0' },
-      body: JSON.stringify({ limit: DEFAULT_BATCH_SIZE, smartDiscovery: true, discoveryLimit: DISCOVERY_BATCH_SIZE, smartPricing: true }),
+      body: JSON.stringify(targeted
+        ? { companyId: payload.companyId, productId: payload.productId, limit: 2, smartDiscovery: false, smartPricing: false }
+        : { limit: DEFAULT_BATCH_SIZE, smartDiscovery: true, discoveryLimit: DISCOVERY_BATCH_SIZE, smartPricing: true }),
     })
     const body = await response.text()
     if (!response.ok) {
