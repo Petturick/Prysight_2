@@ -26,6 +26,10 @@ type ProductPreview = {
   shippingLabel?: string | null
   partial?: boolean
   reason?: string | null
+  warnings?: string[]
+  conflicts?: string[]
+  priceTrusted?: boolean
+  sources?: Array<{ url: string; origin?: string }>
   existingProduct: { id: string; articleNumber: string; name: string; ean: string | null; gtin: string | null; reason: 'ARTICLE_NUMBER' | 'EAN' | 'GTIN' | 'URL' } | null
 }
 
@@ -64,6 +68,8 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [preview, setPreview] = useState<ProductPreview | null>(null)
+  const [shippingAccepted, setShippingAccepted] = useState(false)
+  const [lastMarket, setLastMarket] = useState<MarketOption | null>(null)
 
   async function recognize(inputUrl?: string) {
     const rawUrl = (inputUrl ?? url).trim()
@@ -75,11 +81,15 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
     setLoading(true)
     setMessage(null)
     setPreview(null)
+    setShippingAccepted(false)
     try {
+      const selectedCountry = (document.getElementById(formId) as HTMLFormElement | null)?.elements.namedItem('countryId') as HTMLSelectElement | null
+      const selectedMarket = markets.find((market) => market.id === selectedCountry?.value)
       const response = await fetch('/api/products/preview-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: rawUrl }),
+        body: JSON.stringify({ url: rawUrl, countryCode: selectedMarket?.code ?? 'GLOBAL' }),
+        signal: AbortSignal.timeout(24_000),
       })
       const payload = await response.json() as ProductPreview & { error?: string }
       if (!response.ok) throw new Error(payload.error || 'Productpagina kon niet automatisch worden herkend.')
@@ -103,10 +113,11 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       const market = (marketCode
         ? markets.find((item) => item.code.toUpperCase() === marketCode || (marketCode === 'GB' && item.code.toUpperCase() === 'UK'))
         : null) ?? markets.find((item) => item.id === selectedMarketId) ?? null
+      setLastMarket(market)
       const validVatRate = market && Number.isFinite(market.vatRate) && market.vatRate >= 0 && market.vatRate <= 100
       const vatFactor = validVatRate ? 1 + market.vatRate / 100 : null
       const verifiedCurrency = !!market && !!payload.currency && payload.currency.toUpperCase() === market.currency.toUpperCase()
-      const detectedPrice = verifiedCurrency ? payload.ownPrice : null
+      const detectedPrice = verifiedCurrency && payload.priceTrusted !== false ? payload.ownPrice : null
       const priceIncludingVat = detectedPrice === null
         ? null
         : payload.vatIncluded === true
@@ -124,14 +135,17 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       const money = (value: number | null) => value === null ? null : value.toFixed(2).replace('.', ',')
 
       apply('ownUrl', payload.url || rawUrl, true)
-      apply('articleNumber', payload.articleNumber, true)
-      apply('name', payload.name, true)
-      apply('ean', payload.ean, true)
-      apply('ownPrice', money(priceIncludingVat), true)
-      apply('ownPriceOther', money(priceExcludingVat), true)
-      apply('currency', payload.currency, true)
-      apply('stockStatus', payload.stockStatus, true)
-      apply('packagingQty', payload.packagingQty, true)
+      apply('description', payload.description)
+      apply('imageUrl', payload.image)
+      apply('recognitionSources', payload.sources?.map((item) => item.url).join(' | '))
+      apply('articleNumber', payload.articleNumber)
+      apply('name', payload.name)
+      apply('ean', payload.ean)
+      apply('ownPrice', money(priceIncludingVat))
+      apply('ownPriceOther', money(priceExcludingVat))
+      apply('currency', payload.currency)
+      apply('stockStatus', payload.stockStatus)
+      apply('packagingQty', payload.packagingQty)
       if (payload.productGroup) {
         const group = control(form, 'productGroup') as HTMLSelectElement | null
         const option = [...(group?.options ?? [])].find((item) =>
@@ -140,9 +154,9 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         )
         if (option) apply('productGroup', option.value)
       }
-      apply('brand', payload.brand, true)
-      apply('model', payload.model, true)
-      apply('mpn', payload.mpn, true)
+      apply('brand', payload.brand)
+      apply('model', payload.model)
+      apply('mpn', payload.mpn)
       apply('vatIncluded', true, true)
 
       const eanControl = control(form, 'ean') as HTMLInputElement | null
@@ -152,18 +166,21 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
 
       if (market) {
         apply('countryId', market.id, true)
-        apply('currency', market.currency, true)
+        apply('currency', market.currency)
       }
 
       const priceNeedsAttention = payload.ownPrice !== null && priceIncludingVat === null
       setPreview(payload)
+      const warnings = payload.warnings?.length ? ' ' + payload.warnings.join(' ') : ''
       setMessage(payload.existingProduct
         ? `Dit product bestaat al als artikel ${payload.existingProduct.articleNumber}.`
         : priceNeedsAttention
-          ? `${applied} velden ingevuld. De prijs is niet overgenomen omdat btw status, markttarief of valuta niet betrouwbaar overeenkomt.`
-          : `${applied} velden ingevuld. Controleer de productgegevens en prijs.`)
+          ? `${applied} velden ingevuld. De prijs is niet overgenomen omdat de webshop, btw status, het markttarief of de valuta niet betrouwbaar overeenkomt.${warnings}`
+          : `${applied} velden ingevuld. Controleer de productgegevens en prijs.${warnings}`)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
+      setMessage(error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+        ? 'De productpagina reageerde niet op tijd. Probeer opnieuw of herken via EAN of productfeed.'
+        : error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
     } finally {
       setLoading(false)
     }
@@ -212,7 +229,19 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         <div className="mt-2 rounded-lg border border-[#dce6f2] bg-[#f8fbff] px-3 py-2 text-[11px] text-[#475d76]">
           {preview.description ? <p className="line-clamp-2">{preview.description}</p> : null}
           {preview.image ? <a href={preview.image} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-[#2f6edb] underline">Bekijk gevonden productafbeelding</a> : null}
-          {preview.shippingCost !== null && preview.shippingCost !== undefined ? <p className="mt-1">Gevonden verzendkosten: {preview.shippingCost.toFixed(2).replace('.', ',')} {preview.shippingCurrency ?? ''}. Controleer btw en bestemming voordat je deze vastlegt.</p> : null}
+          {preview.shippingCost !== null && preview.shippingCost !== undefined ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span>Gevonden verzendkosten: {preview.shippingCost.toFixed(2).replace('.', ',')} {preview.shippingCurrency ?? ''}. Bevestig dat dit bedrag inclusief btw voor de geselecteerde markt geldt.</span>
+              <button type="button" className="secondary-action" disabled={shippingAccepted || !lastMarket || preview.shippingCurrency?.toUpperCase() !== lastMarket.currency.toUpperCase()}
+                onClick={() => {
+                  const form = document.getElementById(formId) as HTMLFormElement | null
+                  if (!form || preview.shippingCost === null || preview.shippingCost === undefined || !lastMarket) return
+                  if (control(form, 'countryId')?.value !== lastMarket.id) return
+                  setControl(form, 'ownShippingCost', preview.shippingCost.toFixed(2).replace('.', ','), true)
+                  setShippingAccepted(true)
+                }}>{shippingAccepted ? 'Verzendkosten overgenomen' : 'Verzendkosten inclusief btw bevestigen'}</button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       <button type="button" onClick={() => {
