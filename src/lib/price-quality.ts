@@ -71,10 +71,14 @@ export function assessPriceQuality(input: PriceQualityInput): PriceQualityResult
   const skuComparable = Boolean(articleNumber && extractedSku)
   const skuMatch = skuComparable && articleNumber === extractedSku
   if (skuComparable && !skuMatch) {
-    if (!input.trustedProductMapping) {
+    // Different retailers routinely use their own SKUs for the same globally identified product.
+    // An exact EAN match takes precedence, but a mismatching SKU without EAN evidence still needs review.
+    if (!input.trustedProductMapping && !eanMatch) {
       return { accepted: false, confidence: 'REJECTED', reasons: ['SKU of artikelnummer van de concurrentpagina wijkt af van het gekoppelde product.'] }
     }
-    reasons.push('SKU of artikelnummer wijkt af, maar de concurrentbron is handmatig als productmatch bevestigd.')
+    reasons.push(eanMatch
+      ? 'EAN komt overeen; de concurrent gebruikt een ander artikelnummer.'
+      : 'SKU of artikelnummer wijkt af, maar de concurrentbron is handmatig als productmatch bevestigd.')
   }
 
   const similarity = titleSimilarity(input.productName, input.extractedTitle)
