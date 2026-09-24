@@ -124,7 +124,8 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
         const control = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null
         if (!control) return
         // Preserve deliberate manual input but refresh values previously filled by EAN lookup.
-        if (control.value.trim() && control.value !== autoValues.current[name]) return
+        if (control.value.trim() && control.value !== autoValues.current[name]
+          && !(name === 'packagingQty' && control.value === '1')) return
         const next = String(raw)
         control.value = next
         autoValues.current[name] = next
@@ -138,13 +139,18 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       const rate = selectedMarket?.vatRate
       const factor = typeof rate === 'number' && Number.isFinite(rate) && rate >= 0 && rate <= 100
         ? 1 + rate / 100 : null
-      // Primary form amount is always VAT-inclusive. Never assume an unknown tax basis.
-      const incl = payload.ownPrice === null || payload.ownPrice === undefined ? null
-        : payload.vatIncluded === true ? payload.ownPrice
-        : payload.vatIncluded === false && factor ? payload.ownPrice * factor : null
-      const excl = payload.ownPrice === null || payload.ownPrice === undefined ? null
-        : payload.vatIncluded === false ? payload.ownPrice
-        : payload.vatIncluded === true && factor ? payload.ownPrice / factor : null
+      const selectedCurrency = (form?.elements.namedItem('currency') as HTMLSelectElement | null)?.value
+      const safeCurrency = !!payload.currency && !!selectedMarket
+        && payload.currency.toUpperCase() === selectedMarket.currency.toUpperCase()
+        && selectedCurrency?.toUpperCase() === payload.currency.toUpperCase()
+      const safePrice = safeCurrency ? payload.ownPrice : null
+      // Primary form amount is always VAT-inclusive. Never assume an unknown tax basis or currency.
+      const incl = safePrice === null || safePrice === undefined ? null
+        : payload.vatIncluded === true ? safePrice
+        : payload.vatIncluded === false && factor ? safePrice * factor : null
+      const excl = safePrice === null || safePrice === undefined ? null
+        : payload.vatIncluded === false ? safePrice
+        : payload.vatIncluded === true && factor ? safePrice / factor : null
       const money = (amount: number | null) => amount === null ? null : amount.toFixed(2).replace('.', ',')
       apply('ownPrice', money(incl))
       apply('ownPriceOther', money(excl))
@@ -167,7 +173,7 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       }
       const origin = payload.feedMatched ? 'productfeed en online bronnen' : 'online bronnen'
       const priceWarning = payload.ownPrice !== null && payload.ownPrice !== undefined && incl === null
-        ? ' De gevonden prijs is niet ingevuld omdat de btw status of het markttarief niet betrouwbaar is vastgesteld.' : ''
+        ? ' De gevonden prijs is niet ingevuld omdat de btw status, het markttarief of de valuta niet betrouwbaar overeenkomt.' : ''
       setMessage(applied
         ? `${applied} velden ingevuld via ${origin}. Controleer de overige velden.${priceWarning}`
         : `Product herkend via ${origin}. Controleer de ontbrekende verplichte gegevens.${priceWarning}`)
