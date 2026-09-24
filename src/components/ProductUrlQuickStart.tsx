@@ -19,6 +19,13 @@ type ProductPreview = {
   productGroup: string | null
   model: string | null
   mpn: string | null
+  description?: string | null
+  image?: string | null
+  shippingCost?: number | null
+  shippingCurrency?: string | null
+  shippingLabel?: string | null
+  partial?: boolean
+  reason?: string | null
   existingProduct: { id: string; articleNumber: string; name: string; ean: string | null; gtin: string | null; reason: 'ARTICLE_NUMBER' | 'EAN' | 'GTIN' | 'URL' } | null
 }
 
@@ -80,6 +87,12 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       const form = document.getElementById(formId) as HTMLFormElement | null
       if (!form) throw new Error('Het productformulier kon niet worden gevonden.')
 
+      if (payload.partial) {
+        setControl(form, 'ownUrl', payload.url || rawUrl, true)
+        setPreview(payload)
+        setMessage(payload.reason || 'Er zijn geen betrouwbare gegevens gevonden. Vul ontbrekende velden handmatig in of gebruik de productfeed of het EAN.')
+        return
+      }
       let applied = 0
       const apply = (name: string, value: string | number | boolean | null | undefined, overwrite = false) => {
         if (setControl(form, name, value, overwrite)) applied += 1
@@ -92,19 +105,21 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         : null) ?? markets.find((item) => item.id === selectedMarketId) ?? null
       const validVatRate = market && Number.isFinite(market.vatRate) && market.vatRate >= 0 && market.vatRate <= 100
       const vatFactor = validVatRate ? 1 + market.vatRate / 100 : null
-      const priceIncludingVat = payload.ownPrice === null
+      const verifiedCurrency = !!market && !!payload.currency && payload.currency.toUpperCase() === market.currency.toUpperCase()
+      const detectedPrice = verifiedCurrency ? payload.ownPrice : null
+      const priceIncludingVat = detectedPrice === null
         ? null
         : payload.vatIncluded === true
-          ? payload.ownPrice
+          ? detectedPrice
           : payload.vatIncluded === false && vatFactor
-            ? payload.ownPrice * vatFactor
+            ? detectedPrice * vatFactor
             : null
-      const priceExcludingVat = payload.ownPrice === null
+      const priceExcludingVat = detectedPrice === null
         ? null
         : payload.vatIncluded === false
-          ? payload.ownPrice
+          ? detectedPrice
           : payload.vatIncluded === true && vatFactor
-            ? payload.ownPrice / vatFactor
+            ? detectedPrice / vatFactor
             : null
       const money = (value: number | null) => value === null ? null : value.toFixed(2).replace('.', ',')
 
@@ -117,6 +132,14 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       apply('currency', payload.currency, true)
       apply('stockStatus', payload.stockStatus, true)
       apply('packagingQty', payload.packagingQty, true)
+      if (payload.productGroup) {
+        const group = control(form, 'productGroup') as HTMLSelectElement | null
+        const option = [...(group?.options ?? [])].find((item) =>
+          item.value.toLowerCase() === payload.productGroup?.trim().toLowerCase()
+          || item.textContent?.trim().toLowerCase() === payload.productGroup?.trim().toLowerCase(),
+        )
+        if (option) apply('productGroup', option.value)
+      }
       apply('brand', payload.brand, true)
       apply('model', payload.model, true)
       apply('mpn', payload.mpn, true)
@@ -137,7 +160,7 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
       setMessage(payload.existingProduct
         ? `Dit product bestaat al als artikel ${payload.existingProduct.articleNumber}.`
         : priceNeedsAttention
-          ? `${applied} velden ingevuld. De gevonden prijs is niet automatisch ingevuld omdat de btw status of markt niet betrouwbaar genoeg is.`
+          ? `${applied} velden ingevuld. De prijs is niet overgenomen omdat btw status, markttarief of valuta niet betrouwbaar overeenkomt.`
           : `${applied} velden ingevuld. Controleer de productgegevens en prijs.`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Productpagina kon niet worden geanalyseerd.')
@@ -180,10 +203,17 @@ export function ProductUrlQuickStart({ formId, markets = [] }: { formId: string;
         </button>
       </div>
       {message ? (
-        <p role={preview?.existingProduct || !preview ? 'alert' : 'status'} className={`mt-2 rounded-lg px-3 py-2 text-[12px] ${preview?.existingProduct ? 'bg-[#fff5e8] text-[#8a5b16]' : preview ? 'bg-[#eaf8f0] text-[#1f7548]' : 'bg-[#fff5e8] text-[#8a5b16]'}`}>
+        <p role={preview?.existingProduct || !preview || preview.partial ? 'alert' : 'status'} className={`mt-2 rounded-lg px-3 py-2 text-[12px] ${preview?.existingProduct || preview?.partial ? 'bg-[#fff5e8] text-[#8a5b16]' : preview ? 'bg-[#eaf8f0] text-[#1f7548]' : 'bg-[#fff5e8] text-[#8a5b16]'}`}>
           {message}
           {preview?.existingProduct ? <a href={`/producten/${preview.existingProduct.id}`} className="ml-2 font-semibold text-[#2f6edb] underline">Open bestaand product</a> : null}
         </p>
+      ) : null}
+      {preview && !preview.partial && (preview.description || preview.image || preview.shippingCost !== null && preview.shippingCost !== undefined) ? (
+        <div className="mt-2 rounded-lg border border-[#dce6f2] bg-[#f8fbff] px-3 py-2 text-[11px] text-[#475d76]">
+          {preview.description ? <p className="line-clamp-2">{preview.description}</p> : null}
+          {preview.image ? <a href={preview.image} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-[#2f6edb] underline">Bekijk gevonden productafbeelding</a> : null}
+          {preview.shippingCost !== null && preview.shippingCost !== undefined ? <p className="mt-1">Gevonden verzendkosten: {preview.shippingCost.toFixed(2).replace('.', ',')} {preview.shippingCurrency ?? ''}. Controleer btw en bestemming voordat je deze vastlegt.</p> : null}
+        </div>
       ) : null}
       <button type="button" onClick={() => {
         const form = document.getElementById(formId) as HTMLFormElement | null
