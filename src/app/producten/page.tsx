@@ -277,10 +277,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
             <option value="">Alle markten</option>
             {activeMarkets.map((market) => <option key={market.id} value={market.id}>{market.name}</option>)}
           </select>
-          <select name="feed" aria-label="Productfeed" defaultValue={filters.feedSourceId || ''} className="toolbar-control min-w-[140px] flex-1">
-            <option value="">Alle feeds</option>
-            {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}
-          </select>
           <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
             <option value="">Alle productgroepen</option>
             {filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}
@@ -288,6 +284,13 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <details className="relative">
             <summary className="secondary-action cursor-pointer list-none">Filters</summary>
             <div className="absolute right-0 top-full z-30 mt-2 grid w-[250px] gap-3 rounded-xl border border-[#dce3ea] bg-white p-3 shadow-xl">
+              <label className="text-[10px] font-semibold text-[#64758a]">Productfeed
+                <select name="feed" defaultValue={filters.feedSourceId || ''} className="toolbar-control mt-1 w-full">
+                  <option value="">Alle feeds</option>
+                  {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}
+                </select>
+                <Link href="/instellingen/feedbeheer" className="mt-1 block text-[10px] text-[#315fa7] underline">Feedbeheer</Link>
+              </label>
               <label className="text-[10px] font-semibold text-[#64758a]">Concurrent
                 <select name="concurrent" defaultValue={filters.competitorId || ''} className="toolbar-control mt-1 w-full">
                   <option value="">Alle concurrenten</option>
