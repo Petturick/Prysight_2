@@ -26,9 +26,9 @@ $$;
 
 do $$
 declare
-  table_name text;
+  tbl text;
 begin
-  foreach table_name in array array[
+  foreach tbl in array array[
     'companies',
     'company_memberships',
     'company_countries',
@@ -62,8 +62,8 @@ begin
     'custom_roles'
   ]
   loop
-    if to_regclass('public.' || table_name) is not null then
-      execute format('revoke all on table public.%I from anon, authenticated', table_name);
+    if to_regclass('public.' || tbl) is not null then
+      execute format('revoke all on table public.%I from anon, authenticated', tbl);
     end if;
   end loop;
 end
@@ -71,9 +71,9 @@ $$;
 
 do $$
 declare
-  table_name text;
+  tbl text;
 begin
-  foreach table_name in array array[
+  foreach tbl in array array[
     'webshops',
     'product_groups',
     'products',
@@ -100,10 +100,10 @@ begin
       select 1
       from information_schema.columns
       where table_schema = 'public'
-        and table_name = table_name
+        and table_name = tbl
         and column_name = 'company_id'
     ) then
-      execute format('alter table public.%I alter column company_id drop default', table_name);
+      execute format('alter table public.%I alter column company_id drop default', tbl);
     end if;
   end loop;
 end
