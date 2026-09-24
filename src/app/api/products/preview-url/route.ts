@@ -283,11 +283,12 @@ export async function POST(request: Request) {
           articleNumber: recognized.articleNumber,
           ean: recognized.ean,
           gtin: recognized.ean,
-          ownUrl: resolvedUrl,
+          ownUrl: trustedOwnUrl(resolvedUrl) ? resolvedUrl : null,
         })
         if (recognized.name || recognized.articleNumber || recognized.ean || recognized.ownPrice) {
           return NextResponse.json({
             ...recognized,
+            articleNumber: trustedOwnUrl(resolvedUrl) ? recognized.articleNumber : null,
             ownPrice: trustedOwnUrl(resolvedUrl) ? recognized.ownPrice : null,
             currency: trustedOwnUrl(resolvedUrl) ? recognized.currency : null,
             vatIncluded: trustedOwnUrl(resolvedUrl) ? recognized.vatIncluded : null,
