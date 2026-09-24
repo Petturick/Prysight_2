@@ -91,7 +91,7 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       const countryField = form?.elements.namedItem('countryId') as HTMLSelectElement | null
       const countryOption = countryField?.selectedOptions[0]
       const countryName = countryOption?.textContent?.trim().toLowerCase() ?? ''
-      const countryCode = (
+      const countryCode = markets.find((market) => market.id === countryField?.value)?.code ?? (
         { nederland: 'NL', belgië: 'BE', belgium: 'BE', duitsland: 'DE', germany: 'DE',
           frankrijk: 'FR', france: 'FR', portugal: 'PT', 'verenigd koninkrijk': 'GB',
           'united kingdom': 'GB', engeland: 'GB' } as Record<string, string>
@@ -100,6 +100,7 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ean, countryCode }),
+        signal: AbortSignal.timeout(28_000),
       })
       const payload = await response.json() as EanResult
       if (currentRequest !== requestId.current || normalize(input.value) !== ean) return
@@ -180,7 +181,9 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
     } catch (error) {
       if (currentRequest !== requestId.current) return
       lastLookup.current = ''
-      setMessage(error instanceof Error ? error.message : 'Productgegevens konden niet worden opgehaald.')
+      setMessage(error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+        ? 'Herkenning duurt te lang. Probeer opnieuw of gebruik je productfeed of de product URL.'
+        : error instanceof Error ? error.message : 'Productgegevens konden niet worden opgehaald.')
     } finally {
       if (currentRequest === requestId.current) setChecking(false)
     }
