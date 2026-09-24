@@ -18,6 +18,7 @@ const priceRules = read('src/app/prijsregels/page.tsx')
 const priceChanges = read('src/app/prijswijzigingen/page.tsx')
 const dataTable = read('src/components/DataTable.tsx')
 const competitorActions = read('src/components/CompetitorRowActions.tsx')
+const competitorBulk = read('src/components/CompetitorBulkTable.tsx')
 
 test('premium shell stays quiet, accessible and avoids gimmicky interaction feedback', () => {
   assert.doesNotMatch(interaction, /vibrate/i)
@@ -79,6 +80,12 @@ test('destructive competitor actions use an in-product confirmation flow', () =>
   assert.match(competitorActions, /role="dialog"/)
   assert.match(competitorActions, /Typ de volledige concurrentnaam/)
   assert.match(competitorActions, /ps-button-danger/)
+})
+
+test('bulk competitor actions share the same premium confirmation language', () => {
+  assert.match(competitorBulk, /premium-toolbar/)
+  assert.match(competitorBulk, /ps-button-danger/)
+  assert.match(competitorBulk, /role="dialog"/)
 })
 
 test('premium quality is not achieved by hiding uncertainty', () => {
