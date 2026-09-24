@@ -62,6 +62,7 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
           key={item.href}
           href={item.href}
           prefetch={false}
+          aria-current={active ? 'page' : undefined}
           onMouseEnter={() => warm(item.href)}
           onFocus={() => warm(item.href)}
           className={cn(
