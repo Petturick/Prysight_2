@@ -27,7 +27,7 @@ export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction
       {rows.map(row => {
         const hasOwnPrice = row.ownInc !== '—'
         const sortedOffers = row.comparisons
-        return <article key={row.id} className="overflow-hidden rounded-[16px] border border-[#dce5ef] bg-white shadow-[0_3px_14px_rgba(26,47,73,.04)]">
+        return <article key={row.id} className="premium-comparison-card overflow-hidden border bg-white">
           <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e9eef4] px-4 py-4 sm:px-5">
             <div className="min-w-0 flex-1">
               <Link href={row.detailHref} className="text-[15px] font-semibold leading-6 text-[#20344c] hover:text-[#315fa7]">{row.name || `Artikel ${row.articleNumber}`}</Link>
