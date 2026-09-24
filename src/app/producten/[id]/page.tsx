@@ -493,10 +493,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                   </div>
                   <input type="hidden" name="packagingUnit" value={selectedOffer.packagingUnit ?? product.packagingUnit ?? 'stuks'} />
                   <input type="hidden" name="packagingQty" value={selectedOffer.packagingQty ?? product.packagingQty ?? 1} />
-                  <div className="md:col-span-2 flex justify-between gap-2">
-                    <form action={removeCompetitorOfferAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="competitorOfferId" value={selectedOffer.id} /><RemoveCompetitorButton label={selectedOffer.competitor.name} /></form>
+                  <div className="md:col-span-2 flex justify-end">
                     <button type="submit" className="primary-action">Wijzigingen opslaan</button>
                   </div>
+                </form>
+                <form action={removeCompetitorOfferAction} className="mt-3 flex justify-end">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input type="hidden" name="competitorOfferId" value={selectedOffer.id} />
+                  <RemoveCompetitorButton label={selectedOffer.competitor.name} />
                 </form>
               </div>
             )
@@ -572,7 +576,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               </form>
             ) : null}
           </div>
-          {discoveryAttempted ? <div className="border-b border-[#f0e8d4] px-5 py-2.5 text-[10px] text-[#75643b] sm:px-6">{discovered > 0 ? <>{discovered} nieuwe suggesties gevonden.</> : <>{discoveryReason || 'Geen nieuwe suggesties gevonden.'}</>} {discoveryFound > 0 ? <>{discoveryFound} bruikbare resultaten{discoveryProvider ? ' via ' + discoveryProvider : ''}{discoveryMode === 'EAN' ? ', gezocht op EAN.' : discoveryMode === 'PRODUCT' ? ', gezocht op productgegevens.' : '.'}</> : null}</div> : null}
+          {discoveryAttempted ? <div className="border-b border-[#f0e8d4] px-5 py-2.5 text-[10px] text-[#75643b] sm:px-6">{discovered > 0 ? <>{discovered} nieuwe suggesties gevonden.</> : discoveryAlreadyLinked > 0 ? <>{discoveryAlreadyLinked} gevonden kandidaten waren al gekoppeld.</> : <>{discoveryReason || 'Geen nieuwe suggesties gevonden.'}</>} {discoveryFound > 0 ? <>{discoveryFound} bruikbare resultaten{discoveryProvider ? ' via ' + discoveryProvider : ''}{discoveryMode === 'EAN' ? ', gezocht op EAN.' : discoveryMode === 'PRODUCT' ? ', gezocht op productgegevens.' : '.'}</> : null}</div> : null}
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 sm:p-5">
             {reviewMatches.map((match) => (
               <article key={match.id} className="rounded-[12px] border border-[#ebe3cf] bg-white p-4">
@@ -653,7 +657,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </summary>
         <div className="border-t border-[#e7edf3] p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><p className="text-[12px] font-semibold text-[#34495f]">Brico en Praxis</p><p className="mt-1 text-[10px] text-[#7d8b9a]">Controleer gekoppelde productpagina's opnieuw wanneer je deze bronnen specifiek wilt verifiëren.</p></div>
+            <div><p className="text-[12px] font-semibold text-[#34495f]">Brico en Praxis</p><p className="mt-1 text-[10px] text-[#7d8b9a]">Controleer gekoppelde productpagina&apos;s opnieuw wanneer je deze bronnen specifiek wilt verifiëren.</p></div>
             {canVerifySources && defaultCountry && retailerVerificationMatches.some(Boolean) ? <form action={verifyBricoPraxisPricesAction}><input type="hidden" name="productId" value={product.id} /><input type="hidden" name="countryId" value={defaultCountry.id} /><PriceFetchSubmitButton compact idleLabel="Brico en Praxis controleren" pendingLabel="Controleren…" /></form> : null}
           </div>
           {verificationRequested === 'uitgevoerd' ? <p className="mt-3 rounded-[9px] bg-[#f3f8ff] px-3 py-2 text-[10px] text-[#48627f]">{readParam(query.vgeslaagd) ?? '0'} controles geslaagd, {readParam(query.vmislukt) ?? '0'} mislukt.</p> : null}
