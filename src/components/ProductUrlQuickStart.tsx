@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 type ProductPreview = {
   url: string
+  ownUrl?: string | null
   name: string | null
   articleNumber: string | null
   ean: string | null
