@@ -728,6 +728,64 @@ export async function runProductResearchAction(formData: FormData) {
   redirect(`/producten/${productId}?controle=${summary.successful}-${summary.failed}`)
 }
 
+/**
+ * Runs fresh production checks only for the two named retailers linked to
+ * the authenticated company's product in the selected country.
+ * A failed fetch or an unreviewed product match is never reported as verified.
+ */
+export async function verifyBricoPraxisPricesAction(formData: FormData) {
+  const user = await requirePermission('pricing.manage')
+  const productId = text(formData, 'productId')
+  const countryId = text(formData, 'countryId')
+  if (!productId || !countryId) throw new Error('Kies een product en een markt om de bronnen te controleren.')
+  await requireLicensedCountry(user.companyId, countryId)
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: user.companyId, isActive: true },
+    select: { id: true },
+  })
+  if (!product) throw new Error('Dit product is niet beschikbaar voor jouw organisatie.')
+
+  const matches = await prisma.productMatch.findMany({
+    where: {
+      companyId: user.companyId,
+      productId,
+      matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] },
+      competitorOffer: {
+        companyId: user.companyId,
+        isActive: true,
+        competitor: { companyId: user.companyId, countryId, isActive: true },
+      },
+    },
+    select: {
+      competitorOfferId: true,
+      competitorOffer: { select: { competitor: { select: { name: true } } } },
+    },
+  })
+  const selected: string[] = []
+  for (const retailer of ['brico', 'praxis']) {
+    const match = matches.find((item) => item.competitorOffer.competitor.name.trim().toLowerCase() === retailer)
+    if (match) selected.push(match.competitorOfferId)
+  }
+  if (!selected.length) {
+    redirect(`/producten/${productId}?markt=${encodeURIComponent(countryId)}&verificatie=geen-bronnen#bronverificatie`)
+  }
+
+  // Limit to one active linked offer per retailer, bounded by the tenant's daily check quota.
+  const attempts = await Promise.all(selected.map((competitorOfferId) =>
+    runDuePriceChecks({
+      companyId: user.companyId, productId, countryIds: [countryId],
+      competitorOfferId, limit: 1, force: true,
+    }),
+  ))
+  const successful = attempts.reduce((total, result) => total + result.successful, 0)
+  const failed = attempts.reduce((total, result) => total + result.failed, 0)
+  revalidatePath('/producten')
+  revalidatePath(`/producten/${productId}`)
+  revalidatePath('/monitoring')
+  redirect(`/producten/${productId}?markt=${encodeURIComponent(countryId)}&verificatie=uitgevoerd&vgeslaagd=${successful}&vmislukt=${failed}#bronverificatie`)
+}
+
 export async function runCompetitorOfferResearchAction(formData: FormData) {
   const user = await requirePermission('pricing.manage')
   const productId = text(formData, 'productId')
