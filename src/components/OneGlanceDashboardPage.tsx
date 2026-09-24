@@ -86,6 +86,9 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
     : null
   const pct = (value: number) => snapshot.kpis.monitoredProducts
     ? Math.round(value / snapshot.kpis.monitoredProducts * 100) : 0
+  const coveragePct = pct(comparable.length)
+  const monitoringIssues = snapshot.kpis.failedChecks + snapshot.kpis.staleData
+  const incompleteProducts = Math.max(0, snapshot.kpis.monitoredProducts - comparable.length)
 
   const priceRows = [...comparable]
     .map(item => ({
@@ -114,8 +117,8 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
       <div>
         <h1 className="text-[26px] font-semibold tracking-tight text-[#182439]">Prijsoverzicht</h1>
         <p className="mt-1 text-[12px] text-[#78869a]">
-          {selectedCountry ? 'Marktpositie voor ' + selectedCountry : 'Je prijspositie en marktmonitoring per actieve markt'}.
-          Alleen bevestigde, actuele prijzen tellen mee in de vergelijking.
+          {selectedCountry ? 'B2B prijspositie voor ' + selectedCountry : 'B2B prijspositie en marktmonitoring per actieve markt'}.
+          Alleen bevestigde, actuele prijzen tellen mee in de vergelijking, btw en markt blijven expliciet gescheiden.
         </p>
       </div>
       <form aria-label="Dashboardfilters" className="flex flex-wrap items-end gap-2 rounded-xl border border-[#e5ebf3] bg-white p-2 shadow-sm">
@@ -150,14 +153,30 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
     </header>
 
     <section aria-label="Belangrijkste cijfers" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Gemonitorde producten" value={formatNumber(snapshot.kpis.monitoredProducts)}
-        detail={formatNumber(comparable.length) + ' met een actuele prijsvergelijking'} href={productHref} accent="neutral"/>
+      <StatCard label="Datadekking" value={coveragePct + '%'}
+        detail={formatNumber(comparable.length) + ' van ' + formatNumber(snapshot.kpis.monitoredProducts) + ' producten actueel vergelijkbaar'} href={productHref} accent={coveragePct >= 90 ? 'green' : coveragePct >= 70 ? 'neutral' : 'amber'}/>
       <StatCard label="Boven marktprijs" value={formatNumber(higher.length)}
         detail="Producten boven de laagste actuele concurrentieprijs" href={productHref} accent="red"/>
       <StatCard label="Gemiddelde prijsafwijking" value={avgDeviation === null ? '—' : (avgDeviation > 0 ? '+' : '') + formatNumber(avgDeviation, 1) + '%'}
         detail="Eigen prijs ten opzichte van de laagste actuele concurrentieprijs" href={productHref} accent={avgDeviation !== null && avgDeviation > 0 ? 'amber' : 'green'}/>
       <StatCard label="Openstaande signalen" value={formatNumber(signals)}
         detail="Te beoordelen matches, mislukte checks en verouderde bronnen" href="/waarschuwingen" accent="amber"/>
+    </section>
+
+
+    <section aria-label="Besliscockpit" className="grid gap-3 lg:grid-cols-3">
+      <Link href={productHref} className="surface-card p-4 transition hover:-translate-y-0.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Commercieel</p>
+        <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(higher.length)}</p><p className="mt-1 text-[11px] text-[#68778d]">producten boven de laagste actuele marktprijs</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Bekijken →</span></div>
+      </Link>
+      <Link href={productHref} className="surface-card p-4 transition hover:-translate-y-0.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Datadekking</p>
+        <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(incompleteProducts)}</p><p className="mt-1 text-[11px] text-[#68778d]">producten zonder actuele bevestigde vergelijking</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Aanvullen →</span></div>
+      </Link>
+      <Link href="/monitoring" className="surface-card p-4 transition hover:-translate-y-0.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Technische kwaliteit</p>
+        <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(monitoringIssues)}</p><p className="mt-1 text-[11px] text-[#68778d]">mislukte of verouderde prijsbronnen</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Controleren →</span></div>
+      </Link>
     </section>
 
     <section className="grid gap-3 xl:grid-cols-[minmax(0,1.55fr)_minmax(310px,.75fr)]">
@@ -182,7 +201,7 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
                   <div className="h-full rounded-full bg-[#c95c61]" style={{ width: barWidth + '%' }}/>
                 </div>
                 <p className="mt-1 text-[10px] text-[#8290a1]">
-                  Eigen prijs {formatCurrency(item.comparisonOwnPrice)} · Concurrent {formatCurrency(item.lowestPrice)}
+                  Eigen prijs incl. btw {formatCurrency(item.comparisonOwnPrice)} · Concurrent incl. btw {formatCurrency(item.lowestPrice)}
                 </p>
               </Link>
             })}
@@ -226,8 +245,8 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
           <table className="min-w-full text-[11px]">
             <thead><tr>
               <th className="px-5 py-3 text-left">Product</th>
-              <th className="px-3 py-3 text-right">Eigen prijs</th>
-              <th className="px-3 py-3 text-right">Concurrent</th>
+              <th className="px-3 py-3 text-right">Eigen prijs incl. btw</th>
+              <th className="px-3 py-3 text-right">Concurrent incl. btw</th>
               <th className="px-5 py-3 text-right">Verschil</th>
             </tr></thead>
             <tbody>{attention.map(item =>
