@@ -21,6 +21,8 @@ export type ProductGridRow = {
   delivered: string
   difference: string
   differencePct: number | null
+  comparisonDifference: string
+  comparisonLowest: string
   sources: number
   lastChecked: string
   status: string
