@@ -16,6 +16,7 @@ const importPage = read('src/app/import/page.tsx')
 const matches = read('src/app/productmatches/page.tsx')
 const priceRules = read('src/app/prijsregels/page.tsx')
 const priceChanges = read('src/app/prijswijzigingen/page.tsx')
+const dataTable = read('src/components/DataTable.tsx')
 
 test('premium shell stays quiet, accessible and avoids gimmicky interaction feedback', () => {
   assert.doesNotMatch(interaction, /vibrate/i)
@@ -61,6 +62,14 @@ test('match review communicates evidence without pseudo precise percentages', ()
   assert.match(matches, /Waarschijnlijke match/)
   assert.match(matches, /Handmatig controleren/)
   assert.doesNotMatch(matches, /formatNumber\(match\.confidenceScore\).*%/s)
+})
+
+
+test('shared tables use the same quiet enterprise data surface', () => {
+  assert.match(dataTable, /data-grid-scroll/)
+  assert.match(dataTable, /scope="col"/)
+  assert.match(dataTable, /rounded-\[12px\].*border border-\[#e2e8f0\]/s)
+  assert.doesNotMatch(dataTable, /rounded-\[16px\]/)
 })
 
 test('premium quality is not achieved by hiding uncertainty', () => {
