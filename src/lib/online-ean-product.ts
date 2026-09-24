@@ -9,7 +9,9 @@ export type OnlineProduct = {
   model: string | null; mpn: string | null; productGroup: string | null
   packagingQty: number | null; stockStatus: string | null; ownPrice: number | null
   currency: string | null; vatIncluded: boolean | null; ownUrl: string | null
-  image: string | null; description: string | null; sourceUrl: string
+  image: string | null; description: string | null;
+  ownShippingCost?: number | null; ownShippingVatIncluded?: boolean | null; shippingCurrency?: string | null;
+  sourceUrl: string
   sourceType: 'OWN_SHOP' | 'ONLINE'
 }
 function record(value: unknown): Item | null {

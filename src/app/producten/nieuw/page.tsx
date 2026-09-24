@@ -45,6 +45,9 @@ export default async function NewProductPage() {
           <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
             <label className="text-[11px] font-semibold text-[#4f5869]">Artikelnummer *<input name="articleNumber" required className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld PB-121076" /></label>
             <label className="text-[11px] font-semibold text-[#4f5869]">Productnaam *<input name="name" required className="toolbar-control mt-1.5 w-full" placeholder="Bijvoorbeeld Palletbox 1200 x 1000" /></label>
+            <input type="hidden" name="description" />
+            <input type="hidden" name="imageUrl" />
+            <input type="hidden" name="recognitionSources" />
             <EanDiscoveryField markets={countries.map((country) => ({ id: country.id, code: country.code, vatRate: Number(country.vatRate), currency: country.currency }))} />
             <ProductGroupField formId="new-product-form" groups={productGroups.map((group) => ({ name: group.name, description: group.description }))} />
             <details className="rounded-lg border border-[#e2e9f2] bg-[#fafcff] sm:col-span-2">

@@ -39,6 +39,7 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
   const normalized = normalizeGtin(ean)
   if (!normalized) return null
   const market = countryCode.toUpperCase() === 'UK' ? 'GB' : countryCode.toUpperCase()
+  const numericEan = !normalized.startsWith('0') && Number.isSafeInteger(Number(normalized)) ? Number(normalized) : null
   const items = await prisma.feedItem.findMany({
     where: {
       companyId,
@@ -51,9 +52,13 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
       OR: [
         { mappedData: { path: ['ean'], equals: normalized } },
         { mappedData: { path: ['gtin'], equals: normalized } },
+        ...(numericEan === null ? [] : [
+          { mappedData: { path: ['ean'], equals: numericEan } },
+          { mappedData: { path: ['gtin'], equals: numericEan } },
+        ]),
       ],
     },
-    include: { feedSource: { select: { name: true, url: true, countryCode: true } } },
+    include: { feedSource: { select: { countryCode: true } } },
     orderBy: { updatedAt: 'desc' },
     take: 12,
   })
@@ -85,7 +90,12 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
     ownUrl,
     image: validUrl(data.image) ?? validUrl(data.imageUrl),
     description: str(data.description),
-    sourceUrl: ownUrl ?? validUrl(item.feedSource.url) ?? '',
+    ownShippingCost: data.ownShippingCost === 0 || data.ownShippingCost === '0'
+      ? 0 : price(data.ownShippingCost),
+    ownShippingVatIncluded: vat(data.ownShippingVatIncluded),
+    shippingCurrency: str(data.shippingCurrency)?.toUpperCase() ?? str(data.currency)?.toUpperCase() ?? null,
+    // Never expose the source feed URL, which may contain signed access tokens.
+    sourceUrl: ownUrl ?? '',
     sourceType: 'OWN_SHOP',
   }
 }

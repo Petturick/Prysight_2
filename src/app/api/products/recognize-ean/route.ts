@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { webSearch } from '@/lib/ean-competitor-discovery'
 import { lookupOnlineProduct, type OnlineProduct } from '@/lib/online-ean-product'
 import { lookupOwnFeedByEan } from '@/lib/feed-ean-lookup'
+import { mergeVerifiedProductSources, type VerifiedSource } from '@/lib/product-recognition-merge'
 
 type Candidate = { title: string; url: string; snippet?: string }
 
@@ -20,27 +21,6 @@ function sourceHost(value: string) {
 function isOwnHost(url: string, ownHosts: Set<string>) {
   const host = sourceHost(url)
   return !!host && [...ownHosts].some((own) => host === own || host.endsWith('.' + own))
-}
-function mergeOnlineProducts(products: OnlineProduct[], ean: string) {
-  const preferred = [...products].sort((a, b) => Number(b.sourceType === 'OWN_SHOP') - Number(a.sourceType === 'OWN_SHOP'))
-  const own = preferred.find((product) => product.sourceType === 'OWN_SHOP')
-  const first = <K extends keyof OnlineProduct>(field: K): OnlineProduct[K] | null => {
-    for (const product of preferred) if (product[field] !== null && product[field] !== '') return product[field]
-    return null
-  }
-  // Identifiers and own sales values must originate from a verified own-shop page.
-  const ownPrice = own?.ownPrice ?? null
-  return {
-    ean, found: true, source: preferred.map((product) => product.sourceType).includes('OWN_SHOP') ? 'OWN_SHOP_AND_ONLINE' : 'ONLINE',
-    name: first('name'), articleNumber: own?.articleNumber ?? null,
-    brand: first('brand'), model: first('model'), mpn: first('mpn'),
-    productGroup: first('productGroup'), packagingQty: first('packagingQty'),
-    ownPrice, currency: ownPrice === null ? null : own?.currency ?? null,
-    vatIncluded: ownPrice === null ? null : own?.vatIncluded ?? null,
-    stockStatus: own?.stockStatus ?? null,
-    ownUrl: own?.ownUrl ?? null, image: first('image'), description: first('description'),
-    sources: preferred.filter((product) => product.sourceUrl).map((product) => ({ url: product.sourceUrl, type: product.sourceType })),
-  }
 }
 
 export async function POST(request: Request) {
@@ -103,12 +83,13 @@ export async function POST(request: Request) {
     const verified = outcomes.flatMap((outcome) =>
       outcome.status === 'fulfilled' && outcome.value ? [outcome.value] : [],
     )
-    if (feedResult) verified.unshift(feedResult)
-    if (verified.length) {
-      const merged = mergeOnlineProducts(verified, ean)
-      return NextResponse.json({ ...merged, source: feedResult ? 'FEED_AND_ONLINE' : merged.source,
-        feedMatched: Boolean(feedResult), existingProduct })
-    }
+    const sourceRecords: VerifiedSource[] = [
+      ...(feedResult ? [{ product: feedResult, origin: 'OWN_FEED' as const }] : []),
+      ...verified.map((product) => ({ product, origin: product.sourceType === 'OWN_SHOP' ? 'OWN_SHOP' as const : 'ONLINE' as const })),
+    ]
+    if (sourceRecords.length) return NextResponse.json({
+      ...mergeVerifiedProductSources(sourceRecords, ean), existingProduct,
+    })
     return NextResponse.json({ ean, existingProduct, found: false, source: search.provider, sources: [] })
   } catch (error) {
     console.error('Online EAN product recognition failed', error)

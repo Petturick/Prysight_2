@@ -119,7 +119,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const { id } = await params
   const query = await searchParams
 
-  const [product, countries, pricing, feedContext] = await Promise.all([
+  const [product, countries, pricing, feedContext, manualContent] = await Promise.all([
     prisma.product.findFirst({
       relationLoadStrategy: 'join',
       where: { id, companyId: user.companyId },
@@ -152,6 +152,13 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       console.error('Optional product feed context unavailable', { companyId: user.companyId, productId: id, error })
       return null
     }),
+    prisma.feedItem.findFirst({
+      where: { companyId: user.companyId, importedProductId: id, feedSource: { sourceKey: 'manual:prysight' } },
+      orderBy: { updatedAt: 'desc' }, select: { mappedData: true },
+    }).catch((error) => {
+      console.warn('Optional product content unavailable', { companyId: user.companyId, productId: id, error })
+      return null
+    }),
   ])
 
   if (!product) notFound()
@@ -175,6 +182,15 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const feedName = feedDisplayName(feedContext?.rawData) ?? feedDisplayName(feedContext?.mappedData)
   const displayProductName = hasReadableProductName ? product.name : feedName ?? `Artikel ${product.articleNumber}`
   const productNameNeedsAttention = !hasReadableProductName && !feedName
+  const manualRecord = manualContent?.mappedData && typeof manualContent.mappedData === 'object' && !Array.isArray(manualContent.mappedData)
+    ? manualContent.mappedData as Record<string, unknown> : null
+  const feedRecord = feedContext?.mappedData && typeof feedContext.mappedData === 'object' && !Array.isArray(feedContext.mappedData)
+    ? feedContext.mappedData as Record<string, unknown> : null
+  const productDescription = readableProductText(manualRecord?.description) ?? readableProductText(feedRecord?.description)
+  const productImageUrl = [manualRecord?.imageUrl, feedRecord?.imageUrl].find((value) => {
+    if (typeof value !== 'string') return false
+    try { return new URL(value).protocol === 'https:' } catch { return false }
+  }) as string | undefined
   const marketMatches = product.matches.filter((match) => match.competitorOffer.competitor.isActive && (!defaultCountry || match.competitorOffer.competitor.countryId === defaultCountry.id))
   const retailerCandidates = [...marketMatches].sort((a, b) =>
     Number(b.matchStatus === 'CERTAIN') - Number(a.matchStatus === 'CERTAIN') ||
@@ -262,6 +278,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const discoveryProvider = readParam(query.zoekbron)
   const discoveryMode = readParam(query.zoekmodus)
   const discoveryReason = readParam(query.reden)
+  const firstPriceCheck = readParam(query.prijscontrole)
   const discoveryAttempted = query.suggesties !== undefined
   const priceUpdated = readParam(query.prijs) === 'bijgewerkt'
   const identifiersUpdated = readParam(query.identiteit) === 'bijgewerkt'
@@ -292,7 +309,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       {(readParam(query.toegevoegd) || readParam(query.bron) === 'toegevoegd' || controlMessage || sourceControlMessage) ? (
         <div className="rounded-[12px] border border-[#8bc9a7] bg-[#e8f7ee] px-4 py-3 text-[12px] font-semibold text-[#176a42]">
           {readParam(query.toegevoegd)
-            ? `Product toegevoegd${discovered > 0 ? `, ${discovered} concurrent suggesties gevonden.` : '.'}`
+            ? `Product toegevoegd${discovered > 0 ? `, ${discovered} concurrent suggesties gevonden. ${firstPriceCheck === 'gestart' ? 'De eerste prijscontroles zijn op de achtergrond gestart. Matches moeten nog gecontroleerd worden.' : 'Prijscontroles volgen via de ingestelde monitoring. Matches moeten nog gecontroleerd worden.'}` : '.'}`
             : readParam(query.bron) === 'toegevoegd'
               ? 'Concurrentbron gekoppeld. Je kunt nu direct crawlen.'
               : sourceControlMessage
@@ -318,6 +335,14 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         </div>
       </section>
 
+
+      {productDescription || productImageUrl ? (
+        <section aria-label="Productinhoud" className="ps-panel p-4 sm:p-5">
+          <h2 className="text-[13px] font-semibold text-[#23384d]">Productgegevens</h2>
+          {productDescription ? <p className="mt-2 max-w-3xl whitespace-pre-wrap text-[12px] leading-5 text-[#536477]">{productDescription}</p> : null}
+          {productImageUrl ? <a href={productImageUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-[12px] text-[#2f6edb] underline">Bekijk opgeslagen productafbeelding</a> : null}
+        </section>
+      ) : null}
 
       <section aria-label="Product en volgende stap" className="ps-panel overflow-hidden">
         <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">

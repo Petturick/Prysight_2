@@ -59,6 +59,9 @@ export async function createSmartProductAction(formData: FormData) {
       brand:text(formData,'brand')||undefined,
       model:text(formData,'model')||undefined,
       name,
+      description:text(formData,'description').slice(0,5000)||undefined,
+      imageUrl:text(formData,'imageUrl').slice(0,2000)||undefined,
+      recognitionSources:text(formData,'recognitionSources').slice(0,2000)||undefined,
       productGroup:isUnnamedGroup(text(formData,'productGroup')) ? 'Onbekend' : text(formData,'productGroup'),
       ownPrice,
       vatIncluded,
@@ -104,6 +107,28 @@ export async function createSmartProductAction(formData: FormData) {
     }
   }
 
+  // Queue a bounded initial price check without delaying the product creation flow.
+  // A reviewed match is never silently promoted merely because a price was found.
+  let firstPricesQueued = false
+  if (country && discovery.created > 0 && (actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage'))) {
+    const apiKey = process.env.PRICE_MONITOR_API_KEY?.trim()
+    const appOrigin = process.env.URL || process.env.NEXT_PUBLIC_APP_URL
+    if (apiKey && appOrigin) {
+      try {
+        const origin = new URL(appOrigin)
+        if (origin.protocol === 'https:') {
+          const response = await fetch(new URL('/internal/price-check-background', origin), {
+            method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyId: actor.companyId, productId: product.id }),
+            signal: AbortSignal.timeout(2500),
+          })
+          firstPricesQueued = response.status === 202
+        }
+      } catch (error) {
+        console.warn('First price check could not be queued; scheduled monitoring remains available', { productId: product.id, error })
+      }
+    }
+  }
   revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')
   const params=new URLSearchParams({
     toegevoegd:'1',
@@ -113,6 +138,7 @@ export async function createSmartProductAction(formData: FormData) {
     reden:discovery.reason??'',
     zoekbron:discovery.provider??'',
     zoekmodus:discovery.queryMode??(ean?'EAN':'PRODUCT'),
+    prijscontrole:String(firstPricesQueued ? 'gestart' : 'gepland'),
   })
   if(country?.id)params.set('markt',country.id)
   redirect(`/producten/${product.id}?${params.toString()}#concurrenten-vinden`)

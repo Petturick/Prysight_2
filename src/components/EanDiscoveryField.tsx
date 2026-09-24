@@ -27,9 +27,13 @@ type EanResult = {
   packagingQty?: number | null
   vatIncluded?: boolean | null
   productGroup?: string | null
+  ownShippingCost?: number | null
+  ownShippingVatIncluded?: boolean | null
+  shippingCurrency?: string | null
   image?: string | null
   description?: string | null
   sources?: Array<{ url: string; type: 'OWN_SHOP' | 'ONLINE' }>
+  conflicts?: string[]
   existingProduct?: ExistingProduct | null
   error?: string
 }
@@ -91,6 +95,7 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       const countryField = form?.elements.namedItem('countryId') as HTMLSelectElement | null
       const countryOption = countryField?.selectedOptions[0]
       const countryName = countryOption?.textContent?.trim().toLowerCase() ?? ''
+      const requestedMarketId = countryField?.value
       const countryCode = markets.find((market) => market.id === countryField?.value)?.code ?? (
         { nederland: 'NL', belgië: 'BE', belgium: 'BE', duitsland: 'DE', germany: 'DE',
           frankrijk: 'FR', france: 'FR', portugal: 'PT', 'verenigd koninkrijk': 'GB',
@@ -103,7 +108,13 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
         signal: AbortSignal.timeout(28_000),
       })
       const payload = await response.json() as EanResult
-      if (currentRequest !== requestId.current || normalize(input.value) !== ean) return
+      if (currentRequest !== requestId.current || normalize(input.value) !== ean || countryField?.value !== requestedMarketId) {
+        if (currentRequest === requestId.current && countryField?.value !== requestedMarketId) {
+          setMessage('De markt is gewijzigd. Klik opnieuw op Herkennen voor de juiste prijzen.')
+          lastLookup.current = ''
+        }
+        return
+      }
       if (!response.ok) throw new Error(payload.error || 'Herkenning is tijdelijk niet beschikbaar.')
 
       const duplicate = payload.existingProduct ?? null
@@ -155,6 +166,11 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       const money = (amount: number | null) => amount === null ? null : amount.toFixed(2).replace('.', ',')
       apply('ownPrice', money(incl))
       apply('ownPriceOther', money(excl))
+      if (payload.feedMatched && safeCurrency && payload.ownShippingVatIncluded === true
+          && payload.shippingCurrency?.toUpperCase() === selectedMarket?.currency.toUpperCase()
+          && payload.ownShippingCost !== null && payload.ownShippingCost !== undefined) {
+        apply('ownShippingCost', money(payload.ownShippingCost))
+      }
       apply('ownUrl', payload.ownUrl)
       apply('currency', payload.currency)
       apply('stockStatus', payload.stockStatus)
@@ -164,6 +180,9 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       apply('packagingQty', payload.packagingQty)
       // vatIncluded is a hidden form flag for the VAT-inclusive primary input, not the source amount.
       apply('gtin', payload.ean)
+      apply('description', payload.description)
+      apply('imageUrl', payload.image)
+      apply('recognitionSources', payload.sources?.map((source) => source.url).join(' | '))
       if (payload.productGroup && form) {
         const group = form.elements.namedItem('productGroup') as HTMLSelectElement | null
         const option = [...(group?.options ?? [])].find((item) =>
@@ -173,11 +192,12 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
         if (option) apply('productGroup', option.value)
       }
       const origin = payload.feedMatched ? 'productfeed en online bronnen' : 'online bronnen'
+      const conflicts = payload.conflicts?.length ? ` Controleer verschillen tussen bronnen voor ${payload.conflicts.join(', ')}.` : ''
       const priceWarning = payload.ownPrice !== null && payload.ownPrice !== undefined && incl === null
         ? ' De gevonden prijs is niet ingevuld omdat de btw status, het markttarief of de valuta niet betrouwbaar overeenkomt.' : ''
       setMessage(applied
-        ? `${applied} velden ingevuld via ${origin}. Controleer de overige velden.${priceWarning}`
-        : `Product herkend via ${origin}. Controleer de ontbrekende verplichte gegevens.${priceWarning}`)
+        ? `${applied} velden ingevuld via ${origin}. Controleer de overige velden.${priceWarning}${conflicts}`
+        : `Product herkend via ${origin}. Controleer de ontbrekende verplichte gegevens.${priceWarning}${conflicts}`)
     } catch (error) {
       if (currentRequest !== requestId.current) return
       lastLookup.current = ''
