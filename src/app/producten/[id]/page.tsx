@@ -309,7 +309,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       <section aria-label="Product en volgende stap" className="ps-panel overflow-hidden">
         <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div>
-            <p className="text-[11px] font-semibold text-[#65758a]">Jouw verkoopprijs, ${defaultCountry?.name ?? 'gekozen markt'}</p>
+            <p className="text-[11px] font-semibold text-[#65758a]">Jouw verkoopprijs, {defaultCountry?.name ?? 'gekozen markt'}</p>
             <p className="mt-1 text-[30px] font-semibold tracking-[-0.03em] text-[#21364d]">{formatCurrency(comparisonOwnPrice, ownCurrency)}</p>
             <p className="mt-1 text-[12px] text-[#65758a]">{comparisonOwnPriceExVat === null ? 'Prijs excl. btw nog onbekend' : `${formatCurrency(comparisonOwnPriceExVat, ownCurrency)} excl. btw`}</p>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium">
@@ -326,7 +326,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 <PriceFetchSubmitButton idleLabel="Concurrenten en prijzen ophalen" pendingLabel="Producten zoeken en prijzen ophalen…" />
               </form>
             ) : null}
-            <a href="#eigen-prijs" className="text-[12px] font-semibold text-[#2f6edb]">Eigen prijs en productgegevens wijzigen</a>
+            <Link href={`/producten/${product.id}?markt=${defaultCountry?.id ?? ''}&instellingen=1#eigen-prijs`} className="text-[12px] font-semibold text-[#2f6edb]">Eigen prijs en productgegevens wijzigen</Link>
           </div>
         </div>
         <div className="border-t border-[#e7edf3] bg-[#f7f9fc] px-5 py-3 text-[12px] text-[#526780] sm:px-6">
@@ -336,7 +336,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 'Bekijk de bevestigde concurrentieprijzen en beoordeel daarna je prijsadvies.'}
         </div>
       </section>
-      <details id="eigen-prijs" open={ownPrice === null} className="ps-panel scroll-mt-24 overflow-hidden">
+      <details id="eigen-prijs" open={ownPrice === null || readParam(query.instellingen) === '1'} className="ps-panel scroll-mt-24 overflow-hidden">
         <summary className="cursor-pointer px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -653,9 +653,9 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           <p className="mt-1">Minimale en maximale prijsgrenzen: {guardrailText}. Huidige marge: {currentMargin === null ? 'onbekend' : `${formatNumber(currentMargin, 1)}%`}.</p>
         </details>
       </section>
-      <details className="ps-panel overflow-hidden">
+      <details open={readParam(query.broninfo) === '1'} className="ps-panel overflow-hidden">
         <summary className="cursor-pointer px-5 py-4 text-[12px] font-semibold text-[#526780]">Aanvullende prijsinformatie en broninstellingen</summary>
-        <div className="space-y-4 border-t border-[#e7edf3] p-4">
+        <div id="broninformatie" className="space-y-4 border-t border-[#e7edf3] p-4">
       {(comparisonOwnPrice !== null || pricedMatches.length > 0) ? (
         <section className="ps-panel overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-[#e7edf3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -731,7 +731,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         initialSource={ownSyncSource ? { ...ownSyncSource, lastRunAt: ownSyncSource.lastRunAt?.toISOString() ?? null } : null} />
 
 
-      <EanPriceSuggestions
+      {readParam(query.broninfo) === '1' ? <EanPriceSuggestions
         productId={product.id}
         ean={product.ean || product.gtin}
         countryId={defaultCountry?.id ?? null}
@@ -740,7 +740,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
         sourceKey={marketMatches.map((match) => match.competitorOffer.id).join(',')}
         canEditProduct={canEditProduct}
         canRefresh={canEditCompetitors}
-      />
+      /> : <Link href={`/producten/${product.id}?markt=${defaultCountry?.id ?? ''}&broninfo=1#broninformatie`} className="secondary-action inline-flex">Extra broninformatie ophalen</Link>}
 
 
         </div>
