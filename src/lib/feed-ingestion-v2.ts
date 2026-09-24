@@ -353,7 +353,18 @@ async function processRows(companyId: string, feedSourceId: string, rows: Proces
     onboardingInitialized: new Set<string>(),
   }
 
-  await prisma.feedItem.deleteMany({ where: { companyId, feedSourceId } })
+  // Manually added products share one source. Removing all its items when another
+  // product is added silently discards earlier descriptions, images and provenance.
+  // Keep each manual product row, while normal full feed synchronization still replaces its snapshot.
+  const manualSource = await prisma.feedSource.findFirst({
+    where: { id: feedSourceId, companyId, sourceKey: 'manual:prysight' },
+    select: { id: true },
+  })
+  const latestManualRow = manualSource ? await prisma.feedItem.findFirst({
+    where: { companyId, feedSourceId }, orderBy: { rowIndex: 'desc' }, select: { rowIndex: true },
+  }) : null
+  if (!manualSource) await prisma.feedItem.deleteMany({ where: { companyId, feedSourceId } })
+  const rowOffset = latestManualRow?.rowIndex ?? 0
   const feedItems: Prisma.FeedItemCreateManyInput[] = []
   let imported = 0
   let errors = 0
@@ -361,7 +372,7 @@ async function processRows(companyId: string, feedSourceId: string, rows: Proces
 
   for (const [index, item] of rows.entries()) {
     try {
-      const feedItem = await importProduct(companyId, feedSourceId, index + 1, item.raw, item.mapped, context)
+      const feedItem = await importProduct(companyId, feedSourceId, rowOffset + index + 1, item.raw, item.mapped, context)
       feedItems.push(feedItem)
       imported += 1
     } catch (error) {
@@ -372,7 +383,7 @@ async function processRows(companyId: string, feedSourceId: string, rows: Proces
         companyId,
         feedSourceId,
         externalKey: text(item.mapped.articleNumber),
-        rowIndex: index + 1,
+        rowIndex: rowOffset + index + 1,
         rawData: item.raw as Prisma.InputJsonValue,
         mappedData: item.mapped as Prisma.InputJsonValue,
         status: 'ERROR',
