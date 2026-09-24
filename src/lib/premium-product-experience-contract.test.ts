@@ -17,6 +17,7 @@ const matches = read('src/app/productmatches/page.tsx')
 const priceRules = read('src/app/prijsregels/page.tsx')
 const priceChanges = read('src/app/prijswijzigingen/page.tsx')
 const dataTable = read('src/components/DataTable.tsx')
+const competitorActions = read('src/components/CompetitorRowActions.tsx')
 
 test('premium shell stays quiet, accessible and avoids gimmicky interaction feedback', () => {
   assert.doesNotMatch(interaction, /vibrate/i)
@@ -70,6 +71,14 @@ test('shared tables use the same quiet enterprise data surface', () => {
   assert.match(dataTable, /scope="col"/)
   assert.match(dataTable, /rounded-\[12px\].*border border-\[#e2e8f0\]/s)
   assert.doesNotMatch(dataTable, /rounded-\[16px\]/)
+})
+
+
+test('destructive competitor actions use an in-product confirmation flow', () => {
+  assert.doesNotMatch(competitorActions, /window\.prompt/)
+  assert.match(competitorActions, /role="dialog"/)
+  assert.match(competitorActions, /Typ de volledige concurrentnaam/)
+  assert.match(competitorActions, /ps-button-danger/)
 })
 
 test('premium quality is not achieved by hiding uncertainty', () => {
