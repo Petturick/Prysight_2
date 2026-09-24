@@ -49,6 +49,9 @@ export function mergeVerifiedProductSources(sources: VerifiedSource[], ean: stri
     vatIncluded: ownPriceSource?.product.vatIncluded ?? null,
     stockStatus: own?.product.stockStatus ?? null,
     ownUrl: own?.product.ownUrl ?? null,
+    ownShippingCost: ranked.find((entry) => entry.origin === 'OWN_FEED')?.product.ownShippingCost ?? null,
+    ownShippingVatIncluded: ranked.find((entry) => entry.origin === 'OWN_FEED')?.product.ownShippingVatIncluded ?? null,
+    shippingCurrency: ranked.find((entry) => entry.origin === 'OWN_FEED')?.product.shippingCurrency ?? null,
     source: ranked[0]?.origin ?? null,
     feedMatched: ranked.some((entry) => entry.origin === 'OWN_FEED'),
     sources: ranked.filter((entry) => entry.product.sourceUrl).map((entry) => ({
