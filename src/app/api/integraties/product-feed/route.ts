@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { FeedSourceType } from '@/generated/prisma/client'
 import { verifyBearerSecret } from '@/lib/api-auth'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { ingestCanonicalProducts, type CanonicalFeedProduct } from '@/lib/feed-ingestion'
 import { hasLicenseAccess } from '@/lib/licensing'
 import { prisma } from '@/lib/prisma'
@@ -16,7 +15,7 @@ export async function GET() {
     body: { companyId: 'jouw-company-id', sourceKey: 'erp:bron', sourceName: 'ERP productfeed', products: [] },
     requiredProductFields: ['articleNumber', 'name'],
     optionalProductFields: ['productGroup', 'ean', 'gtin', 'ownPrice', 'currency', 'stockStatus', 'packagingUnit', 'packagingQty', 'isActive'],
-    compatibility: 'Zonder companyId blijft de bestaande standaardorganisatie actief voor bestaande integraties.',
+    tenantScope: 'companyId is verplicht. Prysight valt nooit terug op een standaardorganisatie.',
   })
 }
 
@@ -28,7 +27,8 @@ export async function POST(request: Request) {
   if (!body?.products || !Array.isArray(body.products)) return NextResponse.json({ error: 'Body moet een products array bevatten.' }, { status: 400 })
   if (body.products.length > 5000) return NextResponse.json({ error: 'Maximaal 5000 producten per request.' }, { status: 413 })
 
-  const companyId = body.companyId?.trim() || request.headers.get('x-prysight-company-id')?.trim() || DEFAULT_COMPANY_ID
+  const companyId = body.companyId?.trim() || request.headers.get('x-prysight-company-id')?.trim()
+  if (!companyId) return NextResponse.json({ error: 'companyId is verplicht voor productfeeds.' }, { status: 400 })
   const company = await prisma.company.findFirst({
     where: { id: companyId, status: 'ACTIVE' },
     include: { license: true },
