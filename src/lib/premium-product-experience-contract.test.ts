@@ -11,6 +11,11 @@ const monitoring = read('src/app/monitoring/page.tsx')
 const notFound = read('src/app/not-found.tsx')
 const comparison = read('src/components/ProductComparisonView.tsx')
 const productsPage = read('src/app/producten/page.tsx')
+const feeds = read('src/app/feeds/page.tsx')
+const importPage = read('src/app/import/page.tsx')
+const matches = read('src/app/productmatches/page.tsx')
+const priceRules = read('src/app/prijsregels/page.tsx')
+const priceChanges = read('src/app/prijswijzigingen/page.tsx')
 
 test('premium shell stays quiet, accessible and avoids gimmicky interaction feedback', () => {
   assert.doesNotMatch(interaction, /vibrate/i)
@@ -40,6 +45,22 @@ test('core decision surfaces use premium patterns and explicit recovery states',
 test('core product comparison query is performance budgeted', () => {
   assert.match(productsPage, /profileStep\('\/producten', 'overview-query'/)
   assert.match(productsPage, /450\)/)
+})
+
+
+test('data onboarding and pricing governance use the same premium B2B hierarchy', () => {
+  assert.match(feeds, /premium-kpi-card/)
+  assert.match(importPage, /premium-decision-card/)
+  assert.match(priceChanges, /premium-kpi-card/)
+  assert.match(priceRules, /rounded-\[8px\].*border border-\[#dce3eb\]/)
+  assert.doesNotMatch(priceRules, /border-2/)
+})
+
+test('match review communicates evidence without pseudo precise percentages', () => {
+  assert.match(matches, /Sterke match/)
+  assert.match(matches, /Waarschijnlijke match/)
+  assert.match(matches, /Handmatig controleren/)
+  assert.doesNotMatch(matches, /formatNumber\(match\.confidenceScore\).*%/s)
 })
 
 test('premium quality is not achieved by hiding uncertainty', () => {
