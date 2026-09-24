@@ -7,6 +7,10 @@ import { safeRemoteFetch } from '@/lib/safe-remote-url'
 import { scrapeSerperProductPage } from '@/lib/serper-scrape'
 import { detectVatInclusion } from '@/lib/vat-detection'
 import { findExistingProduct } from '@/lib/product-duplicate'
+import { validGtin } from '@/lib/gtin'
+import { lookupOwnFeedByEan } from '@/lib/feed-ean-lookup'
+import { mergeVerifiedProductSources, type VerifiedSource } from '@/lib/product-recognition-merge'
+import { prisma } from '@/lib/prisma'
 
 const MAX_HTML_BYTES = 4 * 1024 * 1024
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36'
@@ -173,6 +177,20 @@ export async function POST(request: Request) {
     const rawUrl = typeof body.url === 'string' ? body.url.trim() : ''
     if (!rawUrl) return NextResponse.json({ error: 'Vul eerst een product URL in.' }, { status: 400 })
 
+    const shops = await prisma.webshop.findMany({
+      where: { companyId: actor.companyId, competitorId: null, isActive: true },
+      select: { url: true }, take: 40,
+    })
+    const ownHosts = shops.flatMap((shop) => {
+      try { return [new URL(shop.url).hostname.toLowerCase().replace(/^www\./, '')] } catch { return [] }
+    })
+    const trustedOwnUrl = (value: string) => {
+      try {
+        const host = new URL(value).hostname.toLowerCase().replace(/^www\./, '')
+        return ownHosts.some((own) => host === own || host.endsWith('.' + own))
+      } catch { return false }
+    }
+
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 12_000)
     try {
@@ -202,38 +220,55 @@ export async function POST(request: Request) {
             const vat = detectVatInclusion(html, offer.price)
             const resolvedUrl = response.url || rawUrl
             if (offer.productTitle || offer.sku || offer.ean || offer.price || details.name || details.sku || details.ean) {
+              const extractedEan = offer.ean ?? details.ean
+              const owned = trustedOwnUrl(resolvedUrl)
+              const verifiedEan = extractedEan && validGtin(extractedEan) ? extractedEan : null
+              const ownFeed = verifiedEan
+                ? await lookupOwnFeedByEan(actor.companyId, verifiedEan, 'GLOBAL').catch((error) => {
+                    console.warn('Optional feed enrichment of product URL unavailable', error)
+                    return null
+                  })
+                : null
+              const pageProduct: VerifiedSource = {
+                origin: owned ? 'OWN_SHOP' : 'ONLINE',
+                product: {
+                  name: offer.productTitle ?? details.name,
+                  articleNumber: owned ? offer.sku ?? details.sku : null,
+                  ean: extractedEan ?? '', brand: details.brand, model: details.model,
+                  mpn: details.mpn, productGroup: details.category, packagingQty: offer.packagingQty,
+                  stockStatus: owned ? offer.stockStatus : null,
+                  ownPrice: owned ? offer.price : null,
+                  currency: owned ? offer.currency?.toUpperCase() ?? null : null,
+                  vatIncluded: owned ? vat.vatIncluded : null,
+                  ownUrl: owned ? resolvedUrl : null, image: details.image,
+                  description: details.description, sourceUrl: resolvedUrl,
+                  sourceType: owned ? 'OWN_SHOP' : 'ONLINE',
+                },
+              }
+              const sources: VerifiedSource[] = [
+                ...(ownFeed ? [{ product: ownFeed, origin: 'OWN_FEED' as const }] : []),
+                pageProduct,
+              ]
+              const merged = mergeVerifiedProductSources(sources, extractedEan ?? '')
               const existingProduct = await findExistingProduct({
-                companyId: actor.companyId,
-                articleNumber: offer.sku ?? details.sku,
-                ean: offer.ean ?? details.ean,
-                gtin: offer.ean,
-                ownUrl: resolvedUrl,
+                companyId: actor.companyId, articleNumber: merged.articleNumber,
+                ean: verifiedEan, gtin: verifiedEan, ownUrl: owned ? resolvedUrl : null,
               })
               return NextResponse.json({
-                url: resolvedUrl,
-                name: offer.productTitle ?? details.name,
-                articleNumber: offer.sku ?? details.sku,
-                ean: offer.ean ?? details.ean,
-                ownPrice: offer.price,
-                currency: offer.currency?.toUpperCase() ?? null,
-                stockStatus: offer.stockStatus,
-                packagingQty: offer.packagingQty,
-                shippingCost: offer.shippingCost,
-                shippingCurrency: offer.shippingCurrency,
-                shippingLabel: offer.shippingLabel,
-                description: details.description,
-                extractionMethod: offer.method,
-                vatIncluded: vat.vatIncluded,
-                vatConfidence: vat.confidence,
-                vatEvidence: vat.evidence,
-                brand: details.brand,
-                productGroup: details.category,
-                model: details.model,
-                mpn: details.mpn,
-                image: details.image,
-                existingProduct,
+                ...merged, url: resolvedUrl,
+                priceTrusted: owned || !!ownFeed,
+                vatConfidence: owned ? vat.confidence : 'UNKNOWN',
+                vatEvidence: owned ? vat.evidence : null,
+                shippingCost: owned ? offer.shippingCost : null,
+                shippingCurrency: owned ? offer.shippingCurrency : null,
+                shippingLabel: owned ? offer.shippingLabel : null,
+                shippingNeedsConfirmation: offer.shippingCost !== null,
+                extractionMethod: offer.method, existingProduct,
+                warnings: [
+                  ...(!owned && !ownFeed ? ['Deze URL hoort niet bij een ingestelde eigen webshop. De gevonden prijs is niet als jouw verkoopprijs gebruikt.'] : []),
+                  ...(merged.conflicts.length ? ['Bronnen spreken elkaar tegen over: ' + merged.conflicts.join(', ') + '.'] : []),
+                ],
               })
-            }
           }
         }
       }
@@ -252,6 +287,11 @@ export async function POST(request: Request) {
         if (recognized.name || recognized.articleNumber || recognized.ean || recognized.ownPrice) {
           return NextResponse.json({
             ...recognized,
+            ownPrice: trustedOwnUrl(resolvedUrl) ? recognized.ownPrice : null,
+            currency: trustedOwnUrl(resolvedUrl) ? recognized.currency : null,
+            vatIncluded: trustedOwnUrl(resolvedUrl) ? recognized.vatIncluded : null,
+            priceTrusted: trustedOwnUrl(resolvedUrl),
+            warnings: trustedOwnUrl(resolvedUrl) ? [] : ['Deze URL hoort niet bij een ingestelde eigen webshop. De prijs wordt niet overgenomen.'],
             url: resolvedUrl,
             image: null,
             description: null,
