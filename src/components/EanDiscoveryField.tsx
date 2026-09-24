@@ -30,6 +30,7 @@ type EanResult = {
   image?: string | null
   description?: string | null
   sources?: Array<{ url: string; type: 'OWN_SHOP' | 'ONLINE' }>
+  conflicts?: string[]
   existingProduct?: ExistingProduct | null
   error?: string
 }
@@ -164,6 +165,9 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       apply('packagingQty', payload.packagingQty)
       // vatIncluded is a hidden form flag for the VAT-inclusive primary input, not the source amount.
       apply('gtin', payload.ean)
+      apply('description', payload.description)
+      apply('imageUrl', payload.image)
+      apply('recognitionSources', payload.sources?.map((source) => source.url).join(' | '))
       if (payload.productGroup && form) {
         const group = form.elements.namedItem('productGroup') as HTMLSelectElement | null
         const option = [...(group?.options ?? [])].find((item) =>
@@ -173,11 +177,12 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
         if (option) apply('productGroup', option.value)
       }
       const origin = payload.feedMatched ? 'productfeed en online bronnen' : 'online bronnen'
+      const conflicts = payload.conflicts?.length ? ` Controleer verschillen tussen bronnen voor ${payload.conflicts.join(', ')}.` : ''
       const priceWarning = payload.ownPrice !== null && payload.ownPrice !== undefined && incl === null
         ? ' De gevonden prijs is niet ingevuld omdat de btw status, het markttarief of de valuta niet betrouwbaar overeenkomt.' : ''
       setMessage(applied
-        ? `${applied} velden ingevuld via ${origin}. Controleer de overige velden.${priceWarning}`
-        : `Product herkend via ${origin}. Controleer de ontbrekende verplichte gegevens.${priceWarning}`)
+        ? `${applied} velden ingevuld via ${origin}. Controleer de overige velden.${priceWarning}${conflicts}`
+        : `Product herkend via ${origin}. Controleer de ontbrekende verplichte gegevens.${priceWarning}${conflicts}`)
     } catch (error) {
       if (currentRequest !== requestId.current) return
       lastLookup.current = ''
