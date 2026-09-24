@@ -10,6 +10,12 @@ import { profileStep } from '@/lib/performance-profile'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
+function matchStrength(score: number) {
+  if (score >= 85) return { label: 'Sterke match', className: 'ps-chip-green', helper: 'Meerdere signalen ondersteunen dat dit hetzelfde product is.' }
+  if (score >= 70) return { label: 'Waarschijnlijke match', className: 'ps-chip-blue', helper: 'De match is aannemelijk, controleer de bron voor gebruik.' }
+  return { label: 'Handmatig controleren', className: 'ps-chip-amber', helper: 'Er is onvoldoende bewijs om deze match zonder controle te gebruiken.' }
+}
+
 function evidenceSummary(value: unknown) {
   if (!value || typeof value !== 'object') return 'Automatisch gevonden op basis van productgegevens.'
   const evidence = value as Record<string, unknown>
@@ -46,7 +52,7 @@ export default async function ProductmatchesPage() {
             <p className="eyebrow">Automatische concurrentherkenning</p>
             <h1 className="mt-1">Concurrent suggesties</h1>
             <p className="mt-1 max-w-2xl text-[12px] leading-5 text-[#6f7d90]">
-              Prysight vindt kandidaten op basis van EAN, productcontext en markt. Gebruik een suggestie als hij klopt, daarna wordt de prijs direct opgehaald.
+              Prysight vindt kandidaten op basis van EAN, productcontext en markt. Je ziet waarom een koppeling is voorgesteld, zonder schijnprecisie in percentages.
             </p>
           </div>
           <div className="rounded-[12px] bg-[#eef4ff] px-4 py-3 text-center">
@@ -67,7 +73,7 @@ export default async function ProductmatchesPage() {
           columns={[
             { key: 'product', header: 'Product' },
             { key: 'concurrent', header: 'Concurrent' },
-            { key: 'score', header: 'Match' },
+            { key: 'score', header: 'Matchkwaliteit' },
             { key: 'bewijs', header: 'Waarom gevonden' },
             { key: 'aangemaakt', header: 'Gevonden' },
             { key: 'acties', header: 'Actie' },
@@ -86,11 +92,10 @@ export default async function ProductmatchesPage() {
                 <a href={match.competitorOffer.url} target="_blank" rel="noreferrer" className="mt-1 inline-flex text-[10px] font-semibold text-[#2f6edb]">Bron bekijken</a>
               </div>
             ),
-            score: (
-              <span className={`ps-chip ${match.confidenceScore >= 85 ? 'ps-chip-green' : match.confidenceScore >= 70 ? 'ps-chip-blue' : 'ps-chip-amber'}`}>
-                {formatNumber(match.confidenceScore)}%
-              </span>
-            ),
+            score: (() => {
+              const strength = matchStrength(match.confidenceScore)
+              return <div className="min-w-[150px]"><span className={`ps-chip ${strength.className}`}>{strength.label}</span><p className="mt-1 max-w-[220px] text-[10px] leading-4 text-[#8190a1]">{strength.helper}</p></div>
+            })(),
             bewijs: <p className="max-w-[360px] text-[11px] leading-5 text-[#66778a]">{evidenceSummary(match.matchEvidence)}</p>,
             aangemaakt: <span className="text-[11px] text-[#66778a]">{formatDate(match.createdAt)}</span>,
             acties: canReview ? (

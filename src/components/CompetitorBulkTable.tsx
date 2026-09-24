@@ -69,7 +69,7 @@ export function CompetitorBulkTable({ rows, columns, canWrite, emptyText }: Prop
   return (
     <div className="space-y-3">
       {canWrite && rows.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e0e8f2] bg-white px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 premium-toolbar px-4 py-3">
           <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] font-medium text-[#263b53]">
             <input
               type="checkbox"
@@ -86,7 +86,7 @@ export function CompetitorBulkTable({ rows, columns, canWrite, emptyText }: Prop
             {selectedRows.length > 0 ? (
               <>
                 <button type="button" className="secondary-action min-h-0 px-3 py-2 text-[12px]" disabled={deleting} onClick={() => setSelected(new Set())}>Selectie wissen</button>
-                <button type="button" className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-50" disabled={deleting || selectedRows.length > 1000} onClick={() => { setError(''); setConfirmation(''); setConfirming(true) }}>
+                <button type="button" className="ps-button-danger px-3 py-2 text-[12px] disabled:opacity-50" disabled={deleting || selectedRows.length > 1000} onClick={() => { setError(''); setConfirmation(''); setConfirming(true) }}>
                   {selectedRows.length} concurrenten verwijderen
                 </button>
               </>
@@ -119,7 +119,7 @@ export function CompetitorBulkTable({ rows, columns, canWrite, emptyText }: Prop
 
       {confirming && selectedRows.length > 0 && canWrite ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111c2d]/60 p-4" role="presentation">
-          <form role="dialog" aria-modal="true" aria-labelledby="competitor-delete-title" onSubmit={deleteSelected} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+          <form role="dialog" aria-modal="true" aria-labelledby="competitor-delete-title" onSubmit={deleteSelected} className="w-full max-w-lg space-y-4 rounded-[14px] border border-[#e2e8f0] bg-white p-6 shadow-[0_24px_70px_rgba(15,29,48,.22)]">
             <h2 id="competitor-delete-title" className="text-[18px] font-semibold text-[#24364e]">Concurrenten definitief verwijderen</h2>
             <p className="text-[13px] leading-6 text-[#465771]">
               Je verwijdert {selectedRows.length} concurrenten met samen {offerCount} prijsbronnen, inclusief bijbehorende productkoppelingen, metingen en prijshistorie. Dit kan niet ongedaan worden gemaakt.
@@ -141,7 +141,7 @@ export function CompetitorBulkTable({ rows, columns, canWrite, emptyText }: Prop
             {error ? <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</p> : null}
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" disabled={deleting} onClick={() => { setConfirming(false); setConfirmation(''); setError('') }} className="secondary-action">Annuleren</button>
-              <button type="submit" disabled={!canDelete} className="rounded-lg bg-rose-700 px-4 py-2 text-[12px] font-semibold text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="submit" disabled={!canDelete} className="ps-button-danger px-4 py-2 text-[12px] disabled:cursor-not-allowed disabled:opacity-40">
                 {deleting ? 'Bezig met verwijderen…' : `${selectedRows.length} concurrenten verwijderen`}
               </button>
             </div>
