@@ -35,18 +35,28 @@ export async function reconcileMeasuredMatches(companyId: string, limit = 50) {
         url: match.competitorOffer.url,
       },
     )
-    if (result.status !== 'CERTAIN' || result.score < 95) continue
+    // A title and packaging comparison can increase confidence, but it is not
+    // strong enough to silently approve a B2B product match. PriceCheck does
+    // not persist the extracted EAN/SKU today, so automatic CERTAIN would hide
+    // identity uncertainty from the user. Keep the match in REVIEW until a
+    // hard identifier or an explicit user approval is available.
+    if (result.status === 'UNRELIABLE' || result.score < match.confidenceScore) continue
     await prisma.productMatch.update({
       where: { id: match.id },
       data: {
-        confidenceScore: result.score,
-        matchStatus: MatchStatus.CERTAIN,
-        approvedBy: 'system_pricing',
-        approvedAt: new Date(),
-        matchEvidence: { source: 'measured-page-reconciliation', verifiedTitle: check.productTitle, score: result.score, evidence: result.evidence } as Prisma.InputJsonValue,
+        confidenceScore: Math.min(result.score, 94),
+        matchStatus: MatchStatus.REVIEW,
+        approvedBy: null,
+        approvedAt: null,
+        matchEvidence: {
+          source: 'measured-page-reconciliation',
+          verifiedTitle: check.productTitle,
+          score: result.score,
+          evidence: result.evidence,
+          reason: 'Prijsbron en producttitel zijn gecontroleerd, maar een harde EAN/SKU-identiteit of handmatige bevestiging blijft vereist.',
+        } as Prisma.InputJsonValue,
       },
     })
-    promoted += 1
   }
   return { reviewed: matches.length, promoted }
 }
