@@ -7,6 +7,8 @@ import { assignProductGroupAction, deleteSelectedProductsAction } from '@/app/ac
 import { refreshSelectedProductPricesAction, refreshSingleProductPriceAction } from '@/app/actions/productPriceBulkActions'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { ProductOverviewGrid, type ProductGridRow } from '@/components/ProductOverviewGrid'
+import { ProductComparisonView } from '@/components/ProductComparisonView'
+import { isPlausibleMarketPrice } from '@/lib/price-quality'
 import { requirePermission } from '@/lib/authz'
 import { deriveProductMetrics, getFilterOptions } from '@/lib/dashboard'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
@@ -136,8 +138,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       shippingVatIncluded: metrics.selectedMarket?.ownShippingVatIncluded ?? product.ownShippingVatIncluded ?? true,
       vatRate: validOwnRate ? ownVatRate : null,
     })
-    const ownEx = ownAmounts.priceEx
-    const ownInc = ownAmounts.priceInc
+    const hasOwnPriceInMarket = !selectedCountry || Boolean(metrics.selectedMarket)
+    const ownEx = hasOwnPriceInMarket ? ownAmounts.priceEx : null
+    const ownInc = hasOwnPriceInMarket ? ownAmounts.priceInc : null
     const lowestOffer = metrics.lowestOffer?.competitorOffer
     const lowestRate = lowestOffer ? Number(lowestOffer.competitor.country.vatRate) : null
     const marketEx = metrics.lowestPrice !== null && lowestRate !== null && Number.isFinite(lowestRate)
@@ -153,6 +156,38 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     const checked = metrics.lastCheckedAt ? formatDate(metrics.lastCheckedAt) : 'Nog niet'
     const lastCheckFailed = metrics.lowestOffer?.competitorOffer.priceChecks[0]?.isSuccess === false
     const stock = metrics.selectedMarket?.stockStatus ?? product.stockStatus
+    const confirmedOffers = filters.countryId && selectedCountry ? product.matches
+      .filter((match) => {
+        const offer = match.competitorOffer
+        const amount = offer.normalizedPrice === null ? null : Number(offer.normalizedPrice)
+        return match.matchStatus === 'CERTAIN' && offer.isActive && offer.competitor.isActive
+          && offer.competitor.countryId === selectedCountry.id
+          && offer.priceHistory.length > 0 && offer.priceChecks[0]?.isSuccess === true
+          && isPlausibleMarketPrice(ownAmounts.priceInc, amount)
+      })
+      .sort((a, b) => Number(a.competitorOffer.normalizedPrice) - Number(b.competitorOffer.normalizedPrice)) : []
+    const comparisons = confirmedOffers.map((match) => {
+      const offer = match.competitorOffer
+      const amount = Number(offer.normalizedPrice)
+      const rate = Number(offer.competitor.country.vatRate)
+      const shippingAmount = offer.normalizedShippingCost === null ? null : Number(offer.normalizedShippingCost)
+      const totalAmount = offer.deliveredPrice === null ? null : Number(offer.deliveredPrice)
+      const isStale = !offer.lastCheckedAt || Date.now() - offer.lastCheckedAt.getTime() > 72 * 60 * 60 * 1000
+      return {
+        id: offer.id,
+        name: offer.competitor.name,
+        priceInc: price(amount),
+        priceEx: Number.isFinite(rate) && rate >= 0 ? price(amount / (1 + rate / 100)) : '—',
+        shippingInc: shippingAmount === 0 ? 'Gratis' : price(shippingAmount),
+        totalInc: shippingAmount === null ? '—' : price(totalAmount),
+        stock: offer.stockStatus,
+        checked: isStale ? 'Verouderd' : offer.lastCheckedAt ? formatDate(offer.lastCheckedAt) : 'Onbekend',
+        detailHref: '/producten/' + encodeURIComponent(product.id) + '?markt=' + encodeURIComponent(selectedCountry.id) + '&concurrent=' + encodeURIComponent(offer.id) + '#concurrentieprijzen',
+      }
+    })
+    const lowestConfirmed = confirmedOffers.length ? Number(confirmedOffers[0].competitorOffer.normalizedPrice) : null
+    const comparisonDifference = metrics.ownCurrency === 'EUR' && ownInc !== null && lowestConfirmed !== null && lowestConfirmed > 0
+      ? (ownInc - lowestConfirmed) / lowestConfirmed * 100 : null
     const status = lastCheckFailed ? 'Controle mislukt'
       : metrics.reviewMatches > 0 ? 'Beoordelen'
         : metrics.stale ? 'Vernieuwen'
@@ -167,13 +202,16 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       markets: product.productMarkets.map((market) => market.country.code).join(', ') || '—',
       ownEx: price(ownEx, metrics.ownCurrency),
       ownInc: price(ownInc, metrics.ownCurrency),
-      ownShipping: ownShipping === 0 ? 'Gratis' : price(ownAmounts.shippingInc, metrics.ownCurrency),
-      ownDelivered: price(ownAmounts.totalInc, metrics.ownCurrency),
+      ownShipping: hasOwnPriceInMarket ? (ownShipping === 0 ? 'Gratis' : price(ownAmounts.shippingInc, metrics.ownCurrency)) : '—',
+      ownDelivered: price(hasOwnPriceInMarket ? ownAmounts.totalInc : null, metrics.ownCurrency),
       marketEx: price(marketEx),
       marketInc: price(metrics.lowestPrice),
       shipping: shipping === 0 ? 'Gratis' : price(shipping),
       delivered: price(delivered),
       difference: percent(delta),
+      comparisonDifference: percent(comparisonDifference),
+      comparisonLowest: price(lowestConfirmed),
+      comparisons,
       differencePct: delta,
       sources: metrics.sourceCount,
       lastChecked: checked,
@@ -197,6 +235,14 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     copy.set('pagina', String(nextPage))
     return '/producten?' + copy.toString()
   }
+  const view = readParam(params.weergave) === 'tabel' ? 'tabel' : 'vergelijking'
+  queryParams.set('weergave', view)
+  const comparisonParams = new URLSearchParams(queryParams)
+  comparisonParams.set('weergave', 'vergelijking')
+  const tableParams = new URLSearchParams(queryParams)
+  tableParams.set('weergave', 'tabel')
+  const comparisonHref = '/producten?' + comparisonParams.toString()
+  const tableHref = '/producten?' + tableParams.toString()
   const resultMessage = readParam(params.crawlstatus)
   const selectionMessage = readParam(params.selectie)
   const deleted = Number(readParam(params.verwijderd) || '0')
@@ -218,7 +264,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/import/bulk" className="secondary-action">Importeren</Link>
-          <Link href="/instellingen/feedbeheer" className="secondary-action">Feedbeheer</Link>
           <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
           {actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-[9px] border border-[#e5b5bd] bg-white px-3 py-2 text-[10px] font-semibold text-[#a12d40]">Alle producten verwijderen</Link> : null}
         </div>
@@ -226,10 +271,11 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
 
       <section className="ps-panel px-3 py-3 sm:px-4">
         <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="weergave" value={view} />
           <input name="q" defaultValue={filters.q || ''} placeholder="Zoek op artikelnummer, productnaam of EAN" aria-label="Zoek producten" className="toolbar-control min-w-[210px] flex-[2_1_240px]" />
-          <select name="feed" aria-label="Productfeed" defaultValue={filters.feedSourceId || ''} className="toolbar-control min-w-[140px] flex-1">
-            <option value="">Alle feeds</option>
-            {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}
+          <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[125px] flex-1">
+            <option value="">Alle markten</option>
+            {activeMarkets.map((market) => <option key={market.id} value={market.id}>{market.name}</option>)}
           </select>
           <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
             <option value="">Alle productgroepen</option>
@@ -238,6 +284,13 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <details className="relative">
             <summary className="secondary-action cursor-pointer list-none">Filters</summary>
             <div className="absolute right-0 top-full z-30 mt-2 grid w-[250px] gap-3 rounded-xl border border-[#dce3ea] bg-white p-3 shadow-xl">
+              <label className="text-[10px] font-semibold text-[#64758a]">Productfeed
+                <select name="feed" defaultValue={filters.feedSourceId || ''} className="toolbar-control mt-1 w-full">
+                  <option value="">Alle feeds</option>
+                  {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}
+                </select>
+                <Link href="/instellingen/feedbeheer" className="mt-1 block text-[10px] text-[#315fa7] underline">Feedbeheer</Link>
+              </label>
               <label className="text-[10px] font-semibold text-[#64758a]">Concurrent
                 <select name="concurrent" defaultValue={filters.competitorId || ''} className="toolbar-control mt-1 w-full">
                   <option value="">Alle concurrenten</option>
@@ -267,7 +320,17 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         {selectedCountry ? <p className="mt-2 text-[10px] text-[#748296]">Marktprofiel, {selectedCountry.name}. Prijzen en concurrenten worden voor dit land weergegeven.</p> : <p className="mt-2 text-[10px] text-[#748296]">Alle markten, selecteer een land voor een landspecifieke prijsvergelijking.</p>}
       </section>
 
-      <ProductOverviewGrid
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#e2eaf3] bg-white px-4 py-3">
+        <div><h2 className="text-[13px] font-semibold text-[#253a50]">Producten vergelijken</h2><p className="mt-1 text-[11px] text-[#748296]">Bekijk prijzen en concurrenten per product. Gebruik Tabel voor selectie en bulkbeheer.</p></div>
+        <div role="group" aria-label="Weergave" className="inline-flex gap-1 rounded-lg bg-[#edf2f8] p-1 text-[11px] font-semibold">
+          <Link href={comparisonHref} aria-current={view === 'vergelijking' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'vergelijking' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Vergelijking</Link>
+          <Link href={tableHref} aria-current={view === 'tabel' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'tabel' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Tabel en bulkbeheer</Link>
+        </div>
+      </div>
+      {view === 'vergelijking' ? (
+        selectedCountry ? <ProductComparisonView rows={rows} canCrawl={canCrawl} refreshSinglePriceAction={refreshSingleProductPriceAction} />
+          : <section className="rounded-xl border border-[#dce5ef] bg-white px-6 py-10 text-center"><h3 className="text-[15px] font-semibold text-[#253a50]">Kies een markt om productprijzen te vergelijken</h3><p className="mt-2 text-[12px] text-[#687d95]">Zo blijven btw, valuta en concurrentieprijzen per land correct. Gebruik de marktkeuze bovenaan of open de tabel voor een overzicht van alle producten.</p><Link href={tableHref} className="secondary-action mt-4 inline-flex">Alle producten in tabel bekijken</Link></section>
+      ) : <ProductOverviewGrid
         rows={rows}
         totalCount={totalCount}
         countryId={selectedCountry?.id}
@@ -279,7 +342,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         refreshPricesAction={refreshSelectedProductPricesAction}
         refreshSinglePriceAction={refreshSingleProductPriceAction}
         filters={filters}
-      />
+      />}
 
       <nav aria-label="Pagina's" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-4 py-3 text-[11px] text-[#66788d]">
         <span>Pagina {page} van {totalPages}, {formatNumber(totalCount)} producten</span>

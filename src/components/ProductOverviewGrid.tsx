@@ -21,11 +21,14 @@ export type ProductGridRow = {
   delivered: string
   difference: string
   differencePct: number | null
+  comparisonDifference: string
+  comparisonLowest: string
   sources: number
   lastChecked: string
   status: string
   review: number
   detailHref: string
+  comparisons: Array<{ id: string; name: string; priceInc: string; priceEx: string; shippingInc: string; totalInc: string; stock: string | null; checked: string; detailHref: string }>
 }
 
 type Column = 'articleNumber' | 'name' | 'ean' | 'group' | 'markets' | 'ownEx' | 'ownInc' | 'ownShipping' | 'ownDelivered' | 'marketEx' | 'marketInc' | 'shipping' | 'delivered' | 'difference' | 'sources' | 'lastChecked' | 'status'
