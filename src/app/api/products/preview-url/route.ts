@@ -269,6 +269,7 @@ export async function POST(request: Request) {
                   ...(merged.conflicts.length ? ['Bronnen spreken elkaar tegen over: ' + merged.conflicts.join(', ') + '.'] : []),
                 ],
               })
+            }
           }
         }
       }
