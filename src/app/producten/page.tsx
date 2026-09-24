@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 import { productGroupLabel } from '@/lib/product-groups'
+import { comparisonQuality } from '@/lib/comparison-quality'
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -193,6 +194,8 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         : metrics.stale ? 'Vernieuwen'
           : metrics.sourceCount > 0 ? 'Actueel'
             : stock && /niet op voorraad|uitverkocht|out of stock|sold out/i.test(stock) ? 'Niet op voorraad' : 'Geen bronnen'
+    const quality = comparisonQuality({ verifiedOfferCount: confirmedOffers.length, sourceCount: metrics.sourceCount,
+      reviewCount: metrics.reviewMatches, stale: metrics.stale, lastCheckFailed })
     return {
       id: product.id,
       articleNumber: product.articleNumber,
@@ -211,6 +214,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       difference: percent(delta),
       comparisonDifference: percent(comparisonDifference),
       comparisonLowest: price(lowestConfirmed),
+      quality: quality.code, qualityLabel: quality.label, qualityDetail: quality.detail,
       comparisons,
       differencePct: delta,
       sources: metrics.sourceCount,

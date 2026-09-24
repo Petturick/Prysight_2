@@ -23,6 +23,9 @@ export type ProductGridRow = {
   differencePct: number | null
   comparisonDifference: string
   comparisonLowest: string
+  quality: 'VERIFIED' | 'LIMITED' | 'ATTENTION' | 'NO_DATA'
+  qualityLabel: string
+  qualityDetail: string
   sources: number
   lastChecked: string
   status: string
@@ -52,8 +55,8 @@ const COLUMNS: Array<{ key: Column; label: string; align?: 'right' }> = [
   { key: 'status', label: 'Status' },
 ]
 const DEFAULT_COLUMNS: Column[] = [
-  'articleNumber', 'name', 'ean', 'markets', 'ownInc',
-  'marketInc', 'difference', 'sources', 'status',
+  'articleNumber', 'name', 'ean', 'markets', 'ownEx',
+  'marketEx', 'difference', 'sources', 'status',
 ]
 
 export function ProductOverviewGrid({

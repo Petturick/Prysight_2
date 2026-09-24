@@ -215,3 +215,19 @@ body > main:not(:has(aside)) [class*="rounded"][class*="border"] { border-color:
   .surface-card,.strong-panel,.prysight-elevated-card { border-radius:9px; }
   main section.strong-panel:first-of-type h1 { font-size:1.55rem!important; }
 }
+
+
+/* Premium B2B comparison surfaces, deliberately scoped so legacy migration rules cannot flatten the core decision flow. */
+.premium-comparison-card {
+  border-radius:16px!important;
+  border-color:#dbe4ef!important;
+  box-shadow:0 10px 30px rgba(27,49,78,.055),0 2px 7px rgba(27,49,78,.035)!important;
+  background:#fff;
+}
+.premium-comparison-card:hover { border-color:#cbd9e8!important; box-shadow:0 14px 36px rgba(27,49,78,.075),0 3px 9px rgba(27,49,78,.04)!important; }
+.premium-decision-card {
+  border-radius:14px!important;
+  border-color:#dfe7f1!important;
+  box-shadow:0 7px 24px rgba(27,49,78,.045)!important;
+  background:linear-gradient(180deg,#fff 0%,#fbfdff 100%)!important;
+}
