@@ -85,6 +85,10 @@ export async function lookupOwnFeedByEan(companyId: string, ean: string, country
     ownUrl,
     image: validUrl(data.image) ?? validUrl(data.imageUrl),
     description: str(data.description),
+    ownShippingCost: data.ownShippingCost === 0 || data.ownShippingCost === '0'
+      ? 0 : price(data.ownShippingCost),
+    ownShippingVatIncluded: vat(data.ownShippingVatIncluded),
+    shippingCurrency: str(data.shippingCurrency)?.toUpperCase() ?? str(data.currency)?.toUpperCase() ?? null,
     sourceUrl: ownUrl ?? validUrl(item.feedSource.url) ?? '',
     sourceType: 'OWN_SHOP',
   }
