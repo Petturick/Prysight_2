@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateDeliveredAmounts } from '@/lib/manual-price-input'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 import { productGroupLabel } from '@/lib/product-groups'
+import { profileStep } from '@/lib/performance-profile'
 import { comparisonQuality } from '@/lib/comparison-quality'
 
 function readParam(value: string | string[] | undefined) {
@@ -75,7 +76,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     ],
   }
 
-  const result = await safeDatabaseQuery(async () => {
+  const result = await profileStep('/producten', 'overview-query', () => safeDatabaseQuery(async () => {
     const [products, totalCount, filterOptions, feedOptions] = await Promise.all([
       prisma.product.findMany({
         relationLoadStrategy: 'join',
@@ -112,7 +113,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       prisma.feedSource.findMany({ where: { companyId: actor.companyId }, select: { id: true, name: true, countryCode: true }, orderBy: [{ countryCode: 'asc' }, { name: 'asc' }] }),
     ])
     return { products, totalCount, filterOptions, feedOptions }
-  }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] }, feedOptions: [] as Array<{ id: string; name: string; countryCode: string }> })
+  }, { products: [], totalCount: 0, filterOptions: { countries: [], productGroups: [], competitors: [] }, feedOptions: [] as Array<{ id: string; name: string; countryCode: string }> }), { companyId: actor.companyId, pageSize }, 450)
 
   const { products, totalCount, filterOptions, feedOptions } = result.data
   const selectedFeed = feedOptions.find((feed) => feed.id === filters.feedSourceId)
