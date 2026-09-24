@@ -27,6 +27,9 @@ type EanResult = {
   packagingQty?: number | null
   vatIncluded?: boolean | null
   productGroup?: string | null
+  ownShippingCost?: number | null
+  ownShippingVatIncluded?: boolean | null
+  shippingCurrency?: string | null
   image?: string | null
   description?: string | null
   sources?: Array<{ url: string; type: 'OWN_SHOP' | 'ONLINE' }>
@@ -156,6 +159,11 @@ export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
       const money = (amount: number | null) => amount === null ? null : amount.toFixed(2).replace('.', ',')
       apply('ownPrice', money(incl))
       apply('ownPriceOther', money(excl))
+      if (payload.feedMatched && safeCurrency && payload.ownShippingVatIncluded === true
+          && payload.shippingCurrency?.toUpperCase() === selectedMarket?.currency.toUpperCase()
+          && payload.ownShippingCost !== null && payload.ownShippingCost !== undefined) {
+        apply('ownShippingCost', money(payload.ownShippingCost))
+      }
       apply('ownUrl', payload.ownUrl)
       apply('currency', payload.currency)
       apply('stockStatus', payload.stockStatus)
