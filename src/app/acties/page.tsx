@@ -51,6 +51,18 @@ export default async function ActionsPage() {
       </div>
     </section>
 
+    {openTasks[0] ? <Link href={openTasks[0].href} className="premium-decision-card flex flex-col gap-3 p-4 transition hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[10px] font-semibold text-[#8290a1]">Eerstvolgende actie</p>
+        <h2 className="mt-1 text-[15px] font-semibold text-[#25364b]">{openTasks[0].label}</h2>
+        <p className="mt-1 text-[11px] leading-5 text-[#718096]">{openTasks[0].helper}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="ps-chip ps-chip-red">{formatNumber(openTasks[0].value)} open</span>
+        <span className="text-[11px] font-semibold text-[#3d73d4]">Open werkstroom →</span>
+      </div>
+    </Link> : null}
+
     <section className="surface-card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 sm:px-6">
         <div><h2 className="text-[16px] font-bold text-[#22344c]">Nu doen</h2><p className="mt-1 text-[11px] text-[#77869a]">Werk van boven naar beneden. PrySight zet de meest kritieke typen eerst.</p></div>
