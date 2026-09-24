@@ -165,15 +165,15 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
 
 
     <section aria-label="Besliscockpit" className="grid gap-3 lg:grid-cols-3">
-      <Link href={productHref} className="surface-card p-4 transition hover:-translate-y-0.5">
+      <Link href={productHref} className="premium-decision-card p-4 transition hover:-translate-y-0.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Commercieel</p>
         <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(higher.length)}</p><p className="mt-1 text-[11px] text-[#68778d]">producten boven de laagste actuele marktprijs</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Bekijken →</span></div>
       </Link>
-      <Link href={productHref} className="surface-card p-4 transition hover:-translate-y-0.5">
+      <Link href={productHref} className="premium-decision-card p-4 transition hover:-translate-y-0.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Datadekking</p>
         <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(incompleteProducts)}</p><p className="mt-1 text-[11px] text-[#68778d]">producten zonder actuele bevestigde vergelijking</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Aanvullen →</span></div>
       </Link>
-      <Link href="/monitoring" className="surface-card p-4 transition hover:-translate-y-0.5">
+      <Link href="/monitoring" className="premium-decision-card p-4 transition hover:-translate-y-0.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Technische kwaliteit</p>
         <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(monitoringIssues)}</p><p className="mt-1 text-[11px] text-[#68778d]">mislukte of verouderde prijsbronnen</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Controleren →</span></div>
       </Link>
