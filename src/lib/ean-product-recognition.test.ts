@@ -13,7 +13,7 @@ test('EAN lookup uses validated identifiers, tenant scope, and a matching source
   assert.match(eanApi, /companyId: actor\.companyId/)
   assert.match(eanApi, /hasExactEan/)
   assert.match(eanApi, /lookupOnlineProduct\(candidate\.url, ean/)
-  assert.match(eanApi, /ownPrice = own\?\.ownPrice \?\? null/)
+  assert.match(eanApi, /mergeVerifiedProductSources\(sourceRecords, ean\)/)
   assert.match(eanApi, /actual product details require|exact EAN\/GTIN match on a source page/)
   assert.match(eanApi, /return NextResponse\.json\(\{ ean, existingProduct, found: false/)
 })
