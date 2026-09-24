@@ -68,12 +68,17 @@ function structuredProductDetails(html: string) {
         image,
         model: text(product.model),
         mpn: text(product.mpn),
+        name: text(product.name),
+        sku: text(product.sku),
+        ean: text(product.gtin13) ?? text(product.gtin14) ?? text(product.gtin) ?? text(product.ean),
+        description: text(product.description),
       }
     } catch {
       continue
     }
   }
-  return { brand: null, category: null, image: null, model: null, mpn: null }
+  return { brand: null, category: null, image: null, model: null, mpn: null,
+    name: null, sku: null, ean: null, description: null }
 }
 
 function parseLocalizedPrice(value: string | null | undefined) {
@@ -196,23 +201,27 @@ export async function POST(request: Request) {
             const details = structuredProductDetails(html)
             const vat = detectVatInclusion(html, offer.price)
             const resolvedUrl = response.url || rawUrl
-            if (offer.productTitle || offer.sku || offer.ean || offer.price) {
+            if (offer.productTitle || offer.sku || offer.ean || offer.price || details.name || details.sku || details.ean) {
               const existingProduct = await findExistingProduct({
                 companyId: actor.companyId,
-                articleNumber: offer.sku,
-                ean: offer.ean,
+                articleNumber: offer.sku ?? details.sku,
+                ean: offer.ean ?? details.ean,
                 gtin: offer.ean,
                 ownUrl: resolvedUrl,
               })
               return NextResponse.json({
                 url: resolvedUrl,
-                name: offer.productTitle,
-                articleNumber: offer.sku,
-                ean: offer.ean,
+                name: offer.productTitle ?? details.name,
+                articleNumber: offer.sku ?? details.sku,
+                ean: offer.ean ?? details.ean,
                 ownPrice: offer.price,
                 currency: offer.currency?.toUpperCase() ?? null,
                 stockStatus: offer.stockStatus,
                 packagingQty: offer.packagingQty,
+                shippingCost: offer.shippingCost,
+                shippingCurrency: offer.shippingCurrency,
+                shippingLabel: offer.shippingLabel,
+                description: details.description,
                 extractionMethod: offer.method,
                 vatIncluded: vat.vatIncluded,
                 vatConfidence: vat.confidence,
@@ -245,6 +254,10 @@ export async function POST(request: Request) {
             ...recognized,
             url: resolvedUrl,
             image: null,
+            description: null,
+            shippingCost: null,
+            shippingCurrency: null,
+            shippingLabel: null,
             existingProduct,
           })
         }
@@ -273,8 +286,15 @@ export async function POST(request: Request) {
         model: null,
         mpn: null,
         image: null,
+        description: null,
+        shippingCost: null,
+        shippingCurrency: null,
+        shippingLabel: null,
         existingProduct: null,
         partial: true,
+        reason: response?.status === 403 || response?.status === 429
+          ? 'Deze webshop beperkt automatisch uitlezen. Gebruik de productfeed of zoek op EAN.'
+          : 'Er zijn geen betrouwbare productgegevens uit deze URL opgehaald. Controleer de URL of gebruik de productfeed of EAN.',
       })
     } finally {
       clearTimeout(timer)

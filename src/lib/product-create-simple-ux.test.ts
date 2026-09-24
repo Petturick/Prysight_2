@@ -32,7 +32,7 @@ test('Alle verplichte en bestaande optionele velden blijven beschikbaar voor dez
     'ownShippingVatIncluded', 'ownUrl', 'stockStatus', 'packagingUnit', 'packagingQty']) {
     assert.equal(page.split(`name="${field}"`).length - 1, 1, `veld ${field} moet precies één keer voorkomen`)
   }
-  assert.match(page, /<EanDiscoveryField \/>/)
+  assert.match(page, /<EanDiscoveryField markets=\{countries\.map/)
   assert.match(page, /<ProductGroupField formId="new-product-form"/)
   assert.match(productGroupField, /name="productGroup"/)
   assert.match(productGroupField, /suggestProductGroup/)
@@ -47,7 +47,7 @@ test('URL herkenning vult ook verborgen velden in, met foutmelding en handmatige
     'brand', 'model', 'mpn', 'countryId', 'ownUrl']) {
     assert.match(quickStart, new RegExp(`apply\\('${field}'`))
   }
-  assert.doesNotMatch(quickStart, /apply\('productGroup'/)
+  assert.match(quickStart, /apply\('productGroup'/)
   assert.match(quickStart, /fetch\('\/api\/products\/preview-url'/)
   assert.match(quickStart, /Geen URL\? Vul je product hieronder handmatig in/)
   assert.match(quickStart, /payload\.existingProduct/)
