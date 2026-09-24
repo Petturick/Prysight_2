@@ -10,6 +10,7 @@ const css = read('src/app/globals.css')
 const monitoring = read('src/app/monitoring/page.tsx')
 const notFound = read('src/app/not-found.tsx')
 const comparison = read('src/components/ProductComparisonView.tsx')
+const productsPage = read('src/app/producten/page.tsx')
 
 test('premium shell stays quiet, accessible and avoids gimmicky interaction feedback', () => {
   assert.doesNotMatch(interaction, /vibrate/i)
@@ -34,6 +35,11 @@ test('core decision surfaces use premium patterns and explicit recovery states',
   assert.match(comparison, /Laagste bevestigde prijs, excl\. btw/)
   assert.match(notFound, /Je gegevens zijn niet gewijzigd/)
   assert.match(notFound, /Naar overzicht/)
+})
+
+test('core product comparison query is performance budgeted', () => {
+  assert.match(productsPage, /profileStep\('\/producten', 'overview-query'/)
+  assert.match(productsPage, /450\)/)
 })
 
 test('premium quality is not achieved by hiding uncertainty', () => {
