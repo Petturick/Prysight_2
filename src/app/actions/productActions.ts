@@ -621,7 +621,7 @@ export async function refreshProductIntelligenceAction(formData: FormData) {
     select: { id: true, ean: true, gtin: true },
   })
   if (!product) throw new Error('Product niet gevonden.')
-  if (![product.ean, product.gtin].some(validGtin)) throw new Error('Voeg een geldige EAN of GTIN toe om automatisch te kunnen zoeken.')
+  // Discovery can also use MPN, article number and product context when EAN/GTIN is absent.
 
   let discovery = { found: 0, created: 0, alreadyLinked: 0, reason: null as string | null, provider: null as string | null }
   try {
@@ -672,7 +672,7 @@ export async function refreshProductIntelligenceAction(formData: FormData) {
   })
   if (discovery.provider) params.set('zoekbron', discovery.provider)
   if (discovery.reason) params.set('reden', discovery.reason)
-  redirect(`/producten/${productId}?${params.toString()}#ean-prijssuggesties`)
+  redirect(`/producten/${productId}?${params.toString()}#concurrentieprijzen`)
 }
 
 export async function discoverCompetitorUrlsAction(formData: FormData) {
