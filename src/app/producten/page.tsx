@@ -235,9 +235,13 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     return '/producten?' + copy.toString()
   }
   const view = readParam(params.weergave) === 'tabel' ? 'tabel' : 'vergelijking'
-  const viewParams = new URLSearchParams(queryParams)
-  const comparisonHref = '/producten?' + viewParams.toString() + '&weergave=vergelijking'
-  const tableHref = '/producten?' + viewParams.toString() + '&weergave=tabel'
+  queryParams.set('weergave', view)
+  const comparisonParams = new URLSearchParams(queryParams)
+  comparisonParams.set('weergave', 'vergelijking')
+  const tableParams = new URLSearchParams(queryParams)
+  tableParams.set('weergave', 'tabel')
+  const comparisonHref = '/producten?' + comparisonParams.toString()
+  const tableHref = '/producten?' + tableParams.toString()
   const resultMessage = readParam(params.crawlstatus)
   const selectionMessage = readParam(params.selectie)
   const deleted = Number(readParam(params.verwijderd) || '0')
@@ -266,6 +270,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
 
       <section className="ps-panel px-3 py-3 sm:px-4">
         <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="weergave" value={view} />
           <input name="q" defaultValue={filters.q || ''} placeholder="Zoek op artikelnummer, productnaam of EAN" aria-label="Zoek producten" className="toolbar-control min-w-[210px] flex-[2_1_240px]" />
           <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[125px] flex-1">
             <option value="">Alle markten</option>
