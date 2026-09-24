@@ -14,6 +14,7 @@ type EanResult = {
   ean?: string
   found?: boolean
   source?: string
+  feedMatched?: boolean
   name?: string | null
   articleNumber?: string | null
   ownPrice?: number | null
@@ -48,7 +49,9 @@ function gtinChecksumValid(value: string) {
   return (10 - (sum % 10)) % 10 === check
 }
 
-export function EanDiscoveryField() {
+type Market = { id: string; code: string; vatRate: number; currency: string }
+
+export function EanDiscoveryField({ markets = [] }: { markets?: Market[] }) {
   const [value, setValue] = useState('')
   const [checking, setChecking] = useState(false)
   const [existing, setExisting] = useState<ExistingProduct | null>(null)
@@ -104,7 +107,7 @@ export function EanDiscoveryField() {
 
       const duplicate = payload.existingProduct ?? null
       setExisting(duplicate)
-      setOnlinePreview(payload.found && (payload.sources?.length ?? 0) > 0 ? payload : null)
+      setOnlinePreview(payload.found ? payload : null)
       input.setCustomValidity(duplicate ? 'Dit EAN bestaat al in Prysight. Open het bestaande product.' : '')
       if (duplicate) {
         setMessage('Online gegevens gecontroleerd. Gebruik de bestaande productpagina om dubbele artikelen te voorkomen.')
@@ -131,7 +134,20 @@ export function EanDiscoveryField() {
       }
       apply('name', payload.name)
       apply('articleNumber', payload.articleNumber)
-      apply('ownPrice', payload.ownPrice)
+      const selectedMarket = markets.find((market) => market.id === countryField?.value)
+      const rate = selectedMarket?.vatRate
+      const factor = typeof rate === 'number' && Number.isFinite(rate) && rate >= 0 && rate <= 100
+        ? 1 + rate / 100 : null
+      // Primary form amount is always VAT-inclusive. Never assume an unknown tax basis.
+      const incl = payload.ownPrice === null || payload.ownPrice === undefined ? null
+        : payload.vatIncluded === true ? payload.ownPrice
+        : payload.vatIncluded === false && factor ? payload.ownPrice * factor : null
+      const excl = payload.ownPrice === null || payload.ownPrice === undefined ? null
+        : payload.vatIncluded === false ? payload.ownPrice
+        : payload.vatIncluded === true && factor ? payload.ownPrice / factor : null
+      const money = (amount: number | null) => amount === null ? null : amount.toFixed(2).replace('.', ',')
+      apply('ownPrice', money(incl))
+      apply('ownPriceOther', money(excl))
       apply('ownUrl', payload.ownUrl)
       apply('currency', payload.currency)
       apply('stockStatus', payload.stockStatus)
@@ -139,7 +155,7 @@ export function EanDiscoveryField() {
       apply('model', payload.model)
       apply('mpn', payload.mpn)
       apply('packagingQty', payload.packagingQty)
-      apply('vatIncluded', payload.vatIncluded)
+      // vatIncluded is a hidden form flag for the VAT-inclusive primary input, not the source amount.
       apply('gtin', payload.ean)
       if (payload.productGroup && form) {
         const group = form.elements.namedItem('productGroup') as HTMLSelectElement | null
@@ -149,9 +165,12 @@ export function EanDiscoveryField() {
         )
         if (option) apply('productGroup', option.value)
       }
+      const origin = payload.feedMatched ? 'productfeed en online bronnen' : 'online bronnen'
+      const priceWarning = payload.ownPrice !== null && payload.ownPrice !== undefined && incl === null
+        ? ' De gevonden prijs is niet ingevuld omdat de btw status of het markttarief niet betrouwbaar is vastgesteld.' : ''
       setMessage(applied
-        ? `${applied} productgegevens online herkend en ingevuld. Controleer de overige velden.`
-        : 'Product online herkend. Controleer de ontbrekende verplichte gegevens.')
+        ? `${applied} velden ingevuld via ${origin}. Controleer de overige velden.${priceWarning}`
+        : `Product herkend via ${origin}. Controleer de ontbrekende verplichte gegevens.${priceWarning}`)
     } catch (error) {
       if (currentRequest !== requestId.current) return
       lastLookup.current = ''
@@ -213,7 +232,7 @@ export function EanDiscoveryField() {
           {onlinePreview.description ? <p className="mt-1 line-clamp-3">{onlinePreview.description}</p> : null}
           {onlinePreview.productGroup ? <p className="mt-1">Categorie: {onlinePreview.productGroup}</p> : null}
           {onlinePreview.image ? <a href={onlinePreview.image} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-[#2f6edb] underline">Bekijk productafbeelding</a> : null}
-          <p className="mt-1 text-[#64748b]">Gecontroleerde online bronnen: {onlinePreview.sources?.length ?? 0}. Eigen verkoopprijs wordt alleen ingevuld wanneer die bij je eigen webshop en dit EAN hoort.</p>
+          <p className="mt-1 text-[#64748b]">{onlinePreview.feedMatched ? 'Eigen productfeed herkend. ' : ''}Gecontroleerde online bronnen: {onlinePreview.sources?.length ?? 0}. Eigen verkoopprijs wordt alleen ingevuld wanneer die bij je eigen webshop of eigen productfeed en dit EAN hoort, met een vastgestelde btw status.</p>
           <div className="mt-1 flex flex-wrap gap-2">
             {onlinePreview.sources?.slice(0, 3).map((source) => (
               <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#2f6edb] underline">
