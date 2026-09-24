@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { isUnnamedGroup } from '@/lib/product-groups'
 import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
 import { findExistingProduct } from '@/lib/product-duplicate'
+import { runDuePriceChecks } from '@/lib/price-monitoring'
 
 function text(formData: FormData, key: string) { return String(formData.get(key) ?? '').trim() }
 function identifier(value: string) { return value.replace(/[^0-9A-Za-z]/g, '') }
@@ -107,6 +108,17 @@ export async function createSmartProductAction(formData: FormData) {
     }
   }
 
+  // Check a bounded number of newly discovered sources immediately. The rest remain
+  // available to normal scheduled monitoring, and uncertain matches still require review.
+  let firstPrices = { successful: 0, failed: 0 }
+  if (country && discovery.created > 0 && (actor.role === 'SUPER_ADMIN' || actor.permissions.includes('pricing.manage'))) {
+    try {
+      firstPrices = await runDuePriceChecks({ companyId: actor.companyId, productId: product.id,
+        countryIds: [country.id], limit: 2 })
+    } catch (error) {
+      console.warn('First product competitor prices will be checked on schedule', { productId: product.id, error })
+    }
+  }
   revalidatePath('/producten');revalidatePath('/productmatches');revalidatePath('/prijsstrategie');revalidatePath('/prijsautomatisering')
   const params=new URLSearchParams({
     toegevoegd:'1',
@@ -116,6 +128,8 @@ export async function createSmartProductAction(formData: FormData) {
     reden:discovery.reason??'',
     zoekbron:discovery.provider??'',
     zoekmodus:discovery.queryMode??(ean?'EAN':'PRODUCT'),
+    eersteprijzen:String(firstPrices.successful),
+    prijsfouten:String(firstPrices.failed),
   })
   if(country?.id)params.set('markt',country.id)
   redirect(`/producten/${product.id}?${params.toString()}#concurrenten-vinden`)
