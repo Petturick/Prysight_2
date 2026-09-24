@@ -56,8 +56,8 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
         </div>
         <div className="surface-card p-5">
           <p className="text-[12px] font-semibold text-[#252a37]">Veiligheidsstatus</p>
-          <div className="mt-3 rounded-2xl border-2 border-[#9cc7ad] bg-[#e7f4ec] p-3.5"><p className="text-[12px] font-black text-[#17603a]">Guardrails en approval flow actief</p><p className="mt-1 text-[11px] leading-5 text-[#3f6f55]">{guardedCoverage}% van de huidige marktadviezen heeft kostprijs of een harde prijsgrens. Alleen opgeslagen adviezen kunnen naar de goedkeuringsworkflow worden gestuurd.</p></div>
-          <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.06em] text-[#6f7b91]">Modus</p><p className="mt-1 text-[12px] font-black text-[#111827]">{isSimulation ? 'Tijdelijke simulatie' : 'Opgeslagen prijsregels'}</p>
+          <div className="mt-3 rounded-[12px] border border-[#cfeadf] bg-[#f4fbf7] p-3.5"><div className="flex items-center justify-between gap-3"><p className="text-[12px] font-semibold text-[#246f50]">Guardrails en goedkeuring actief</p><span className="ps-chip ps-chip-green">{guardedCoverage}% gedekt</span></div><p className="mt-1 text-[11px] leading-5 text-[#5f766b]">Kostprijs en harde prijsgrenzen worden opnieuw gecontroleerd voordat een wijziging kan worden aangevraagd.</p></div>
+          <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.06em] text-[#6f7b91]">Modus</p><p className="mt-1 text-[12px] font-semibold text-[#111827]">{isSimulation ? 'Tijdelijke simulatie' : 'Opgeslagen prijsregels'}</p>
         </div>
       </section>
 
@@ -66,11 +66,11 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
           <div><h2 className="text-[14px] font-semibold text-[#252a37]">Los scenario simuleren</h2><p className="mt-1 text-[11px] text-[#7d8698]">Een simulatie overschrijft tijdelijk de opgeslagen prijsregels, maar kan nooit als externe prijswijziging worden gepubliceerd.</p></div>
           <form className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             <input type="hidden" name="simulate" value="1" />
-            <select name="strategy" defaultValue={strategy} className="h-9 rounded-xl border-2 border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]">{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-            <input name="adjustmentPct" type="number" step="0.1" defaultValue={adjustmentPct} className="h-9 rounded-xl border-2 border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Correctie percentage" />
-            <input name="maxChangePct" type="number" step="0.1" min="0" defaultValue={maxChangePct} className="h-9 rounded-xl border-2 border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Maximale wijziging percentage" />
-            <select name="onlyInStock" defaultValue={String(onlyInStock)} className="h-9 rounded-xl border-2 border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]"><option value="true">Alleen op voorraad</option><option value="false">Alle actieve aanbiedingen</option></select>
-            <button className="focus-ring h-9 rounded-xl border-2 border-[#bfd0eb] bg-[#edf3fb] px-4 text-[11px] font-black text-[#355a91]">Simuleer</button>
+            <select name="strategy" defaultValue={strategy} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]">{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <input name="adjustmentPct" type="number" step="0.1" defaultValue={adjustmentPct} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Correctie percentage" />
+            <input name="maxChangePct" type="number" step="0.1" min="0" defaultValue={maxChangePct} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Maximale wijziging percentage" />
+            <select name="onlyInStock" defaultValue={String(onlyInStock)} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]"><option value="true">Alleen op voorraad</option><option value="false">Alle actieve aanbiedingen</option></select>
+            <button className="focus-ring h-9 rounded-xl border border-[#bfd0eb] bg-[#edf3fb] px-4 text-[11px] font-semibold text-[#355a91]">Simuleer</button>
             <input type="hidden" name="minimumSignalPct" value={minimumSignalPct} />
           </form>
         </div>
@@ -83,7 +83,7 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
           ['Prijsdruk', lowers, 'Markt vraagt mogelijk om verlaging'],
           ['Onvoldoende data', noData, 'Eigen prijs, marktdata of minimale dekking ontbreekt'],
           ['Guardrail dekking', `${guardedCoverage}%`, 'Marktadviezen met commerciële bescherming'],
-        ].map(([title, value, helper]) => <div key={String(title)} className="surface-card-flat p-4"><p className="text-[10px] font-black uppercase tracking-[0.06em] text-[#6f7b91]">{title}</p><p className="mt-2 text-[27px] font-black tracking-[-0.03em] text-[#171b28]">{String(value)}</p><p className="mt-1 text-[11px] leading-5 text-[#8790a2]">{helper}</p></div>)}
+        ].map(([title, value, helper]) => <div key={String(title)} className="surface-card-flat p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#6f7b91]">{title}</p><p className="mt-2 text-[27px] font-semibold tracking-[-0.03em] text-[#171b28]">{String(value)}</p><p className="mt-1 text-[11px] leading-5 text-[#8790a2]">{helper}</p></div>)}
       </section>
 
       <section className="surface-card p-4 sm:p-5">
@@ -114,7 +114,7 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
             margeNa: pct(item.marginAfterPct),
             regel: item.appliedRuleName ?? (isSimulation ? 'Simulatie' : 'Standaard'),
             actie: item.action === 'RAISE' ? 'Verhogen' : item.action === 'LOWER' ? 'Verlagen' : item.action === 'KEEP' ? 'Behouden' : item.reason,
-            uitvoering: !isSimulation && item.recommendedPrice !== null && (item.action === 'RAISE' || item.action === 'LOWER') ? <form action={createPriceChangeRequestAction}><input type="hidden" name="productId" value={item.productId} /><input type="hidden" name="countryId" value={item.countryId ?? ''} /><input type="hidden" name="recommendedPrice" value={item.recommendedPrice} /><input type="hidden" name="reason" value={item.reason} /><button className="rounded-[8px] border border-[#bfd0eb] bg-[#edf3fb] px-2.5 py-1.5 text-[10px] font-black text-[#355a91]">Aanvragen</button></form> : <span className="text-[10px] text-[#98a1b0]">—</span>,
+            uitvoering: !isSimulation && item.recommendedPrice !== null && (item.action === 'RAISE' || item.action === 'LOWER') ? <form action={createPriceChangeRequestAction}><input type="hidden" name="productId" value={item.productId} /><input type="hidden" name="countryId" value={item.countryId ?? ''} /><input type="hidden" name="recommendedPrice" value={item.recommendedPrice} /><input type="hidden" name="reason" value={item.reason} /><button className="rounded-[8px] border border-[#bfd0eb] bg-[#edf3fb] px-2.5 py-1.5 text-[10px] font-semibold text-[#355a91]">Aanvragen</button></form> : <span className="text-[10px] text-[#98a1b0]">—</span>,
           }))}
         />
       </section>
