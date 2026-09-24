@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { verifyBearerSecret } from '@/lib/api-auth'
 import { requirePermission } from '@/lib/authz'
-import { DEFAULT_COMPANY_ID } from '@/lib/company'
 import { prisma } from '@/lib/prisma'
 import { productGroupLabel } from '@/lib/product-groups'
 
@@ -18,7 +17,8 @@ async function resolveCompanyId(request: Request) {
     const access = verifyBearerSecret(request, 'DATA_FEED_API_KEY')
     if (!access.ok) return { error: NextResponse.json({ error: access.message }, { status: access.status }) }
     const url = new URL(request.url)
-    const companyId = request.headers.get('x-prysight-company-id')?.trim() || url.searchParams.get('companyId')?.trim() || DEFAULT_COMPANY_ID
+    const companyId = request.headers.get('x-prysight-company-id')?.trim() || url.searchParams.get('companyId')?.trim()
+    if (!companyId) return { error: NextResponse.json({ error: 'companyId is verplicht voor API-publicaties.' }, { status: 400 }) }
     const company = await prisma.company.findFirst({ where: { id: companyId, status: 'ACTIVE' }, select: { id: true } })
     if (!company) return { error: NextResponse.json({ error: 'Organisatie niet gevonden of niet actief.' }, { status: 404 }) }
     return { companyId: company.id }
