@@ -53,7 +53,7 @@ export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction
             </div>
           </div>
 
-          {sortedOffers.length > 0 ? <div className="overflow-x-auto px-4 pb-4 pt-3 sm:px-5" role="region" aria-label={`Concurrenten van ${row.name}`} tabIndex={0}>
+          {sortedOffers.length > 0 ? <details defaultOpen={rows[0]?.id === row.id} className="group"><summary className="flex cursor-pointer items-center justify-between border-t border-[#ecf0f5] px-4 py-3 text-[12px] font-semibold text-[#315fa7] sm:px-5">Concurrentieprijzen bekijken ({sortedOffers.length})<span aria-hidden="true" className="text-[#7b8da2]">⌄</span></summary><div className="overflow-x-auto px-4 pb-4 pt-3 sm:px-5" role="region" aria-label={`Concurrenten van ${row.name}`} tabIndex={0}>
             <table className="w-full min-w-[680px] text-left text-[12px]">
               <thead className="text-[10px] font-semibold text-[#687b91]">
                 <tr><th scope="col" className="py-2 pr-3">Concurrent</th><th scope="col" className="px-3 py-2 text-right">Prijs incl. btw</th><th scope="col" className="px-3 py-2 text-right">Prijs excl. btw</th><th scope="col" className="px-3 py-2 text-right">Verzending incl. btw</th><th scope="col" className="px-3 py-2 text-right">Totaal incl. verzending</th><th scope="col" className="px-3 py-2 text-right">Meting</th><th scope="col" className="py-2 pl-3 text-right">Acties</th></tr>
@@ -71,7 +71,7 @@ export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction
               </tbody>
             </table>
             <p className="mt-2 text-[10px] text-[#7c8ba0]">Een onbekende verzendprijs wordt niet als gratis verzending weergegeven. Nieuwe productmatches worden pas als concurrentieprijs getoond na bevestiging en een geslaagde prijscontrole.</p>
-          </div> : <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
+          </div></details> : <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
             <p className="text-[12px] text-[#65778d]">{row.review > 0 ? `${row.review} concurrentiesuggesties wachten op beoordeling.` : 'Nog geen bevestigde concurrentieprijzen voor dit product.'}</p>
             <Link href={row.detailHref + '#concurrenten-vinden'} className="secondary-action min-h-[34px] px-3 py-1.5 text-[11px]">Concurrenten vinden</Link>
           </div>}
