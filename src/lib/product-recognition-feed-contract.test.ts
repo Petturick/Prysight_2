@@ -31,7 +31,7 @@ test('EAN onboarding never treats ex VAT source prices as incl VAT and shows fee
 
 test('URL onboarding applies verified category and handles blocked or partial pages', () => {
   assert.match(urlRoute, /details.description/)
-  assert.match(urlRoute, /shippingCost: offer.shippingCost/)
+  assert.match(urlRoute, /shippingCost: owned \? offer.shippingCost : null/)
   assert.match(urlRoute, /response\?\.status === 403 \|\| response\?\.status === 429/)
   assert.match(urlField, /if \(payload.partial\)/)
   assert.match(urlField, /apply\('productGroup', option.value\)/)
