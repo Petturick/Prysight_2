@@ -217,10 +217,17 @@ export async function POST(request: Request) {
           try { html = await readLimitedHtml(response) }
           catch (error) { console.warn('Direct URL extraction unavailable, trying fallback', error) }
           if (html.trim()) {
-            const offer = extractOfferSnapshot(html)
             const details = structuredProductDetails(html)
+            const offer = extractOfferSnapshot(html, {
+              ean: details.ean, productName: details.name,
+              countryCode: typeof body.countryCode === 'string' ? body.countryCode : null,
+            })
             const vat = detectVatInclusion(html, offer.price)
             const resolvedUrl = response.url || rawUrl
+            if (offer.ean && details.ean && validGtin(offer.ean) && validGtin(details.ean) && offer.ean !== details.ean) {
+              return NextResponse.json({ url: resolvedUrl, partial: true,
+                reason: 'Deze productpagina bevat verschillende EAN codes. Controleer de uitvoering of gebruik de eigen productfeed.' })
+            }
             if (offer.productTitle || offer.sku || offer.ean || offer.price || details.name || details.sku || details.ean) {
               const extractedEan = offer.ean ?? details.ean
               const owned = trustedOwnUrl(resolvedUrl)
