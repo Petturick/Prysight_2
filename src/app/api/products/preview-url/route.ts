@@ -213,7 +213,9 @@ export async function POST(request: Request) {
       if (response?.ok) {
         const contentType = response.headers.get('content-type') ?? ''
         if (contentType.includes('text/html') || contentType.includes('application/xhtml+xml')) {
-          const html = await readLimitedHtml(response)
+          let html = ''
+          try { html = await readLimitedHtml(response) }
+          catch (error) { console.warn('Direct URL extraction unavailable, trying fallback', error) }
           if (html.trim()) {
             const offer = extractOfferSnapshot(html)
             const details = structuredProductDetails(html)
