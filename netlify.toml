@@ -14,3 +14,15 @@ region = "lhr"
 
 [functions."scheduled-price-check"]
 region = "lhr"
+
+
+# Baseline browser hardening. A nonce based CSP is handled separately because
+# Next.js requires inline bootstrap scripts during server rendering.
+[[headers]]
+for = "/*"
+  [headers.values]
+  X-Content-Type-Options = "nosniff"
+  X-Frame-Options = "DENY"
+  Referrer-Policy = "strict-origin-when-cross-origin"
+  Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+  Strict-Transport-Security = "max-age=31536000; includeSubDomains"

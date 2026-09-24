@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto'
 import { MatchStatus, Prisma } from '@/generated/prisma/client'
 import { evaluateMonitoringAlerts } from '@/lib/alert-engine'
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
+import { monitoringLockUntil, nextFailureCheckAt, nextSuccessfulCheckAt } from '@/lib/monitoring-schedule'
+import { createCorrelationId, logOperationalEvent } from '@/lib/observability'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
 import { extractShippingSnapshot } from '@/lib/shipping-extraction'
@@ -658,14 +661,71 @@ function isManuallyConfirmedMatch(value: unknown) {
   return String((value as Record<string, unknown>).source ?? '').trim().toLowerCase() === 'manual'
 }
 
-export async function runPriceCheck(competitorOfferId: string, companyId: string, capacityVerified = false) {
+type PriceCheckExecutionOptions = { force?: boolean; correlationId?: string }
+
+async function claimPriceCheck(competitorOfferId: string, companyId: string, force: boolean) {
+  const startedAt = new Date()
+  const token = randomUUID()
+  const scheduleConstraint = force
+    ? []
+    : [{ OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: startedAt } }] }]
+  const claimed = await prisma.competitorOffer.updateMany({
+    where: {
+      id: competitorOfferId,
+      companyId,
+      isActive: true,
+      AND: [
+        { OR: [{ checkLockedUntil: null }, { checkLockedUntil: { lt: startedAt } }] },
+        ...scheduleConstraint,
+      ],
+    },
+    data: {
+      checkLockToken: token,
+      checkLockedUntil: monitoringLockUntil(startedAt),
+      lastAttemptAt: startedAt,
+    },
+  })
+  return claimed.count === 1 ? { token, startedAt } : null
+}
+
+export async function runPriceCheck(
+  competitorOfferId: string,
+  companyId: string,
+  capacityVerified = false,
+  execution: PriceCheckExecutionOptions = { force: true },
+) {
   if (!companyId?.trim()) throw new Error('companyId is verplicht voor prijscontrole.')
+  const correlationId = execution.correlationId ?? createCorrelationId('pricecheck')
+  const claim = await claimPriceCheck(competitorOfferId, companyId, execution.force !== false)
+  if (!claim) {
+    return {
+      competitorOfferId,
+      success: false,
+      skipped: true,
+      checkedAt: new Date(),
+      error: 'Prijscontrole wordt al uitgevoerd of is nog niet gepland.',
+      correlationId,
+    }
+  }
+
   const offer = await prisma.competitorOffer.findFirst({
     where: { id: competitorOfferId, companyId },
     include: { competitor: { include: { country: true } }, productMatch: { include: { product: true } } },
   })
-  if (!offer) throw new Error('Concurrentieaanbieding niet gevonden.')
-  if (!offer.isActive || !offer.competitor.isActive) throw new Error('Aanbieding of concurrent is niet actief.')
+  if (!offer) {
+    await prisma.competitorOffer.updateMany({
+      where: { id: competitorOfferId, companyId, checkLockToken: claim.token },
+      data: { checkLockToken: null, checkLockedUntil: null },
+    })
+    throw new Error('Concurrentieaanbieding niet gevonden.')
+  }
+  if (!offer.isActive || !offer.competitor.isActive) {
+    await prisma.competitorOffer.updateMany({
+      where: { id: offer.id, companyId, checkLockToken: claim.token },
+      data: { checkLockToken: null, checkLockedUntil: null },
+    })
+    throw new Error('Aanbieding of concurrent is niet actief.')
+  }
   if (!capacityVerified) await assertCompanyCapacity(offer.companyId, 'checksPerDay')
 
   const checkedAt = new Date()
@@ -887,8 +947,8 @@ export async function runPriceCheck(competitorOfferId: string, companyId: string
           source: checkMethod,
         },
       }),
-      prisma.competitorOffer.update({
-        where: { id: offer.id },
+      prisma.competitorOffer.updateMany({
+        where: { id: offer.id, companyId: offer.companyId, checkLockToken: claim.token },
         data: {
           rawPrice: new Prisma.Decimal(extracted.price),
           normalizedPrice: normalized,
@@ -902,6 +962,12 @@ export async function runPriceCheck(competitorOfferId: string, companyId: string
           vatIncluded: sourceVatIncluded,
           stockStatus: extracted.stockStatus ?? offer.stockStatus,
           lastCheckedAt: checkedAt,
+          lastAttemptAt: checkedAt,
+          lastSuccessfulCheckAt: checkedAt,
+          nextCheckAt: nextSuccessfulCheckAt(checkedAt, offer.competitor.checkFrequencyHours),
+          consecutiveFailures: 0,
+          checkLockedUntil: null,
+          checkLockToken: null,
         },
       }),
       prisma.competitor.update({ where: { id: offer.competitorId }, data: { lastCheckedAt: checkedAt } }),
@@ -923,10 +989,22 @@ export async function runPriceCheck(competitorOfferId: string, companyId: string
       currentStockStatus: extracted.stockStatus ?? offer.stockStatus,
     })
 
+    logOperationalEvent('info', 'price_check_succeeded', {
+      correlationId,
+      companyId: offer.companyId,
+      competitorOfferId: offer.id,
+      competitorId: offer.competitorId,
+      fetchMode,
+      method: checkMethod,
+      normalizedPrice: normalized.toNumber(),
+      hasShipping: normalizedShipping !== null,
+    })
+
     return {
       competitorOfferId: offer.id,
       success: true,
       checkedAt,
+      correlationId,
       price: extracted.price,
       normalizedPrice: normalized.toNumber(),
       currency,
@@ -945,10 +1023,14 @@ export async function runPriceCheck(competitorOfferId: string, companyId: string
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Onbekende fout tijdens prijscontrole.'
     const message = publicPriceCheckErrorMessage(error)
-    console.warn('Price check failed', {
+    logOperationalEvent('warn', 'price_check_failed', {
+      correlationId,
       companyId: offer.companyId,
       competitorOfferId: offer.id,
+      competitorId: offer.competitorId,
       error: rawMessage,
+      publicError: message,
+      consecutiveFailures: offer.consecutiveFailures + 1,
     })
     await prisma.$transaction([
       prisma.priceCheck.create({
@@ -971,11 +1053,25 @@ export async function runPriceCheck(competitorOfferId: string, companyId: string
           isSuccess: false,
         },
       }),
-      prisma.competitorOffer.update({ where: { id: offer.id }, data: { lastCheckedAt: checkedAt } }),
+      prisma.competitorOffer.updateMany({
+        where: { id: offer.id, companyId: offer.companyId, checkLockToken: claim.token },
+        data: {
+          lastCheckedAt: checkedAt,
+          lastAttemptAt: checkedAt,
+          nextCheckAt: nextFailureCheckAt(checkedAt, offer.consecutiveFailures + 1),
+          consecutiveFailures: { increment: 1 },
+          checkLockedUntil: null,
+          checkLockToken: null,
+        },
+      }),
       prisma.competitor.update({ where: { id: offer.competitorId }, data: { lastCheckedAt: checkedAt } }),
     ])
-    return { competitorOfferId: offer.id, success: false, checkedAt, error: message }
+    return { competitorOfferId: offer.id, success: false, checkedAt, error: message, correlationId }
   }
+}
+
+function failedCount(results: Array<{ success: boolean; skipped?: boolean }>) {
+  return results.filter((result) => !result.success && !result.skipped).length
 }
 
 export async function runDuePriceChecks({
@@ -995,39 +1091,57 @@ export async function runDuePriceChecks({
 }) {
   if (!companyId?.trim()) throw new Error('companyId is verplicht voor prijsmonitoring.')
   const cappedLimit = Math.min(Math.max(limit, 1), 200)
+  const now = new Date()
+  const scheduledConstraint = force || competitorOfferId
+    ? []
+    : [{ OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: now } }] }]
   const offers = await prisma.competitorOffer.findMany({
     where: {
       companyId,
       id: competitorOfferId,
       isActive: true,
+      AND: [
+        { OR: [{ checkLockedUntil: null }, { checkLockedUntil: { lt: now } }] },
+        ...scheduledConstraint,
+      ],
       competitor: { isActive: true, ...(countryIds ? { countryId: { in: countryIds } } : {}) },
       productMatch: productId
         ? { productId, matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } }
         : { matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } },
     },
     include: { competitor: true },
-    orderBy: { lastCheckedAt: 'asc' },
-    take: Math.min(cappedLimit * 5, 500),
+    orderBy: [{ nextCheckAt: 'asc' }, { lastSuccessfulCheckAt: 'asc' }],
+    take: cappedLimit,
   })
 
-  const now = Date.now()
-  const due = offers
-    .filter((offer) => force || competitorOfferId || !offer.lastCheckedAt || now - offer.lastCheckedAt.getTime() >= offer.competitor.checkFrequencyHours * 60 * 60 * 1000)
-    .slice(0, cappedLimit)
+  const due = offers.slice(0, cappedLimit)
 
   if (due.length > 0) await assertCompanyCapacity(companyId, 'checksPerDay', due.length)
   const results = []
+  const runCorrelationId = createCorrelationId('monitoring')
   const concurrency = Math.min(4, due.length)
   for (let index = 0; index < due.length; index += concurrency) {
     const batch = due.slice(index, index + concurrency)
-    results.push(...await Promise.all(batch.map((offer) => runPriceCheck(offer.id, companyId, true))))
+    results.push(...await Promise.all(batch.map((offer) => runPriceCheck(offer.id, companyId, true, { force: force || Boolean(competitorOfferId), correlationId: runCorrelationId }))))
   }
 
-  return {
+  logOperationalEvent(failedCount(results) > 0 ? 'warn' : 'info', 'monitoring_batch_completed', {
+    correlationId: runCorrelationId,
+    companyId,
     requested: cappedLimit,
     due: due.length,
     successful: results.filter((result) => result.success).length,
-    failed: results.filter((result) => !result.success).length,
+    failed: failedCount(results),
+    skipped: results.filter((result) => 'skipped' in result && result.skipped).length,
+  })
+
+  return {
+    correlationId: runCorrelationId,
+    requested: cappedLimit,
+    due: due.length,
+    successful: results.filter((result) => result.success).length,
+    failed: failedCount(results),
+    skipped: results.filter((result) => 'skipped' in result && result.skipped).length,
     results,
   }
 }
