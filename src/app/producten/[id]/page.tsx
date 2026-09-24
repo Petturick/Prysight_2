@@ -176,8 +176,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const displayProductName = hasReadableProductName ? product.name : feedName ?? `Artikel ${product.articleNumber}`
   const productNameNeedsAttention = !hasReadableProductName && !feedName
   const marketMatches = product.matches.filter((match) => match.competitorOffer.competitor.isActive && (!defaultCountry || match.competitorOffer.competitor.countryId === defaultCountry.id))
+  const retailerCandidates = [...marketMatches].sort((a, b) =>
+    Number(b.matchStatus === 'CERTAIN') - Number(a.matchStatus === 'CERTAIN') ||
+    a.competitorOffer.id.localeCompare(b.competitorOffer.id))
   const retailerVerificationMatches = ['brico', 'praxis'].map((retailer) =>
-    marketMatches.find((match) =>
+    retailerCandidates.find((match) =>
       match.competitorOffer.isActive &&
       match.competitorOffer.competitor.name.trim().toLowerCase() === retailer &&
       (match.matchStatus === 'CERTAIN' || match.matchStatus === 'REVIEW'),
