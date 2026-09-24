@@ -520,7 +520,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                   <div className="min-w-[160px] flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-[14px] font-semibold text-[#2d4057]">{offer.competitor.name}</h3>
-                      <span className="ps-chip ps-chip-green">Product bevestigd</span>
+                      <span className={`ps-chip ${price !== null ? 'ps-chip-green' : 'ps-chip-amber'}`}>{price !== null ? 'Product en prijs bevestigd' : 'Product gekoppeld, prijs niet bevestigd'}</span>
                       {price !== null && index === 0 ? <span className="ps-chip ps-chip-blue">Laagste gevonden prijs</span> : null}
                     </div>
                     <p className="mt-1 text-[11px] text-[#78889a]">{offer.competitor.country.name} · {offer.lastCheckedAt ? `Gecontroleerd ${formatDate(offer.lastCheckedAt)}` : 'Nog niet gecontroleerd'}</p>
@@ -561,7 +561,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                     </details>
                   </div>
                 </div>
-                {sourceIssue ? <div className="mt-3 rounded-[9px] bg-[#fff8eb] px-3 py-2 text-[11px] text-[#76591d]">{sourceIssue}. Dit is geen nieuwe bevestigde prijs.</div> : null}
+                {sourceIssue ? <div className="mt-3 rounded-[9px] bg-[#fff8eb] px-3 py-2 text-[11px] text-[#76591d]">{sourceIssue} Dit is geen nieuwe bevestigde prijs.</div> : null}
               </article>
             )
           })}
@@ -644,7 +644,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
               <p className="mt-1 text-[24px] font-semibold text-[#21364d]">{formatCurrency(recommendedPrice, ownCurrency)}</p>
               <p className="mt-1 text-[12px] text-[#66778a]">{actionLabel(recommendation?.action)}{expectedMargin === null ? ', marge nog onbekend' : `, verwachte marge ${formatNumber(expectedMargin, 1)}%`}</p>
             </div>
-            <Link href="/prijswijzigingen" className="primary-action">Prijsvoorstellen beoordelen</Link>
+            <Link href="/prijsstrategie" className="primary-action">Prijsadvies beoordelen en aanvraag maken</Link>
           </div>
         )}
         <details className="mt-4 text-[12px] text-[#66778a]">
