@@ -15,7 +15,7 @@ function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function KpiCard({ label, value, helper, tone, icon }: { label: string; value: number; helper: string; tone: 'blue' | 'red' | 'green' | 'amber'; icon: ReactNode }) {
+function KpiCard({ label, value, tone, icon }: { label: string; value: number; tone: 'blue' | 'red' | 'green' | 'amber'; icon: ReactNode }) {
   const toneClasses = {
     blue: 'bg-[#eef2ff] text-[#4255ff]',
     red: 'bg-[#fff0f1] text-[#ef434f]',
@@ -29,7 +29,6 @@ function KpiCard({ label, value, helper, tone, icon }: { label: string; value: n
       <div className="min-w-0">
         <p className="text-[12px] font-semibold text-[#536178]">{label}</p>
         <p className="mt-1 text-[30px] font-bold tracking-[-0.04em] text-[#17233b]">{formatNumber(value)}</p>
-        <p className="mt-2 text-[10px] font-medium text-[#8a95a8]">{helper}</p>
       </div>
     </div>
   )
@@ -97,25 +96,13 @@ export default async function WaarschuwingenPage({ searchParams }: { searchParam
     <div className="space-y-6 pb-8">
       {!result.available && <DatabaseNotice />}
 
-      <section className="px-1 pt-1">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="eyebrow">Analyse en actie</p>
-            <h1 className="mt-2 text-[32px] font-bold tracking-[-0.045em] text-[#17233b]">Waarschuwingen</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#66758b]">Signaleringen op prijsverschillen, mislukte controles en afwijkende marktontwikkelingen.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/monitoring" className="secondary-action">Monitoringstatus</Link>
-            <Link href="/producten" className="primary-action">Producten bekijken</Link>
-          </div>
-        </div>
-      </section>
+      <div className="flex justify-end gap-2"><Link href="/monitoring" className="secondary-action">Monitoring</Link><Link href="/producten" className="primary-action">Producten</Link></div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Totaal waarschuwingen" value={totalAlerts} helper="Alle signalen binnen deze omgeving" tone="blue" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>} />
-        <KpiCard label="Kritiek" value={criticalAlerts} helper="Vraagt directe beoordeling" tone="red" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16.5v.1"/></svg>} />
-        <KpiCard label="Nieuwe vandaag" value={todayAlerts} helper="Nieuwe signalen sinds 00:00" tone="green" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>} />
-        <KpiCard label="Mislukte controles" value={failedChecks} helper="Prijscontroles met een fout" tone="amber" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 8a7 7 0 0 1 11.6-2L20 11M4 13l2.3 5a7 7 0 0 0 11.6-2"/></svg>} />
+        <KpiCard label="Totaal waarschuwingen" value={totalAlerts} tone="blue" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>} />
+        <KpiCard label="Kritiek" value={criticalAlerts} tone="red" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16.5v.1"/></svg>} />
+        <KpiCard label="Nieuwe vandaag" value={todayAlerts} tone="green" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>} />
+        <KpiCard label="Mislukte controles" value={failedChecks} tone="amber" icon={<svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 8a7 7 0 0 1 11.6-2L20 11M4 13l2.3 5a7 7 0 0 0 11.6-2"/></svg>} />
       </section>
 
       <form className="prysight-elevated-card p-4 sm:p-5">
@@ -157,7 +144,7 @@ export default async function WaarschuwingenPage({ searchParams }: { searchParam
         </div>
       </section> : null}
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+      <section>
         <div className="prysight-elevated-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-[11px]">
@@ -189,17 +176,6 @@ export default async function WaarschuwingenPage({ searchParams }: { searchParam
           </div>
         </div>
 
-        <aside className="prysight-elevated-card h-fit p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eef2ff] text-[#5360f4]"><svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3 4 6v5c0 5 3.4 8.2 8 10 4.6-1.8 8-5 8-10V6l-8-3Z"/></svg></div>
-            <div><p className="text-[12px] font-semibold text-[#344057]">Zo werken waarschuwingen</p><p className="mt-0.5 text-[9px] text-[#8b95a7]">Van bron naar actie</p></div>
-          </div>
-          <p className="mt-4 text-[10px] leading-5 text-[#708096]">Prysight monitort continu je markt via imports, productmatches en prijscontroles.</p>
-          <div className="mt-5 space-y-5">
-            {[['Import', 'Nieuwe data uit feeds en imports wordt gevalideerd en gekoppeld.'], ['Matches', 'Productmatches verbinden jouw producten met die van concurrenten.'], ['Prijscontroles', 'Prijsverschillen, dalingen en marktontwikkelingen worden gedetecteerd.']].map(([title, description], index) => <div key={title} className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f1f3ff] text-[11px] font-bold text-[#5962ec]">{index + 1}</div><div><p className="text-[11px] font-semibold text-[#3b475e]">{title}</p><p className="mt-1 text-[9px] leading-4 text-[#8290a3]">{description}</p></div></div>)}
-          </div>
-          <div className="mt-5 rounded-2xl bg-[#f7f8ff] p-4 text-[9px] leading-4 text-[#707d92]">Waarschuwingen helpen je sneller reageren en betere prijsbeslissingen nemen.</div>
-        </aside>
       </section>
     </div>
   )
