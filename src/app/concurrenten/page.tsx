@@ -152,10 +152,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
       <section className="ps-panel flex flex-wrap items-end justify-between gap-3 px-5 py-4 sm:px-6" aria-label="Markt selecteren en toevoegen">
         <div className="flex flex-wrap items-end gap-3">
           <span className="text-[12px] font-semibold text-[#34495f]">{selectedMarket ? selectedMarket.name : 'Alle actieve markten'}</span>
-          <div className="flex flex-col gap-1 pb-1 text-[11px] text-[#718197]">
-            <span>{selectedMarket ? `Je bekijkt concurrenten in ${selectedMarket.name}.` : 'Je bekijkt de concurrenten van alle actieve markten.'}</span>
-            {selectedMarket ? <Link href={`/producten?land=${encodeURIComponent(selectedMarket.id)}`} className="font-semibold text-[#356ccd]">Producten in {selectedMarket.name} bekijken</Link> : null}
-          </div>
+          {selectedMarket ? <Link href={`/producten?land=${encodeURIComponent(selectedMarket.id)}`} className="text-[11px] font-semibold text-[#356ccd]">Bekijk producten</Link> : null}
         </div>
         {canManageMarkets ? (
           <details className="group w-full max-w-[360px] rounded-[10px] border border-[#dbe4ef] bg-white p-3">
@@ -181,23 +178,11 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
         )}
       </section>
 
-      <section className="strong-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <h1>Concurrenten</h1>
-            <p className="mt-1 text-[12px] text-[#6f7d90]">Voeg concurrenten toe, controleer prijzen en beheer je productkoppelingen.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {canWrite ? <Link href="/import" className="secondary-action">URLs importeren</Link> : null}
-            <Link href="/productmatches" className="primary-action">Matches controleren</Link>
-          </div>
-        </div>
-        <div className="grid border-t border-[#e7edf3] sm:grid-cols-2 xl:grid-cols-4">
-          <div className="px-5 py-3.5 sm:px-6"><p className="text-[11px] font-medium text-[#7a8798]">Actieve concurrenten</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(competitors.filter((competitor) => competitor.isActive).length)}</p></div>
-          <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Gekoppelde producten</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(linkedProducts)}</p></div>
-          <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Geldige prijzen</p><p className="mt-1 text-[22px] font-semibold text-[#1e2d3f]">{formatNumber(validPrices)}</p></div>
-          <div className="px-5 py-3.5"><p className="text-[11px] font-medium text-[#7a8798]">Aandacht nodig</p><p className={`mt-1 text-[22px] font-semibold ${failedSources ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{formatNumber(failedSources)}</p></div>
-        </div>
+      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="Concurrentiestatus">
+        <div className="premium-kpi-card px-4 py-3"><p className="text-[11px] text-[#7a8798]">Actief</p><p className="mt-1 text-[20px] font-semibold text-[#1e2d3f]">{formatNumber(competitors.filter((competitor) => competitor.isActive).length)}</p></div>
+        <div className="premium-kpi-card px-4 py-3"><p className="text-[11px] text-[#7a8798]">Producten</p><p className="mt-1 text-[20px] font-semibold text-[#1e2d3f]">{formatNumber(linkedProducts)}</p></div>
+        <div className="premium-kpi-card px-4 py-3"><p className="text-[11px] text-[#7a8798]">Geldige prijzen</p><p className="mt-1 text-[20px] font-semibold text-[#1e2d3f]">{formatNumber(validPrices)}</p></div>
+        <Link href="/productmatches" className="premium-kpi-card px-4 py-3 transition hover:border-[#cfd8e4]"><p className="text-[11px] text-[#7a8798]">Aandacht</p><p className={`mt-1 text-[20px] font-semibold ${failedSources ? 'text-[#b6414d]' : 'text-[#20814d]'}`}>{formatNumber(failedSources)}</p></Link>
       </section>
 
       {competitorsWithCurrentFailures > 0 ? (
@@ -213,7 +198,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
       {canWrite ? (
         <details className="ps-panel group overflow-hidden" open={competitors.length === 0 && countries.length > 0}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
-            <div><h2 className="text-[14px] font-semibold text-[#23364d]">Concurrent toevoegen</h2><p className="mt-1 text-[11px] text-[#7a8798]">Naam, website, land en controlefrequentie. De gekozen markt wordt automatisch ingevuld.</p></div>
+            <h2 className="text-[14px] font-semibold text-[#23364d]">Concurrent toevoegen</h2>
             <span className="secondary-action min-h-0 px-3 py-2 text-[11px] group-open:hidden">Openen</span>
             <span className="hidden text-[11px] font-semibold text-[#69798a] group-open:inline">Sluiten</span>
           </summary>
@@ -231,7 +216,7 @@ export default async function ConcurrentenPage({ searchParams }: { searchParams:
 
       {selectedMarket && competitors.length === 0 ? (
         <p className="rounded-[10px] border border-[#dce6f3] bg-[#f5f9ff] px-4 py-3 text-[11px] leading-5 text-[#526984]">
-          In {selectedMarket.name} staan nog geen concurrenten. Voeg hieronder een concurrent toe en koppel daarna product URL’s of een productfeed voor deze markt. Producten en prijzen uit andere landen worden niet automatisch overgenomen.
+          Nog geen concurrenten in {selectedMarket.name}. Voeg je eerste concurrent toe.
         </p>
       ) : null}
 
