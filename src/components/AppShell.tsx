@@ -39,6 +39,10 @@ function routeMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/import/bulk')) return { title: 'Bulk import' }
   if (pathname.startsWith('/import')) return { title: 'Importeren' }
   if (pathname.startsWith('/integraties')) return { title: 'Integraties' }
+  if (pathname.startsWith('/beheer/synchronisatie')) return { title: 'Synchronisatie' }
+  if (pathname.startsWith('/beheer/concurrenten')) return { title: 'Concurrenten beheren' }
+  if (pathname.startsWith('/beheer/productgroepen')) return { title: 'Productgroepen' }
+  if (pathname.startsWith('/beheer/webshops')) return { title: 'Webshops' }
   if (pathname.startsWith('/beheer')) return { title: 'Beheer' }
   if (pathname.startsWith('/instellingen/feedbeheer')) return { title: 'Feedbeheer' }
   if (pathname.startsWith('/instellingen/data')) return { title: 'Databeheer' }
