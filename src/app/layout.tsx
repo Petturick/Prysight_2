@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import './globals.css'
 import './prysight-modern.css'
 
+// Product wide calm UX release, 25 September 2026
 export const metadata: Metadata = {
   title: 'PrySight pricing intelligence',
   description: 'Prijsmonitoring, concurrentie intelligence en prijsadvies vanuit één duidelijke workflow.',
