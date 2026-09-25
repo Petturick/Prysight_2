@@ -252,7 +252,7 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
     </section>
 
     {(snapshot.kpis.failedChecks > 0 || snapshot.kpis.staleData > 0 || snapshot.kpis.reviewMatches > 0) &&
-      <section className="surface-card p-5">
+      <section className="surface-card p-5" aria-label="Technische kwaliteit">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-[15px] font-semibold text-[#25324a]">Monitoring en controles</h2>
