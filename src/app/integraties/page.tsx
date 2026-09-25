@@ -76,16 +76,7 @@ export default async function IntegrationsPage() {
 
   return (
     <div className="space-y-5">
-      <section className="strong-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
-          <div>
-            <p className="eyebrow">Integraties</p>
-            <h1 className="mt-2 text-[29px] font-semibold tracking-[-0.035em] text-[#161a26]">Koppel systemen, test ze en gebruik ze echt</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Een integratie krijgt pas de status gekoppeld nadat de externe verbinding technisch is gecontroleerd. Credentials blijven server side en Magento writeback blijft achter de bestaande approval flow.</p>
-          </div>
-          <div className="flex flex-wrap gap-2"><Link href="/feeds" className="secondary-action">Feedbeheer</Link><Link href="/prijswijzigingen" className="primary-action">Prijsuitvoering</Link></div>
-        </div>
-      </section>
+      <div className="flex justify-end gap-2"><Link href="/feeds" className="secondary-action">Feeds</Link><Link href="/prijswijzigingen" className="primary-action">Prijsuitvoering</Link></div>
 
       <section className="grid gap-4 xl:grid-cols-2">
         <article className="surface-card p-5">
@@ -96,7 +87,7 @@ export default async function IntegrationsPage() {
             </div>
             <Status ready={Boolean(syntrx)} label={syntrx ? 'Gekoppeld' : 'Nog niet gekoppeld'} />
           </div>
-          <p className="mt-3 text-[11px] leading-6 text-[#697386]">Syntrx heeft een native PrySight connector. Activeer PrySight in Syntrx, voer daar de synchronisatie uit en PrySight registreert de bron automatisch na de eerste geldige overdracht.</p>
+          <p className="mt-3 text-[11px] leading-5 text-[#697386]">Activeer Prysight in Syntrx, de eerste geldige synchronisatie koppelt de bron automatisch.</p>
           <div className="mt-4 rounded-[11px] bg-[#f6f8fb] px-3 py-3 text-[10px] leading-5 text-[#6f7b91]">
             {syntrx ? <>Laatste synchronisatie {formatDate(syntrx.lastRunAt)}, {syntrx.lastItemCount} regels, status {syntrx.lastRunStatus}.</> : <>Nog geen geldige Syntrx overdracht ontvangen voor deze organisatie.</>}
           </div>
@@ -104,7 +95,7 @@ export default async function IntegrationsPage() {
             <a href="https://app.syntrx.eu/integrations" target="_blank" rel="noreferrer" className="primary-action">Open Syntrx integraties</a>
             <Link href="/integraties" className="secondary-action">Status vernieuwen</Link>
           </div>
-          <p className="mt-3 text-[9px] leading-5 text-[#8790a2]">Doelendpoint in Syntrx, https://prysight.netlify.app/api/integraties/syntrx</p>
+          <details className="mt-3 text-[10px] text-[#8790a2]"><summary className="cursor-pointer font-semibold">Technische details</summary><p className="mt-2">Doelendpoint, https://prysight.netlify.app/api/integraties/syntrx</p></details>
         </article>
 
         <article className="surface-card p-5">
@@ -115,19 +106,16 @@ export default async function IntegrationsPage() {
             </div>
             <Status ready={magentoSummary.ready} label={magentoSummary.ready ? 'Gekoppeld' : 'Niet gekoppeld'} />
           </div>
-          <p className="mt-3 text-[11px] leading-6 text-[#697386]">Koppel Magento 2 met een Integration Access Token. PrySight test de API eerst tegen de storeviews en activeert writeback alleen na een geslaagde controle.</p>
+          <p className="mt-3 text-[11px] leading-5 text-[#697386]">Koppel Magento met een Integration Access Token, writeback wordt pas actief na een geslaagde API test.</p>
           <MagentoIntegrationPanel initialSummary={magentoSummary} canManage={canManage} />
         </article>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        {supportingCards.map((card) => <div key={card.title} className="surface-card flex min-h-[210px] flex-col p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8a93a5]">{card.kicker}</p><h2 className="mt-1.5 text-[14px] font-semibold text-[#252a37]">{card.title}</h2></div><Status ready={card.ready} /></div><p className="mt-3 text-[11px] leading-6 text-[#697386]">{card.description}</p><div className="mt-auto pt-4"><p className="rounded-[11px] bg-[#f6f8fb] px-3 py-3 text-[9px] leading-5 text-[#7d8799]">{card.detail}</p><Link href={card.href} className="mt-3 inline-flex text-[10px] font-semibold text-[var(--blue)]">{card.linkLabel} →</Link></div></div>)}
+        {supportingCards.map((card) => <div key={card.title} className="surface-card flex min-h-[170px] flex-col p-5"><div className="flex items-start justify-between gap-3"><h2 className="text-[14px] font-semibold text-[#252a37]">{card.title}</h2><Status ready={card.ready} /></div><p className="mt-3 text-[11px] leading-5 text-[#697386]">{card.description}</p><div className="mt-auto pt-4"><details className="text-[10px] text-[#7d8799]"><summary className="cursor-pointer font-semibold">Details</summary><p className="mt-2 leading-5">{card.detail}</p></details><Link href={card.href} className="mt-3 inline-flex text-[10px] font-semibold text-[var(--blue)]">{card.linkLabel} →</Link></div></div>)}
       </section>
 
-      <section className="surface-card p-5">
-        <h2 className="text-[14px] font-semibold text-[#252a37]">Writeback veiligheidsketen</h2>
-        <p className="mt-2 max-w-5xl text-[11px] leading-6 text-[#697386]">Prijsadvies → aanvraag → commerciële hercontrole → goedkeuring → live Magento prijs opnieuw lezen → alleen bij een onveranderde uitgangsprijs publiceren → prijs opnieuw uitlezen → lokale prijshistorie synchroniseren. Rollback wordt automatisch geblokkeerd zodra de Magento prijs na PrySight publicatie buiten PrySight opnieuw is aangepast.</p>
-      </section>
+      <details className="surface-card overflow-hidden"><summary className="cursor-pointer list-none px-5 py-4 text-[13px] font-semibold text-[#252a37]">Writeback beveiliging</summary><p className="border-t border-[#edf0f3] px-5 py-4 text-[11px] leading-5 text-[#697386]">Prijsadvies, aanvraag, hercontrole, goedkeuring, live prijscontrole, publicatie en verificatie. Rollback wordt geblokkeerd zodra de prijs buiten Prysight is gewijzigd.</p></details>
     </div>
   )
 }
