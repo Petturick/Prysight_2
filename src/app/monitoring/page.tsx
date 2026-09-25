@@ -115,7 +115,7 @@ export default async function MonitoringPage() {
     <div className="space-y-5">
       {!result.available && <DatabaseNotice />}
 
-      <section className="ps-panel overflow-hidden">
+      <section className="ps-panel overflow-hidden" aria-label="Monitoringstatus">
         <div className="grid border-t border-[#e8edf3] md:grid-cols-5">
           <div className="px-5 py-4 sm:px-6"><p className="text-[10px] font-semibold text-[#718096]">Monitoringdekking</p><p className="mt-1 text-[26px] font-semibold text-[#17233a] tabular-nums">{readyCoverage}%</p></div>
           <div className="border-t border-[#e8edf3] px-5 py-4 md:border-l md:border-t-0 sm:px-6"><p className="text-[10px] font-semibold text-[#718096]">Succes 24 uur</p><p className={`mt-1 text-[26px] font-semibold tabular-nums ${successRate24h >= 90 ? 'text-[#0d7a49]' : successRate24h >= 60 ? 'text-[#9a5b00]' : 'text-[#b4233d]'}`}>{successRate24h}%</p></div>
