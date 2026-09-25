@@ -53,9 +53,9 @@ export function FeedMappingEditor({ sourceId, sourceName, columns }: { sourceId:
   return <section className="surface-card overflow-hidden">
     <div className="border-b border-[var(--border)] px-5 py-5 sm:px-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="eyebrow">Kolomkoppeling</p><h2 className="mt-2 text-lg font-semibold text-[#161a26]">{sourceName}</h2><p className="mt-1 text-[12px] leading-5 text-[#697386]">Prysight herkent bronkolommen automatisch. Controleer de suggesties en bevestig de mapping voordat je de feed opnieuw synchroniseert.</p></div>
+        <h2 className="text-[14px] font-semibold text-[#25364b]">{sourceName}</h2>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void call('suggest')} disabled={Boolean(busy)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-[11px] font-semibold text-[#697386] disabled:opacity-50">{busy === 'suggest' ? 'Herkennen…' : 'Opnieuw automatisch herkennen'}</button>
+          <button type="button" onClick={() => void call('suggest')} disabled={Boolean(busy)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-[11px] font-semibold text-[#697386] disabled:opacity-50">{busy === 'suggest' ? 'Herkennen…' : 'Opnieuw herkennen'}</button>
           <button type="button" onClick={() => void call('save')} disabled={Boolean(busy) || !identifierReady} title={!identifierReady ? 'Koppel minimaal artikelnummer, EAN of GTIN.' : undefined} className="rounded-lg bg-[#161a26] px-3 py-2 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{busy === 'save' ? 'Opslaan…' : 'Mapping opslaan'}</button>
         </div>
       </div>

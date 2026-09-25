@@ -21,10 +21,7 @@ export default async function BeheerConcurrentenPage() {
   return (
     <div className="space-y-6">
       {!result.available && <DatabaseNotice />}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-[22px] font-semibold text-[#172033]">Concurrenten beheren</h1><p className="mt-1 text-[12px] text-[#6b788b]">Pauzeer of verwijder een concurrent. Verwijderen wist ook de gekoppelde prijsbronnen en prijshistorie.</p></div>
-        {actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-xl border border-rose-300 bg-white px-3 py-2 text-xs font-medium text-rose-700">Alle concurrenten verwijderen</Link> : null}
-      </div>
+      <div className="flex justify-end">{actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-[10px] border border-[#e5b5bd] bg-white px-3 py-2 text-[11px] font-semibold text-[#a12d40]">Alles verwijderen</Link> : null}</div>
       <form action={saveCompetitorAdminAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
         <fieldset disabled={!result.available || countries.length === 0} className="contents disabled:opacity-50">
         <input name="name" placeholder="Naam" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" required />

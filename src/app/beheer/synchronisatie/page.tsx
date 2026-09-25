@@ -39,14 +39,7 @@ export default async function SynchronisatiePage() {
   ])
 
   return <div className="mx-auto max-w-[1200px] space-y-4">
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e3eaf3] pb-4">
-      <div>
-        <Link href="/beheer" className="text-[12px] font-medium text-[#416b9d]">← Beheer</Link>
-        <h1 className="mt-1 text-[22px] font-semibold text-[#20344b]">Synchronisatie</h1>
-        <p className="mt-1 text-[12px] text-[#738298]">Productgegevens en marktprijzen op één plek bijwerken.</p>
-      </div>
-      <Link href="/instellingen/markten" className="secondary-action text-[12px]">Markten beheren</Link>
-    </header>
+    <div className="flex justify-end"><Link href="/instellingen/markten" className="secondary-action text-[12px]">Markten</Link></div>
     <SynchronizationHub key={scopedCode} marketName={selected?.name ?? 'Alle markten'}
       feeds={feeds.map(feed => ({ ...feed, lastRunAt: feed.lastRunAt?.toISOString() ?? null }))}
       competitors={competitors.map(competitor => ({

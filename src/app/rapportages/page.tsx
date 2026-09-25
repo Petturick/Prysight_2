@@ -69,7 +69,7 @@ function reportContent(value: unknown): WeeklyReportContent | null {
   return value as WeeklyReportContent
 }
 
-function KpiCard({ label, value, helper, tone = 'neutral' }: { label: string; value: string; helper: string; tone?: 'neutral' | 'good' | 'warning' | 'danger' }) {
+function KpiCard({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'good' | 'warning' | 'danger' }) {
   const toneClasses = {
     neutral: 'bg-[#f3f6fb] text-[#416bbd]',
     good: 'bg-[#edf8f3] text-[#16785a]',
@@ -78,7 +78,7 @@ function KpiCard({ label, value, helper, tone = 'neutral' }: { label: string; va
   }[tone]
 
   return (
-    <div className="min-h-[132px] rounded-[16px] border border-[#e7ebf0] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,.02),0_8px_22px_rgba(16,24,40,.03)]">
+    <div className="min-h-[108px] rounded-[14px] border border-[#e7ebf0] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,.02)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold text-[#667085]">{label}</p>
@@ -86,7 +86,6 @@ function KpiCard({ label, value, helper, tone = 'neutral' }: { label: string; va
         </div>
         <span className={`flex h-9 w-9 items-center justify-center rounded-[11px] text-[13px] font-semibold ${toneClasses}`}>●</span>
       </div>
-      <p className="mt-4 text-[10px] leading-4 text-[#98a2b3]">{helper}</p>
     </div>
   )
 }
@@ -163,35 +162,22 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
     <div className="space-y-6">
       {(!result.available || !live.available) && <DatabaseNotice />}
 
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#172033]">Rapportages</h1>
-          <p className="mt-2 max-w-[760px] text-[13px] leading-5 text-[#7a8699]">
-            Bekijk de volledige managementrapportage direct in PrySight, inclusief prijspositie, bewegingen, datakwaliteit en controles.
-          </p>
-        </div>
-        <form action={generateWeeklyReportAction}>
-          <button disabled={!result.available} className="primary-action min-h-[42px] px-5 disabled:cursor-not-allowed disabled:opacity-40">
-            Weekrapport genereren
-          </button>
-        </form>
-      </div>
+      <div className="flex justify-end"><form action={generateWeeklyReportAction}><button disabled={!result.available} className="primary-action min-h-[38px] px-4 disabled:cursor-not-allowed disabled:opacity-40">Weekrapport genereren</button></form></div>
 
       <section className="surface-card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-[17px] font-semibold text-[#25324a]">Actuele stand</h2>
-            <p className="mt-1 text-[11px] text-[#7a8699]">Rechtstreeks uit de huidige actieve producten en prijsbronnen, los van opgeslagen weekrapporten.</p>
           </div>
           <Link href="/producten" className="rounded-[10px] border border-[#dfe5ec] px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">Producten bekijken</Link>
         </div>
         {live.available && live.data ? (
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard label="Actieve producten nu" value={formatNumber(live.data.kpis.monitoredProducts)} helper="Bestaande, actieve producten in deze organisatie." />
-              <KpiCard label="Actieve prijsmetingen nu" value={formatNumber(live.data.kpis.activeOffers)} helper="Bruikbare prijsmetingen voor actieve producten." />
-              <KpiCard label="Mislukte controles, 7 dagen" value={formatNumber(live.data.kpis.failedChecks)} helper="Alle mislukte pogingen in de afgelopen 7 dagen, niet alleen de laatste 10." tone={live.data.kpis.failedChecks ? 'danger' : 'good'} />
-              <KpiCard label="Zonder concurrentieprijs nu" value={formatNumber(live.data.kpis.withoutCompetitorPrice)} helper="Actieve producten zonder verifieerbare marktprijs." tone={live.data.kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
+              <KpiCard label="Actieve producten nu" value={formatNumber(live.data.kpis.monitoredProducts)} />
+              <KpiCard label="Actieve prijsmetingen nu" value={formatNumber(live.data.kpis.activeOffers)} />
+              <KpiCard label="Mislukte controles, 7 dagen" value={formatNumber(live.data.kpis.failedChecks)} tone={live.data.kpis.failedChecks ? 'danger' : 'good'} />
+              <KpiCard label="Zonder concurrentieprijs nu" value={formatNumber(live.data.kpis.withoutCompetitorPrice)} tone={live.data.kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
             </div>
             {live.data.kpis.monitoredProducts === 0 && <p className="mt-4 rounded-[10px] bg-[#f3f6fb] px-4 py-3 text-[12px] text-[#526071]">Er zijn momenteel geen actieve producten. Oudere weekrapporten hieronder blijven bewaard als historische momentopname.</p>}
           </>
@@ -212,7 +198,6 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
                 </div>
                 <h2 className="mt-3 text-[20px] font-semibold tracking-[-0.03em] text-[#25324a]">{selectedReport.title}</h2>
                 <p className="mt-1 text-[11px] text-[#7a8699]">{formatDate(selectedReport.weekStart, false)} tot {formatDate(selectedReport.weekEnd, false)}</p>
-                <p className="mt-2 max-w-[650px] text-[11px] leading-5 text-[#7a8699]">Deze cijfers zijn vastgelegd op {formatDate(selectedReport.generatedAt)} en veranderen niet als producten later worden gewijzigd of verwijderd. Bekijk de actuele stand hierboven.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link href={`/api/rapportages?id=${selectedReport.id}&format=csv`} className="rounded-[10px] border border-[#dfe5ec] bg-white px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">CSV export</Link>
@@ -223,16 +208,16 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
             {kpis ? (
               <div className="p-5 sm:p-6">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <KpiCard label="Gemonitorde producten" value={formatNumber(kpis.monitoredProducts)} helper="Producten die in deze rapportage worden bewaakt" />
-                  <KpiCard label="Actieve prijsmetingen" value={formatNumber(kpis.activeOffers)} helper="Actuele en bruikbare concurrentieprijzen" />
-                  <KpiCard label="Bevestigde matches" value={formatNumber(kpis.validMatches)} helper="Producten met minimaal één bevestigde match" tone="good" />
-                  <KpiCard label="Matches ter controle" value={formatNumber(kpis.reviewMatches)} helper="Matches die handmatige beoordeling vragen" tone={kpis.reviewMatches ? 'warning' : 'good'} />
-                  <KpiCard label="Zonder concurrentieprijs" value={formatNumber(kpis.withoutCompetitorPrice)} helper="Producten waarvoor nog geen marktprijs beschikbaar is" tone={kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
-                  <KpiCard label="Engels laagste" value={formatNumber(kpis.engelsLowest)} helper="Producten op of onder de laagste gemeten marktprijs" tone="good" />
-                  <KpiCard label="Engels duurder" value={formatNumber(kpis.engelsHigher)} helper="Producten boven de laagste gemeten marktprijs" tone={kpis.engelsHigher ? 'danger' : 'good'} />
-                  <KpiCard label="Gemiddelde prijsindex" value={formatNumber(kpis.averagePriceIndex, 1)} helper="Index 100 betekent gelijk aan de laagste gemeten marktprijs" />
-                  <KpiCard label="Mislukte controles" value={formatNumber(kpis.failedChecks)} helper="Bij nieuwe rapporten, alle mislukte pogingen in de rapportweek voor actieve producten. Oude rapporten volgen de toenmalige berekening." tone={kpis.failedChecks ? 'danger' : 'good'} />
-                  <KpiCard label="Verouderde data" value={formatNumber(kpis.staleData)} helper="Prijsdata die langer dan 72 uur niet succesvol is vernieuwd" tone={kpis.staleData ? 'warning' : 'good'} />
+                  <KpiCard label="Gemonitorde producten" value={formatNumber(kpis.monitoredProducts)} />
+                  <KpiCard label="Actieve prijsmetingen" value={formatNumber(kpis.activeOffers)} />
+                  <KpiCard label="Bevestigde matches" value={formatNumber(kpis.validMatches)} tone="good" />
+                  <KpiCard label="Matches ter controle" value={formatNumber(kpis.reviewMatches)} tone={kpis.reviewMatches ? 'warning' : 'good'} />
+                  <KpiCard label="Zonder concurrentieprijs" value={formatNumber(kpis.withoutCompetitorPrice)} tone={kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
+                  <KpiCard label="Engels laagste" value={formatNumber(kpis.engelsLowest)} tone="good" />
+                  <KpiCard label="Engels duurder" value={formatNumber(kpis.engelsHigher)} tone={kpis.engelsHigher ? 'danger' : 'good'} />
+                  <KpiCard label="Gemiddelde prijsindex" value={formatNumber(kpis.averagePriceIndex, 1)} />
+                  <KpiCard label="Mislukte controles" value={formatNumber(kpis.failedChecks)} tone={kpis.failedChecks ? 'danger' : 'good'} />
+                  <KpiCard label="Verouderde data" value={formatNumber(kpis.staleData)} tone={kpis.staleData ? 'warning' : 'good'} />
                 </div>
               </div>
             ) : (

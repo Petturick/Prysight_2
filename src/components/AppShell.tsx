@@ -25,15 +25,29 @@ function routeMeta(pathname: string): RouteMeta {
   if (pathname === '/producten') return { title: 'Producten', action: { href: '/producten/nieuw', label: 'Product toevoegen' } }
   if (pathname.startsWith('/producten/')) return { title: 'Product' }
   if (pathname.startsWith('/concurrenten')) return { title: 'Concurrenten' }
-  if (pathname.startsWith('/monitoring') || pathname.startsWith('/productmatches')) return { title: 'Matches' }
-  if (pathname.startsWith('/acties') || pathname.startsWith('/waarschuwingen') || pathname.startsWith('/prijsstrategie') || pathname.startsWith('/prijsregels') || pathname.startsWith('/prijswijzigingen') || pathname.startsWith('/prijsautomatisering')) return { title: 'Acties' }
-  if (pathname.startsWith('/rapportages')) return { title: 'Inzichten' }
+  if (pathname.startsWith('/monitoring')) return { title: 'Monitoring' }
+  if (pathname.startsWith('/productmatches')) return { title: 'Matches' }
+  if (pathname.startsWith('/waarschuwingen')) return { title: 'Waarschuwingen' }
+  if (pathname.startsWith('/prijsstrategie')) return { title: 'Prijsadvies' }
+  if (pathname.startsWith('/prijsregels')) return { title: 'Prijsregels' }
+  if (pathname.startsWith('/prijswijzigingen')) return { title: 'Prijswijzigingen' }
+  if (pathname.startsWith('/prijsautomatisering')) return { title: 'Automatisering' }
+  if (pathname.startsWith('/prijsuitleg')) return { title: 'Prijsuitleg' }
+  if (pathname.startsWith('/acties')) return { title: 'Acties' }
+  if (pathname.startsWith('/rapportages')) return { title: 'Rapportages' }
   if (pathname.startsWith('/feeds')) return { title: 'Feeds' }
+  if (pathname.startsWith('/import/bulk')) return { title: 'Bulk import' }
   if (pathname.startsWith('/import')) return { title: 'Importeren' }
   if (pathname.startsWith('/integraties')) return { title: 'Integraties' }
+  if (pathname.startsWith('/beheer/synchronisatie')) return { title: 'Synchronisatie' }
+  if (pathname.startsWith('/beheer/concurrenten')) return { title: 'Concurrenten beheren' }
+  if (pathname.startsWith('/beheer/productgroepen')) return { title: 'Productgroepen' }
+  if (pathname.startsWith('/beheer/webshops')) return { title: 'Webshops' }
   if (pathname.startsWith('/beheer')) return { title: 'Beheer' }
+  if (pathname.startsWith('/instellingen/feedbeheer')) return { title: 'Feedbeheer' }
+  if (pathname.startsWith('/instellingen/data')) return { title: 'Databeheer' }
   if (pathname.startsWith('/instellingen')) return { title: 'Instellingen' }
-  if (pathname.startsWith('/onboarding')) return { title: 'Setup' }
+  if (pathname.startsWith('/onboarding')) return { title: 'Instellen' }
   return { title: 'Overzicht' }
 }
 

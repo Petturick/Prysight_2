@@ -37,18 +37,9 @@ export default async function ActionsPage() {
   const total = openTasks.reduce((sum, task) => sum + task.value, 0)
 
   return <div className="space-y-5">
-    <section className="strong-panel px-5 py-5 sm:px-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="eyebrow">Werkvoorraad</p>
-          <h1 className="mt-2">Acties</h1>
-          <p className="mt-2 max-w-2xl text-[12px] leading-6 text-[#697386]">Geen dashboard om door te zoeken. Alleen de punten waar vandaag een beslissing of correctie nodig is.</p>
-        </div>
-        <div className={`min-w-[138px] rounded-[12px] px-4 py-3 text-left ${total ? 'bg-[#fff0f2] text-[#a8404d]' : 'bg-[#eaf8f0] text-[#1d7653]'}`}>
-          <p className="text-[10px] font-semibold">Nu open</p>
-          <p className="mt-1 text-[27px] font-bold">{formatNumber(total)}</p>
-        </div>
-      </div>
+    <section className={`flex items-center justify-between rounded-[12px] px-4 py-3 ${total ? 'bg-[#fff0f2] text-[#a8404d]' : 'bg-[#eaf8f0] text-[#1d7653]'}`}>
+      <span className="text-[12px] font-semibold">Open acties</span>
+      <span className="text-[22px] font-semibold tabular-nums">{formatNumber(total)}</span>
     </section>
 
     {openTasks[0] ? <Link href={openTasks[0].href} className="premium-decision-card flex flex-col gap-3 p-4 transition hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between">

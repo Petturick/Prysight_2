@@ -42,16 +42,7 @@ export default async function PriceChangesPage() {
 
   return (
     <div className="space-y-5">
-      <section className="ps-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-end lg:justify-between sm:px-6">
-          <div>
-            <p className="eyebrow">Prijsuitvoering</p>
-            <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#161a26]">Goedkeuren, publiceren en terugdraaien</h1>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">Iedere externe prijswijziging krijgt eerst een vastgelegde aanvraag. PrySight controleert vóór publicatie opnieuw de commerciële guardrails en vergelijkt de actuele Magento-prijs met de oorspronkelijke snapshot.</p>
-          </div>
-          <div className="flex flex-wrap gap-2"><Link href="/prijsstrategie" className="secondary-action">Prijsadviezen</Link><Link href="/prijsregels" className="secondary-action">Prijsregels</Link></div>
-        </div>
-      </section>
+      <div className="flex justify-end gap-2"><Link href="/prijsstrategie" className="secondary-action">Prijsadviezen</Link><Link href="/prijsregels" className="secondary-action">Prijsregels</Link></div>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Prijswijzigingsstatus">
         {[
@@ -60,7 +51,7 @@ export default async function PriceChangesPage() {
           ['Mislukt', failed, 'Technische of veiligheidsblokkade'],
           ['Live gepubliceerd', applied, 'Kan gecontroleerd worden teruggedraaid'],
           ['Magento', magentoReady ? 'Gereed' : 'Niet gekoppeld', magentoReady ? 'Writeback is gecontroleerd geconfigureerd' : 'Publicatie blijft technisch geblokkeerd'],
-        ].map(([label, value, helper]) => <div key={String(label)} className="premium-kpi-card p-4"><p className="text-[11px] font-semibold text-[#65758a]">{label}</p><p className="mt-2 text-[24px] font-semibold tabular-nums text-[#17233a]">{String(value)}</p><p className="mt-1 text-[10px] leading-5 text-[#8790a2]">{helper}</p></div>)}
+        ].map(([label, value]) => <div key={String(label)} className="premium-kpi-card p-4"><p className="text-[11px] font-semibold text-[#65758a]">{label}</p><p className="mt-2 text-[24px] font-semibold tabular-nums text-[#17233a]">{String(value)}</p></div>)}
       </section>
 
       {!canPublish ? <section className="rounded-[12px] border border-[#d6e5fb] bg-[#f6f9ff] p-4"><p className="text-[12px] font-semibold text-[#355a91]">Gescheiden publicatierecht actief</p><p className="mt-1 text-[11px] leading-5 text-[#526d95]">Je kunt prijsadviezen aanvragen en de status volgen. Goedkeuren, afwijzen, publiceren en rollback vereisen het aparte recht <strong>Prijswijzigingen publiceren</strong>.</p></section> : null}

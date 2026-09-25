@@ -21,10 +21,6 @@ export default async function ProductgroepenBeheerPage() {
   return (
     <div className="mx-auto max-w-[1100px] space-y-4 pb-8">
       {!result.available ? <DatabaseNotice /> : null}
-      <header>
-        <h1 className="text-[22px] font-semibold text-[#20344b]">Productgroepen</h1>
-        <p className="mt-1 text-[12px] text-[#748296]">Gebruik uitsluitend herkenbare categorieën. Interne feedcodes worden niet getoond als productgroep. Je kunt producten zonder categorie later in het productenoverzicht indelen.</p>
-      </header>
       <section className="ps-panel p-4 sm:p-5">
         <h2 className="text-[14px] font-semibold text-[#21364d]">Nieuwe productgroep</h2>
         <form action={saveProductGroupAction} className="mt-3 flex flex-wrap items-end gap-2">

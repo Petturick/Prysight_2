@@ -19,7 +19,6 @@ export default async function WebshopsBeheerPage() {
   return (
     <div className="space-y-6">
       {!result.available && <DatabaseNotice />}
-      <h1 className="text-3xl font-semibold">Webshops beheer</h1>
       <form action={saveWebshopAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
         <fieldset disabled={!result.available || countries.length === 0} className="contents disabled:opacity-50">
         <input name="name" placeholder="Naam" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" required />

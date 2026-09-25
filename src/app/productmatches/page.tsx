@@ -11,9 +11,9 @@ import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
 
 function matchStrength(score: number) {
-  if (score >= 85) return { label: 'Sterke match', className: 'ps-chip-green', helper: 'Meerdere signalen ondersteunen dat dit hetzelfde product is.' }
-  if (score >= 70) return { label: 'Waarschijnlijke match', className: 'ps-chip-blue', helper: 'De match is aannemelijk, controleer de bron voor gebruik.' }
-  return { label: 'Handmatig controleren', className: 'ps-chip-amber', helper: 'Er is onvoldoende bewijs om deze match zonder controle te gebruiken.' }
+  if (score >= 85) return { label: 'Sterke match', className: 'ps-chip-green' }
+  if (score >= 70) return { label: 'Waarschijnlijke match', className: 'ps-chip-blue' }
+  return { label: 'Handmatig controleren', className: 'ps-chip-amber' }
 }
 
 function evidenceSummary(value: unknown) {
@@ -46,20 +46,9 @@ export default async function ProductmatchesPage() {
     <div className="space-y-4">
       {!result.available && <DatabaseNotice />}
 
-      <section className="strong-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="eyebrow">Automatische concurrentherkenning</p>
-            <h1 className="mt-1">Concurrent suggesties</h1>
-            <p className="mt-1 max-w-2xl text-[12px] leading-5 text-[#6f7d90]">
-              Prysight vindt kandidaten op basis van EAN, productcontext en markt. Je ziet waarom een koppeling is voorgesteld, zonder schijnprecisie in percentages.
-            </p>
-          </div>
-          <div className="rounded-[12px] bg-[#eef4ff] px-4 py-3 text-center">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[#6c7f96]">Te beoordelen</p>
-            <p className="mt-1 text-[24px] font-semibold text-[#244f9d]">{formatNumber(matches.length)}</p>
-          </div>
-        </div>
+      <section className="flex items-center justify-between rounded-[12px] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <span className="text-[12px] font-medium text-[#667085]">Te beoordelen</span>
+        <span className="text-[22px] font-semibold tabular-nums text-[#244f9d]">{formatNumber(matches.length)}</span>
       </section>
 
       {matches.length === 0 ? (
@@ -94,7 +83,7 @@ export default async function ProductmatchesPage() {
             ),
             score: (() => {
               const strength = matchStrength(match.confidenceScore)
-              return <div className="min-w-[150px]"><span className={`ps-chip ${strength.className}`}>{strength.label}</span><p className="mt-1 max-w-[220px] text-[10px] leading-4 text-[#8190a1]">{strength.helper}</p></div>
+              return <span className={`ps-chip ${strength.className}`}>{strength.label}</span>
             })(),
             bewijs: <p className="max-w-[360px] text-[11px] leading-5 text-[#66778a]">{evidenceSummary(match.matchEvidence)}</p>,
             aangemaakt: <span className="text-[11px] text-[#66778a]">{formatDate(match.createdAt)}</span>,

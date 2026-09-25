@@ -47,34 +47,23 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
 
   return (
     <div className="space-y-5">
-      <section className="grid gap-4 xl:grid-cols-[1fr_390px]">
-        <div className="surface-card p-5 sm:p-6">
-          <p className="eyebrow">Prijsstrategie</p>
-          <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#161a26]">Van marktdata naar gecontroleerd prijsadvies</h1>
-          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[#697386]">Adviezen worden per land berekend. Kostprijs, minimale marge, minimum en maximum verkoopprijs, afronding en concurrentiedekking worden bewaakt voordat een prijswijziging kan worden aangevraagd.</p>
-          <div className="mt-4 flex flex-wrap gap-2"><Link href="/prijsregels" className="secondary-action">Beheer prijsregels</Link><Link href="/prijswijzigingen" className="primary-action">Open goedkeuringscentrum</Link>{isSimulation ? <Link href="/prijsstrategie" className="secondary-action">Terug naar opgeslagen regels</Link> : null}</div>
-        </div>
-        <div className="surface-card p-5">
-          <p className="text-[12px] font-semibold text-[#252a37]">Veiligheidsstatus</p>
-          <div className="mt-3 rounded-[12px] border border-[#cfeadf] bg-[#f4fbf7] p-3.5"><div className="flex items-center justify-between gap-3"><p className="text-[12px] font-semibold text-[#246f50]">Guardrails en goedkeuring actief</p><span className="ps-chip ps-chip-green">{guardedCoverage}% gedekt</span></div><p className="mt-1 text-[11px] leading-5 text-[#5f766b]">Kostprijs en harde prijsgrenzen worden opnieuw gecontroleerd voordat een wijziging kan worden aangevraagd.</p></div>
-          <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.06em] text-[#6f7b91]">Modus</p><p className="mt-1 text-[12px] font-semibold text-[#111827]">{isSimulation ? 'Tijdelijke simulatie' : 'Opgeslagen prijsregels'}</p>
-        </div>
+      <section className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2"><Link href="/prijsregels" className="secondary-action">Prijsregels</Link><Link href="/prijswijzigingen" className="primary-action">Goedkeuringen</Link>{isSimulation ? <Link href="/prijsstrategie" className="secondary-action">Simulatie stoppen</Link> : null}</div>
+        <div className="flex items-center gap-2 rounded-[10px] bg-[#eef8f2] px-3 py-2 text-[11px] font-semibold text-[#246f50]"><span>Guardrails</span><span className="ps-chip ps-chip-green">{guardedCoverage}%</span></div>
       </section>
 
-      <section className="surface-card p-4 sm:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div><h2 className="text-[14px] font-semibold text-[#252a37]">Los scenario simuleren</h2><p className="mt-1 text-[11px] text-[#7d8698]">Een simulatie overschrijft tijdelijk de opgeslagen prijsregels, maar kan nooit als externe prijswijziging worden gepubliceerd.</p></div>
-          <form className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            <input type="hidden" name="simulate" value="1" />
-            <select name="strategy" defaultValue={strategy} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]">{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-            <input name="adjustmentPct" type="number" step="0.1" defaultValue={adjustmentPct} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Correctie percentage" />
-            <input name="maxChangePct" type="number" step="0.1" min="0" defaultValue={maxChangePct} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Maximale wijziging percentage" />
-            <select name="onlyInStock" defaultValue={String(onlyInStock)} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]"><option value="true">Alleen op voorraad</option><option value="false">Alle actieve aanbiedingen</option></select>
-            <button className="focus-ring h-9 rounded-xl border border-[#bfd0eb] bg-[#edf3fb] px-4 text-[11px] font-semibold text-[#355a91]">Simuleer</button>
-            <input type="hidden" name="minimumSignalPct" value={minimumSignalPct} />
-          </form>
-        </div>
-      </section>
+      <details className="surface-card group overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 sm:px-5"><span className="text-[13px] font-semibold text-[#344054]">Scenario simuleren</span><span className="text-[11px] font-semibold text-[#667085] group-open:hidden">Open</span><span className="hidden text-[11px] font-semibold text-[#667085] group-open:inline">Sluit</span></summary>
+        <form className="grid gap-2 border-t border-[#edf0f3] p-4 sm:grid-cols-2 xl:grid-cols-5">
+          <input type="hidden" name="simulate" value="1" />
+          <select name="strategy" defaultValue={strategy} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]">{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <input name="adjustmentPct" type="number" step="0.1" defaultValue={adjustmentPct} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Correctie percentage" />
+          <input name="maxChangePct" type="number" step="0.1" min="0" defaultValue={maxChangePct} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]" aria-label="Maximale wijziging percentage" />
+          <select name="onlyInStock" defaultValue={String(onlyInStock)} className="h-9 rounded-xl border border-[var(--border)] bg-white px-3 text-[11px] text-[#566071]"><option value="true">Alleen op voorraad</option><option value="false">Alle actieve aanbiedingen</option></select>
+          <button className="focus-ring h-9 rounded-xl border border-[#bfd0eb] bg-[#edf3fb] px-4 text-[11px] font-semibold text-[#355a91]">Simuleer</button>
+          <input type="hidden" name="minimumSignalPct" value={minimumSignalPct} />
+        </form>
+      </details>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -83,11 +72,11 @@ export default async function PricingStrategyPage({ searchParams }: { searchPara
           ['Prijsdruk', lowers, 'Markt vraagt mogelijk om verlaging'],
           ['Onvoldoende data', noData, 'Eigen prijs, marktdata of minimale dekking ontbreekt'],
           ['Guardrail dekking', `${guardedCoverage}%`, 'Marktadviezen met commerciële bescherming'],
-        ].map(([title, value, helper]) => <div key={String(title)} className="surface-card-flat p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#6f7b91]">{title}</p><p className="mt-2 text-[27px] font-semibold tracking-[-0.03em] text-[#171b28]">{String(value)}</p><p className="mt-1 text-[11px] leading-5 text-[#8790a2]">{helper}</p></div>)}
+        ].map(([title, value]) => <div key={String(title)} className="surface-card-flat p-4"><p className="text-[10px] font-semibold text-[#6f7b91]">{title}</p><p className="mt-2 text-[27px] font-semibold tracking-[-0.03em] text-[#171b28]">{String(value)}</p></div>)}
       </section>
 
       <section className="surface-card p-4 sm:p-5">
-        <div className="mb-3"><h2 className="text-[14px] font-semibold text-[#252a37]">Prijsadviezen per markt</h2><p className="mt-1 text-[11px] text-[#8a93a5]">Iedere rij is één product in één markt. Concurrentprijzen uit andere landen tellen niet mee.</p></div>
+        <div className="mb-3"><h2 className="text-[14px] font-semibold text-[#252a37]">Prijsadviezen per markt</h2></div>
         <DataTable
           emptyText="Nog geen producten met voldoende marktdata."
           columns={[

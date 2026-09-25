@@ -55,12 +55,12 @@ export function ImportWizard(){
 
     <div className="p-5 sm:p-6">
       {step===1?<div className="space-y-6">
-        <div><p className="eyebrow">Stap 1</p><h2 className="mt-2 text-[20px] font-black">Wat wil je toevoegen?</h2><p className="mt-1.5 max-w-3xl text-[11px] font-medium leading-5 text-[#748296]">Kies je bron. Prysight herkent daarna zoveel mogelijk kolommen zelf, zodat je alleen uitzonderingen hoeft te controleren.</p></div>
+        <h2 className="text-[18px] font-semibold text-[#25364b]">Wat wil je toevoegen?</h2>
 
         <div className="grid gap-3 md:grid-cols-3">
-          {([['products','Producten','Productdata, EAN, GTIN, eigen prijzen, kostprijs en marges.','P'],['competitors','Concurrenten','Concurrenten, product URLs, voorraad en gemeten prijzen.','C'],['combined','Alles in één','Product en concurrentiedata in dezelfde import verwerken.','A']] as const).map(([value,title,description,icon])=><button type="button" key={value} onClick={()=>setMode(value)} className={`ps-choice-card ${mode===value?'ps-choice-card-active':''}`}>
+          {([['products','Producten','Eigen productdata','P'],['competitors','Concurrenten','Prijsbronnen','C'],['combined','Alles in één','Beide combineren','A']] as const).map(([value,title,description,icon])=><button type="button" key={value} onClick={()=>setMode(value)} className={`ps-choice-card ${mode===value?'ps-choice-card-active':''}`}>
             <div className="flex items-start justify-between gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-[13px] font-black ${mode===value?'bg-[#2f7edb] text-white':'bg-white text-[#63758b] shadow-[0_5px_12px_rgba(31,48,70,.07)]'}`}>{icon}</span>{mode===value?<span className="ps-chip ps-chip-blue">Gekozen</span>:null}</div>
-            <p className="mt-4 text-[13px] font-black text-[#2c4058]">{title}</p><p className="mt-1.5 text-[10px] font-semibold leading-5 text-[#748296]">{description}</p>
+            <p className="mt-4 text-[13px] font-semibold text-[#2c4058]">{title}</p><p className="mt-1 text-[10px] text-[#748296]">{description}</p>
           </button>)}
         </div>
 
@@ -69,13 +69,11 @@ export function ImportWizard(){
             <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg>
           </div>
           <p className="mt-3 text-[13px] font-black text-[#2c4058]">Sleep je CSV of Excel bestand hierheen</p>
-          <p className="mt-1 text-[10px] font-semibold text-[#7b8999]">of kies een bestand vanaf je computer</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <label htmlFor="prysight-import-file" className="primary-action cursor-pointer">Bestand kiezen</label>
             <button type="button" onClick={downloadTemplate} className="secondary-action">Template downloaden</button>
           </div>
           <input id="prysight-import-file" type="file" accept=".csv,.xlsx" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void upload(file)}}/>
-          <p className="mt-4 text-[9px] font-semibold text-[#8a98a9]">Automatische herkenning voor SKU, EAN, GTIN, MPN, merk, model, verpakking, prijs, kostprijs, marge, voorraad en pricingmodus.</p>
           {uploadError?<div className="mx-auto mt-4 max-w-2xl rounded-[11px] bg-[#fff0f2] px-4 py-3 text-left text-[10px] font-bold text-[#b6414d]">{uploadError}</div>:null}
         </div>
       </div>:null}
@@ -103,7 +101,7 @@ export function ImportWizard(){
       </div>:null}
 
       {step===3?<div className="space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">Stap 3</p><h2 className="mt-2 text-[20px] font-black">Preview en validatie</h2><p className="mt-1.5 text-[11px] font-medium text-[#748296]">Controleer een paar regels. Na bevestigen wordt de import opgeslagen en start discovery server side in batches.</p></div><div className="flex gap-2"><button type="button" className="secondary-action" onClick={()=>setStep(2)}>Terug</button><button type="button" className="ps-button-green" onClick={run}>Import starten</button></div></div>
+        <div className="flex flex-wrap items-end justify-between gap-3"><h2 className="text-[18px] font-semibold text-[#25364b]">Preview</h2><div className="flex gap-2"><button type="button" className="secondary-action" onClick={()=>setStep(2)}>Terug</button><button type="button" className="ps-button-green" onClick={run}>Import starten</button></div></div>
 
         <div className={`rounded-[14px] p-4 ${warnings.length?'bg-[#fff4df]':'bg-[#eaf8f0]'}`}>
           <div className="flex items-center justify-between gap-3"><div><p className={`text-[11px] font-black ${warnings.length?'text-[#a36816]':'text-[#20814d]'}`}>{warnings.length?`${warnings.length} aandachtspunten`:'Mapping ziet er goed uit'}</p><p className="mt-1 text-[9px] font-semibold text-[#718196]">{warnings.length?'Je kunt doorgaan, maar controleer deze velden eerst.':'Alle belangrijke basisvelden zijn herkenbaar gekoppeld.'}</p></div><span className={`ps-chip ${warnings.length?'ps-chip-amber':'ps-chip-green'}`}>{warnings.length?'Controleren':'Klaar'}</span></div>
@@ -114,7 +112,7 @@ export function ImportWizard(){
       </div>:null}
 
       {step===4?<div className="space-y-5">
-        <div><p className="eyebrow">Stap 4</p><h2 className="mt-2 text-[20px] font-black">{isPending?'Import wordt verwerkt…':result?.errors.length?'Import afgerond met aandachtspunten':'Import succesvol afgerond'}</h2>{isPending?<p className="mt-1.5 text-[11px] font-medium text-[#748296]">Producten, markten en pricingvelden worden nu verwerkt.</p>:result?<p className="mt-1.5 text-[11px] font-medium text-[#748296]">{result.message}</p>:null}</div>
+        <div><h2 className="text-[18px] font-semibold text-[#25364b]">{isPending?'Import wordt verwerkt…':result?.errors.length?'Import afgerond met aandachtspunten':'Import succesvol afgerond'}</h2>{isPending?<p className="mt-1.5 text-[11px] font-medium text-[#748296]">Producten, markten en pricingvelden worden nu verwerkt.</p>:result?<p className="mt-1.5 text-[11px] font-medium text-[#748296]">{result.message}</p>:null}</div>
 
         {isPending?<div className="rounded-[15px] bg-[#f4f7fa] p-5"><div className="h-2 overflow-hidden rounded-full bg-[#dce5ee]"><div className="prysight-loading-bar h-full w-1/3 rounded-full bg-[#2f7edb]" /></div><p className="mt-3 text-[10px] font-bold text-[#65788e]">Even geduld, grote bestanden worden veilig in batches verwerkt.</p></div>:null}
 

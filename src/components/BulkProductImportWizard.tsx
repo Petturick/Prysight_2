@@ -56,31 +56,13 @@ export function BulkProductImportWizard() {
 
   return (
     <div className="space-y-4">
-      <section className="strong-panel overflow-hidden">
-        <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="bg-[#111827] p-5 text-white sm:p-6">
-            <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#93c5fd]">Bulk productfeed</p>
-            <h2 className="mt-2 text-[22px] font-black">Bestand erin, producten herkend</h2>
-            <p className="mt-2 max-w-xl text-[11px] font-semibold leading-6 text-[#cbd5e1]">PrySight herkent productcode, naam, EAN, merk, categorie, product URL, eigen prijs, btw status, kostprijs en gangbare feedvelden automatisch. Na import zoekt Prysight voor de juiste markt direct naar concurrentsuggesties.</p>
-            <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-[12px] bg-white/10 p-3"><p className="text-[18px] font-black">CSV</p><p className="mt-1 text-[9px] font-bold text-[#cbd5e1]">ondersteund</p></div>
-              <div className="rounded-[12px] bg-white/10 p-3"><p className="text-[18px] font-black">XLSX</p><p className="mt-1 text-[9px] font-bold text-[#cbd5e1]">ondersteund</p></div>
-              <div className="rounded-[12px] bg-[#2457d6] p-3"><p className="text-[18px] font-black">AUTO</p><p className="mt-1 text-[9px] font-bold text-[#dbeafe]">mapping</p></div>
-            </div>
-          </div>
-
-          <div
-            className="flex min-h-[250px] flex-col items-center justify-center p-6 text-center"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void upload(file) }}
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#e8f2ff] text-[20px] font-black text-[#2457d6]">↑</div>
-            <h3 className="mt-3 text-[14px] font-black text-[#111827]">Sleep je productfeed hierheen</h3>
-            <p className="mt-1 text-[10px] font-semibold text-[#6f7b91]">Geen kolommen handmatig instellen als PrySight ze zelf herkent.</p>
-            <label className="primary-action mt-4 cursor-pointer" htmlFor="bulk-product-feed-file">{uploading ? 'Bezig met herkennen…' : 'Kies CSV of Excel'}</label>
-            <input id="bulk-product-feed-file" type="file" accept=".csv,.xlsx" className="sr-only" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file) }} />
-            {error ? <p className="mt-4 rounded-[10px] bg-[#fff0f2] px-4 py-2 text-[10px] font-bold text-[#b4233d]">{error}</p> : null}
-          </div>
+      <section className="strong-panel">
+        <div className="flex min-h-[220px] flex-col items-center justify-center p-6 text-center" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void upload(file) }}>
+          <div className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#e8f2ff] text-[19px] font-semibold text-[#2457d6]">↑</div>
+          <h2 className="mt-3 text-[14px] font-semibold text-[#25364b]">Sleep CSV of Excel hierheen</h2>
+          <label className="primary-action mt-4 cursor-pointer" htmlFor="bulk-product-feed-file">{uploading ? 'Bezig met herkennen…' : 'Bestand kiezen'}</label>
+          <input id="bulk-product-feed-file" type="file" accept=".csv,.xlsx" className="sr-only" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file) }} />
+          {error ? <p className="mt-4 rounded-[10px] bg-[#fff0f2] px-4 py-2 text-[10px] font-bold text-[#b4233d]">{error}</p> : null}
         </div>
       </section>
 
@@ -104,7 +86,7 @@ export function BulkProductImportWizard() {
 
         {data.detectedCompetitors.length ? <div className="border-t-2 border-[var(--border-strong)] px-5 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h3 className="text-[12px] font-black text-[#111827]">Concurrentkolommen herkend</h3><p className="mt-1 max-w-3xl text-[10px] font-semibold leading-5 text-[#647087]">Deze domeinen worden als herkenningsinformatie gezien. Een concurrentprijs wordt pas een live aanbod wanneer PrySight een echte product URL heeft bevestigd.</p></div>
+<h3 className="text-[12px] font-semibold text-[#111827]">Concurrentkolommen herkend</h3>
             <span className="ps-chip ps-chip-blue">{data.detectedCompetitors.length} gevonden</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">{data.detectedCompetitors.slice(0, 12).map((competitor) => <span key={competitor.domain} className="rounded-[8px] bg-[#f0f3f7] px-2.5 py-1.5 text-[9px] font-bold text-[#4b5870]">{competitor.domain}</span>)}{data.detectedCompetitors.length > 12 ? <span className="rounded-[8px] bg-[#111827] px-2.5 py-1.5 text-[9px] font-bold text-white">+{data.detectedCompetitors.length - 12}</span> : null}</div>

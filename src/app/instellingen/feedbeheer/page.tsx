@@ -47,20 +47,7 @@ export default async function InstellingenFeedbeheerPage() {
       {!result.available ? <DatabaseNotice /> : null}
 
       <section className="strong-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
-          <div>
-            <p className="eyebrow">Databronnen</p>
-            <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#172033]">Feedbeheer</h2>
-            <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#697386]">
-              Beheer productfeeds zoals in Syntrx, per land filteren, meerdere feeds selecteren, activeren, deactiveren, synchroniseren, bewerken en verwijderen.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/feeds/map" className="secondary-action">Feed mapping</Link>
-            <Link href="/feeds/data" className="secondary-action">Feeddata</Link>
-          </div>
-        </div>
-
+        <div className="flex justify-end gap-2 px-5 py-3"><Link href="/feeds/map" className="secondary-action">Mapping</Link><Link href="/feeds/data" className="secondary-action">Data</Link></div>
         <div className="grid border-t border-[#e7ebf0] sm:grid-cols-4">
           <div className="px-5 py-4 sm:px-6">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7a8699]">Totaal</p>
