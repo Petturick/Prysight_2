@@ -1,9 +1,37 @@
 export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAdmin } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
+
+type ManageLink = {
+  href: string
+  label: string
+  count?: number
+}
+
+function Group({ title, links }: { title: string; links: ManageLink[] }) {
+  return (
+    <section className="ps-panel overflow-hidden">
+      <div className="border-b border-[#edf0f3] px-5 py-3.5">
+        <h2 className="text-[13px] font-semibold text-[#25364b]">{title}</h2>
+      </div>
+      <div className="divide-y divide-[#eef1f4]">
+        {links.map((link) => (
+          <Link key={link.href} href={link.href} className="flex min-h-[54px] items-center justify-between gap-4 px-5 py-3 text-[13px] font-medium text-[#344054] transition-colors hover:bg-[#f8fafc]">
+            <span>{link.label}</span>
+            <span className="flex items-center gap-3">
+              {typeof link.count === 'number' ? <span className="text-[11px] font-medium tabular-nums text-[#98a2b3]">{link.count}</span> : null}
+              <svg className="h-4 w-4 text-[#98a2b3]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m9 18 6-6-6-6" /></svg>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 export default async function BeheerPage() {
   const actor = await requireAdmin()
@@ -19,51 +47,30 @@ export default async function BeheerPage() {
   ]), [0, 0, 0, 0, 0, 0, 0, 0])
   const [countries, competitors, webshops, productGroups, users, logs, feeds, products] = result.data
 
-  const stats = [
-    { label: 'Actieve markten', value: countries },
-    { label: 'Concurrenten', value: competitors },
-    { label: 'Webshops', value: webshops },
-    { label: 'Productgroepen', value: productGroups },
-    { label: 'Gebruikers', value: users },
-    { label: 'Feeds', value: feeds },
-    { label: 'Producten', value: products },
-    { label: 'Auditregels', value: logs },
-  ]
-  const links = [
-    { href: '/beheer/synchronisatie', label: 'Synchronisatie', description: 'Per markt productfeeds en concurrentieprijzen bijwerken, handmatig of volgens planning.' },
-    { href: '/instellingen/markten', label: 'Markten', description: 'Kies in welke landen deze organisatie actief monitort.' },
-    { href: '/beheer/concurrenten', label: 'Concurrenten', description: 'Marktspelers en controlefrequenties beheren.' },
-    { href: '/beheer/webshops', label: 'Webshops', description: 'Verkoopkanalen en koppelingen met concurrenten.' },
-    { href: '/beheer/productgroepen', label: 'Productgroepen', description: 'Categorieën en scope voor signalering.' },
-    { href: '/instellingen/gebruikers', label: 'Gebruikers en toegang', description: 'Gebruikers, rollen en toegang binnen de organisatie.' },
-    { href: '/instellingen/feedbeheer', label: 'Feedbeheer', description: 'Feeds per land beheren, activeren, deactiveren, synchroniseren en verwijderen.' },
-    { href: '/producten', label: 'Productdata beheren', description: 'Producten selecteren, alles selecteren, deselecteren en geselecteerde productdata verwijderen.' },
-    { href: '/beheer/auditlog', label: 'Auditlog', description: 'Wijzigingshistorie van de actieve organisatie.' },
-    ...(actor.role === 'SUPER_ADMIN' ? [{ href: '/beheer/landen', label: 'Platformlanden', description: 'Globale BTW en valutareferenties voor het hele platform.' }] : []),
-  ]
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {!result.available && <DatabaseNotice />}
-      <div>
-        <h1 className="text-3xl font-semibold">Beheer</h1>
-        <p className="mt-2 text-sm text-slate-600">Beheer alleen wat bij de actieve organisatie hoort. Platforminstellingen worden uitsluitend aan super admins getoond.</p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">{stat.label}</p>
-            <p className="mt-3 text-3xl font-semibold">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {links.map((link) => (
-          <Link key={link.href} href={link.href} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md">
-            <h2 className="text-lg font-semibold">{link.label}</h2>
-            <p className="mt-2 text-sm text-slate-600">{link.description}</p>
-          </Link>
-        ))}
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <Group title="Data" links={[
+          { href: '/instellingen/feedbeheer', label: 'Feeds', count: feeds },
+          { href: '/beheer/synchronisatie', label: 'Synchronisatie' },
+          { href: '/producten', label: 'Productdata', count: products },
+          { href: '/import', label: 'Importeren' },
+        ]} />
+
+        <Group title="Markt" links={[
+          { href: '/instellingen/markten', label: 'Markten', count: countries },
+          { href: '/beheer/concurrenten', label: 'Concurrenten', count: competitors },
+          { href: '/beheer/webshops', label: 'Webshops', count: webshops },
+          { href: '/beheer/productgroepen', label: 'Productgroepen', count: productGroups },
+        ]} />
+
+        <Group title="Organisatie" links={[
+          { href: '/instellingen/gebruikers', label: 'Gebruikers en toegang', count: users },
+          { href: '/beheer/auditlog', label: 'Auditlog', count: logs },
+          ...(actor.role === 'SUPER_ADMIN' ? [{ href: '/beheer/landen', label: 'Platformlanden' }] : []),
+        ]} />
       </div>
     </div>
   )
