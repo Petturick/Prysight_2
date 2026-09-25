@@ -320,3 +320,96 @@ main .ps-chip {
     font-size: 24px !important;
   }
 }
+
+
+/* Prysight calm UX layer, one hierarchy across the complete application */
+main > div[class*='space-y'] {
+  gap: 14px !important;
+}
+
+main .eyebrow {
+  display: none !important;
+}
+
+main .ps-panel,
+main .surface-card,
+main .strong-panel,
+main .prysight-elevated-card,
+main .ps-product-card,
+main .ps-insight-card {
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(16,24,40,.025), 0 5px 16px rgba(16,24,40,.035) !important;
+}
+
+main .ps-panel:hover,
+main .prysight-elevated-card:hover,
+main .ps-product-card:hover {
+  transform: none !important;
+  box-shadow: 0 1px 2px rgba(16,24,40,.025), 0 7px 18px rgba(16,24,40,.045) !important;
+}
+
+main section.strong-panel:first-of-type > div:first-child {
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+}
+
+main .premium-kpi-card,
+main .premium-decision-card {
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+main .premium-decision-card:hover {
+  transform: none !important;
+  border-color: #d6dde6 !important;
+  background: #fbfcfd !important;
+}
+
+main details > summary p,
+main .premium-decision-card p[class*='leading'],
+main .surface-card p[class*='leading'] {
+  color: #7b8798 !important;
+}
+
+main details > summary p {
+  margin-top: 2px !important;
+}
+
+main .ps-stepper {
+  padding: 10px !important;
+  gap: 4px !important;
+  background: #f4f6f8 !important;
+}
+
+main .ps-step {
+  min-height: 40px !important;
+  padding: 7px 9px !important;
+}
+
+main .ps-choice-card {
+  min-height: 100px !important;
+}
+
+main .data-grid-scroll {
+  border-radius: 12px !important;
+}
+
+main table th,
+main table td {
+  white-space: nowrap;
+}
+
+main .ps-description,
+main [data-secondary-copy='true'] {
+  color: #7b8798 !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+
+@media (max-width: 768px) {
+  main > div[class*='space-y'] {
+    gap: 12px !important;
+  }
+}
