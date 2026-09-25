@@ -262,18 +262,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       {resultMessage === 'mislukt' ? <p role="alert" className="rounded-lg bg-[#fff0f1] px-4 py-2.5 text-[11px] text-[#a93442]">Prijscontrole mislukt. Controleer de gekoppelde bronnen.</p> : null}
       {resultMessage === 'geen-bron' || resultMessage === 'geen-bronnen-selectie' ? <p role="status" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Voor de selectie zijn nog geen concurrentbronnen gekoppeld. Open een product om een bron toe te voegen.</p> : null}
 
-      <section className="strong-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-        <div>
-          <h1>Producten</h1>
-          <p className="mt-1 text-[11px] text-[#748296]">{formatNumber(totalCount)} producten, overzicht en prijsvergelijking per markt</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/import/bulk" className="secondary-action">Importeren</Link>
-          <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
-          {actor.role === 'SUPER_ADMIN' ? <Link href="/instellingen/data#danger-zone" className="rounded-[9px] border border-[#e5b5bd] bg-white px-3 py-2 text-[10px] font-semibold text-[#a12d40]">Alle producten verwijderen</Link> : null}
-        </div>
-      </section>
-
       <section className="ps-panel px-3 py-3 sm:px-4">
         <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="weergave" value={view} />
@@ -309,7 +297,6 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
                   <option value="ontbreekt">EAN ontbreekt</option>
                 </select>
               </label>
-              <p className="text-[10px] text-[#8492a1]">Gebruik Toepassen om de filters bij te werken.</p>
             </div>
           </details>
           <label className="flex items-center gap-1.5 text-[10px] font-semibold text-[#66788d]">
@@ -321,12 +308,11 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
           <button type="submit" className="primary-action">Toepassen</button>
           <Link href="/producten" className="secondary-action">Wissen</Link>
         </form>
-        {selectedFeed ? <p className="mt-2 text-[10px] font-semibold text-[#365b96]">Producten gekoppeld aan feed {selectedFeed.name}, {selectedFeed.countryCode}. Selecteer alle resultaten om producten uit deze feed te beheren. <Link href="/instellingen/feedbeheer" className="underline">Terug naar feedbeheer</Link></p> : null}
-        {selectedCountry ? <p className="mt-2 text-[10px] text-[#748296]">Marktprofiel, {selectedCountry.name}. Prijzen en concurrenten worden voor dit land weergegeven.</p> : <p className="mt-2 text-[10px] text-[#748296]">Alle markten, selecteer een land voor een landspecifieke prijsvergelijking.</p>}
+        {selectedFeed ? <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-[#f5f8fc] px-3 py-2 text-[11px] text-[#52657d]"><span>Feed, {selectedFeed.name} · {selectedFeed.countryCode}</span><Link href="/instellingen/feedbeheer" className="font-semibold text-[#315fa7]">Beheer feed</Link></div> : null}
       </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#e2eaf3] bg-white px-4 py-3">
-        <div><h2 className="text-[13px] font-semibold text-[#253a50]">Producten vergelijken</h2><p className="mt-1 text-[11px] text-[#748296]">Bekijk prijzen en concurrenten per product. Gebruik Tabel voor selectie en bulkbeheer.</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
+        <span className="text-[12px] font-medium text-[#667085]">{formatNumber(totalCount)} producten{selectedCountry ? ` · ${selectedCountry.name}` : ''}</span>
         <div role="group" aria-label="Weergave" className="inline-flex gap-1 rounded-lg bg-[#edf2f8] p-1 text-[11px] font-semibold">
           <Link href={comparisonHref} aria-current={view === 'vergelijking' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'vergelijking' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Vergelijking</Link>
           <Link href={tableHref} aria-current={view === 'tabel' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'tabel' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Tabel en bulkbeheer</Link>
