@@ -413,3 +413,60 @@ main [data-secondary-copy='true'] {
     gap: 12px !important;
   }
 }
+
+
+/* Prysight information hierarchy contract */
+/* Headings should explain the screen. Repeated prose beneath them is progressively disclosed instead of permanently visible. */
+main :is(h1, h2, h3) + p:not([role='alert']):not([role='status']) {
+  display: none !important;
+}
+
+main details > summary p {
+  display: none !important;
+}
+
+/* Keep supporting copy available when it is explicitly marked as essential. */
+main .ps-essential-copy,
+main [data-essential-copy='true'] {
+  display: block !important;
+}
+
+/* Shorten card scanning distance and keep one visual rhythm tool wide. */
+main .premium-kpi-card,
+main .premium-decision-card,
+main .surface-card,
+main .ps-panel {
+  overflow: hidden;
+}
+
+main .premium-kpi-card p:last-child:not(:first-child) {
+  margin-bottom: 0 !important;
+}
+
+main .ps-helper-copy,
+main [data-secondary-copy='true'] {
+  display: none !important;
+}
+
+main details[open] .ps-helper-copy,
+main details[open] [data-secondary-copy='true'] {
+  display: block !important;
+}
+
+/* Keep action bars calm: primary action first, supporting controls visually secondary. */
+main .ps-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+main .ps-action-bar > .primary-action {
+  order: -1;
+}
+
+@media (max-width: 768px) {
+  main :is(h1, h2, h3) + p:not([role='alert']):not([role='status']) {
+    display: none !important;
+  }
+}
