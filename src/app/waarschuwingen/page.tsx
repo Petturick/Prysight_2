@@ -24,11 +24,11 @@ function KpiCard({ label, value, tone, icon }: { label: string; value: number; t
   }
 
   return (
-    <div className="prysight-elevated-card flex min-h-[138px] items-start gap-4 p-5">
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${toneClasses[tone]}`}>{icon}</div>
+    <div className="prysight-elevated-card flex min-h-[108px] items-start gap-3 p-4">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${toneClasses[tone]}`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-[12px] font-semibold text-[#536178]">{label}</p>
-        <p className="mt-1 text-[30px] font-bold tracking-[-0.04em] text-[#17233b]">{formatNumber(value)}</p>
+        <p className="mt-1 text-[26px] font-semibold tracking-[-0.04em] text-[#17233b]">{formatNumber(value)}</p>
       </div>
     </div>
   )
