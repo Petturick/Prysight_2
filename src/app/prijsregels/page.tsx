@@ -58,16 +58,7 @@ export default async function PricingRulesPage({ searchParams }: { searchParams:
 
   return (
     <div className="space-y-5">
-      <section className="ps-panel overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
-          <div>
-            <p className="eyebrow">Pricing governance</p>
-            <h1 className="mt-2">Prijsregels en commerciële guardrails</h1>
-            <p className="mt-2 max-w-3xl text-[12px] font-medium leading-6 text-[#4b5870]">Leg vast hoe PrySight mag adviseren. Productgrenzen zijn hard, prijsregels bepalen de strategie per organisatie, land, productgroep of product.</p>
-          </div>
-          <Link href="/prijsstrategie" className="primary-action">Bekijk prijsadviezen</Link>
-        </div>
-      </section>
+      <div className="flex justify-end"><Link href="/prijsstrategie" className="primary-action">Prijsadviezen</Link></div>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="surface-card overflow-hidden">
