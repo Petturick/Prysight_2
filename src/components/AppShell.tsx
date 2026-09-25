@@ -47,7 +47,7 @@ function routeMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/instellingen/feedbeheer')) return { title: 'Feedbeheer' }
   if (pathname.startsWith('/instellingen/data')) return { title: 'Databeheer' }
   if (pathname.startsWith('/instellingen')) return { title: 'Instellingen' }
-  if (pathname.startsWith('/onboarding')) return { title: 'Setup' }
+  if (pathname.startsWith('/onboarding')) return { title: 'Instellen' }
   return { title: 'Overzicht' }
 }
 
