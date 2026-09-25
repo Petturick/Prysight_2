@@ -2,3 +2,5 @@ Production deploy trigger 2026-09-14 Europe/Amsterdam
 Nieuwe Prysight stijl websitebreed, forsere interactieve componenten, rustigere surfaces, vernieuwde navigatie, visuele productprijsvergelijking per product met concurrentregels, voorraad, prijsbeweging en positie, vernieuwde vierstaps importflow met automatische mapping, preview en resultaten. Producten, import, shell, sidebar, tabellen en het globale theme zijn bijgewerkt. Laatste functionele redesign commit 3300da6160bebbc5d5800f7851059571108d699a.
 2026-09-24: Prysight productflow vereenvoudigd, herkenning zonder verplichte EAN en veilige prijsvalidatie na bevestigde productidentiteit. Productiepublicatie aangevraagd na PR #94.
 2026-09-24: deploy Brico en Praxis live bronverificatie, PR 96, commit a623a01ca40aa3fda4a4d84507e7ff1ceb68663e.
+
+2026-09-25: productbrede eenvoudrelease, progressive disclosure, minder permanente uitleg, compactere KPI's en dubbele dashboardinformatie verwijderd.
