@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic'
 
-import Link from 'next/link'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requireAuthenticatedUser } from '@/lib/authz'
 import { formatDate, formatNumber } from '@/lib/format'
@@ -109,7 +108,6 @@ export default async function MonitoringPage() {
 
   const data = result.data
   const readyCoverage = data.products ? Math.round((Math.min(data.certainMatches, data.products) / data.products) * 100) : 0
-  const actionTotal = data.productsWithoutCompetitor + data.reviewMatches + data.failedChecks24h + data.unreadAlerts
   const successRate24h = data.checks24h ? Math.round(((data.checks24h - data.failedChecks24h) / data.checks24h) * 100) : 0
   const unhealthySources = data.sourceHealth.filter((source) => source.consecutiveFailures >= 3 || source.successRate < 60).length
 
