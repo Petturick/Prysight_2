@@ -15,3 +15,24 @@ Preserve `src/components/auth/PrysightLoginScreen.tsx`, `public/prysight-logo.sv
 This repository uses Next.js 16. Netlify and Bolt hosting must use the current automatic Next.js OpenNext adapter. Do not add or pin the legacy `@netlify/plugin-nextjs` package unless a deliberate migration requires it. Keep the normal Next.js build output in `.next` and keep Node 22 for production builds.
 
 Never overwrite authentication, hosting, Stripe, Prisma, Supabase or database configuration as incidental cleanup. Any intentional change must preserve the direct PrySight login, authenticated dashboard routing, `/api/health`, server rendering and database connectivity.
+
+
+# PrySight UX invariants
+
+PrySight must feel calm, premium, direct and self explanatory. Treat simplicity as a product requirement, not only as styling.
+
+Every authenticated screen should follow progressive disclosure. Show the decision, status or task first. Secondary explanation belongs behind details, tooltips, contextual help or an explicit action, not as permanent paragraphs.
+
+Do not add introductory marketing copy, repeated explanations, duplicate KPI blocks or large instructional cards when a label, status, button or empty state can explain the task.
+
+Prefer one clear primary action per view. Secondary actions must be visually quiet and should not compete with the main task.
+
+Page and section headings should normally stand on their own. Avoid a paragraph directly below a heading unless the information is essential for safe or correct use.
+
+Forms should explain fields through concise labels and placeholders. Persistent helper text is reserved for validation, irreversible consequences, permissions, billing or other information that changes the user's decision.
+
+Dashboard information must not repeat the same metric in multiple sections. A metric should have one primary home, with drill down links for detail.
+
+Keep tables and cards scannable. Default views should prioritize name, current status, current value and next action. Technical metadata belongs in detail views or progressive disclosure.
+
+When adding a new feature, remove or consolidate existing UI before adding another visible block. PrySight should become simpler as capability grows.
