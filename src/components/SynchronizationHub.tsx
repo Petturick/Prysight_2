@@ -139,10 +139,7 @@ export function SynchronizationHub({ marketName, feeds: initialFeeds, competitor
     {notice ? <p role={notice.ok ? 'status' : 'alert'} className={`rounded-lg px-4 py-3 text-[12px] ${notice.ok ? 'bg-[#eaf8f0] text-[#1f7548]' : 'bg-[#fff0f1] text-[#a83f4b]'}`}>{notice.text}</p> : null}
     {tab === 'feeds' && canReadFeeds ? <section className="ps-panel overflow-hidden" role="tabpanel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf3] px-4 py-3 sm:px-5">
-        <div>
-          <h2 className="text-[15px] font-semibold text-[#20344b]">Productgegevens</h2>
-          <p className="mt-1 text-[12px] text-[#738298]">Kies per gekoppelde URL feed de planning of synchroniseer direct.</p>
-        </div>
+        <h2 className="text-[15px] font-semibold text-[#20344b]">Productgegevens</h2>
         <div className="flex items-center gap-2">
           <Link href="/feeds" className="secondary-action text-[12px]">Feed toevoegen</Link>
           <Link href="/instellingen/feedbeheer" className="secondary-action text-[12px]">Alle feedinstellingen</Link>
@@ -176,14 +173,10 @@ export function SynchronizationHub({ marketName, feeds: initialFeeds, competitor
         </div>)}
         {!feeds.length ? <p className="p-6 text-[12px] text-[#738298]">Geen productfeeds voor deze markt. <Link href="/feeds" className="text-[#2f6edb] underline">Voeg een feed toe</Link>.</p> : null}
       </div>
-      <p className="border-t border-[#e7edf3] px-5 py-3 text-[11px] text-[#738298]">URL feeds en gekoppelde eigen productpagina’s worden volgens hun ingestelde frequentie opgehaald. Syntrx synchroniseer je vanuit de bijbehorende bron.</p>
     </section> : null}
     {tab === 'prices' && canReadPrices ? <section className="ps-panel overflow-hidden" role="tabpanel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf3] px-4 py-3 sm:px-5">
-        <div>
-          <h2 className="text-[15px] font-semibold text-[#20344b]">Concurrentieprijzen</h2>
-          <p className="mt-1 text-[12px] text-[#738298]">Controlefrequentie per concurrent, prijsmetingen binnen de gekozen markt.</p>
-        </div>
+        <h2 className="text-[15px] font-semibold text-[#20344b]">Concurrentieprijzen</h2>
         <button type="button" onClick={() => void syncPrices()} disabled={!canWritePrices || Boolean(busy)}
           className="primary-action disabled:opacity-50">{busy === 'prices' ? 'Controleren…' : 'Nu prijzen controleren'}</button>
       </div>
@@ -205,7 +198,6 @@ export function SynchronizationHub({ marketName, feeds: initialFeeds, competitor
         </div>)}
         {!competitors.length ? <p className="p-6 text-[12px] text-[#738298]">Nog geen concurrenten voor deze markt. <Link href="/concurrenten" className="text-[#2f6edb] underline">Concurrent toevoegen</Link>.</p> : null}
       </div>
-      <p className="border-t border-[#e7edf3] px-5 py-3 text-[11px] text-[#738298]">Per handmatige opdracht worden maximaal 8 gekoppelde bronnen gecontroleerd. De bestaande automatische prijsmonitoring blijft per concurrent actief.</p>
     </section> : null}
   </div>
 }
