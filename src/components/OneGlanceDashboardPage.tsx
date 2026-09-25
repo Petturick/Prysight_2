@@ -33,13 +33,12 @@ function StatCard({ label, value, detail, href, accent }: {
     amber: 'bg-[#fff8e9] text-[#9c6317]',
     green: 'bg-[#eaf7f1] text-[#147951]',
   }
-  return <Link href={href} className="group rounded-2xl border border-[#e4eaf2] bg-white p-5 shadow-sm transition hover:border-[#b8cce9] hover:shadow-md">
+  return <Link href={href} title={detail} aria-label={label + ': ' + value + '. ' + detail} className="group rounded-2xl border border-[#e4eaf2] bg-white p-4 shadow-sm transition hover:border-[#b8cce9] hover:shadow-md">
     <div className="flex items-start justify-between gap-2">
       <p className="text-[12px] font-semibold text-[#59677b]">{label}</p>
       <span aria-hidden="true" className={'flex h-7 w-7 items-center justify-center rounded-lg ' + accentStyles[accent]}>↗</span>
     </div>
-    <p className="mt-3 text-[29px] font-semibold leading-none tracking-tight text-[#182439]">{value}</p>
-    <p className="mt-3 text-[11px] leading-4 text-[#68778d]">{detail}</p>
+    <p className="mt-3 text-[28px] font-semibold leading-none tracking-tight text-[#182439]">{value}</p>
   </Link>
 }
 
@@ -114,12 +113,9 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
     </div>}
 
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div className="flex items-center gap-2">
         <h1 className="text-[26px] font-semibold tracking-tight text-[#182439]">Prijsoverzicht</h1>
-        <p className="mt-1 text-[12px] text-[#78869a]">
-          {selectedCountry ? 'B2B prijspositie voor ' + selectedCountry : 'B2B prijspositie en marktmonitoring per actieve markt'}.
-          Alleen bevestigde, actuele prijzen tellen mee in de vergelijking, btw en markt blijven expliciet gescheiden.
-        </p>
+        {selectedCountry ? <span className="ps-chip">{selectedCountry}</span> : null}
       </div>
       <form aria-label="Dashboardfilters" className="flex flex-wrap items-end gap-2 rounded-xl border border-[#e5ebf3] bg-white p-2 shadow-sm">
         <label className="text-[10px] font-semibold text-[#66758b]">
@@ -163,21 +159,6 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
         detail="Te beoordelen matches, mislukte checks en verouderde bronnen" href="/waarschuwingen" accent="amber"/>
     </section>
 
-
-    <section aria-label="Besliscockpit" className="grid gap-3 lg:grid-cols-3">
-      <Link href={productHref} className="premium-decision-card p-4 transition hover:-translate-y-0.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Commercieel</p>
-        <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(higher.length)}</p><p className="mt-1 text-[11px] text-[#68778d]">producten boven de laagste actuele marktprijs</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Bekijken →</span></div>
-      </Link>
-      <Link href={productHref} className="premium-decision-card p-4 transition hover:-translate-y-0.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Datadekking</p>
-        <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(incompleteProducts)}</p><p className="mt-1 text-[11px] text-[#68778d]">producten zonder actuele bevestigde vergelijking</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Aanvullen →</span></div>
-      </Link>
-      <Link href="/monitoring" className="premium-decision-card p-4 transition hover:-translate-y-0.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8290a1]">Technische kwaliteit</p>
-        <div className="mt-2 flex items-end justify-between gap-3"><div><p className="text-[22px] font-semibold text-[#182439]">{formatNumber(monitoringIssues)}</p><p className="mt-1 text-[11px] text-[#68778d]">mislukte of verouderde prijsbronnen</p></div><span className="text-[11px] font-semibold text-[#416bbd]">Controleren →</span></div>
-      </Link>
-    </section>
 
     <section className="grid gap-3 xl:grid-cols-[minmax(0,1.55fr)_minmax(310px,.75fr)]">
       <div className="surface-card p-5">
