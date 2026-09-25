@@ -32,8 +32,9 @@ function routeMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/prijsregels')) return { title: 'Prijsregels' }
   if (pathname.startsWith('/prijswijzigingen')) return { title: 'Prijswijzigingen' }
   if (pathname.startsWith('/prijsautomatisering')) return { title: 'Automatisering' }
+  if (pathname.startsWith('/prijsuitleg')) return { title: 'Prijsuitleg' }
   if (pathname.startsWith('/acties')) return { title: 'Acties' }
-  if (pathname.startsWith('/rapportages')) return { title: 'Inzichten' }
+  if (pathname.startsWith('/rapportages')) return { title: 'Rapportages' }
   if (pathname.startsWith('/feeds')) return { title: 'Feeds' }
   if (pathname.startsWith('/import/bulk')) return { title: 'Bulk import' }
   if (pathname.startsWith('/import')) return { title: 'Importeren' }
