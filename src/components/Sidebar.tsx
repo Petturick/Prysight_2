@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { logoutAction } from '@/app/actions/authActions'
 import { cn } from '@/lib/format'
-import { roleLabel, type AppRole } from '@/lib/roles'
+import type { AppRole } from '@/lib/roles'
 
 type IconName = 'dashboard' | 'products' | 'competitors' | 'alerts' | 'reports' | 'settings'
 type SidebarUser = { name?: string | null; email?: string | null; role?: AppRole | null }
@@ -40,22 +40,15 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
   const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
   const warm = (href: string) => router.prefetch(href)
 
-  return <aside className="flex h-dvh w-[232px] flex-col overflow-hidden border-r border-white/[0.055] bg-[#0b1728] text-white shadow-[12px_0_32px_rgba(7,18,33,.07)]">
-    <div className="px-4 pb-4 pt-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-white/[0.06] ring-1 ring-white/[0.07]">
-          <Image src="/prysight-mark.svg" width={30} height={22} alt="" priority className="h-auto w-[29px]" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[15px] font-semibold leading-tight tracking-[-0.025em] text-white">PrySight</p>
-          <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.17em] text-[#8192a8]">Pricing intelligence</p>
-        </div>
+  return <aside className="flex h-dvh w-[220px] flex-col overflow-hidden border-r border-white/[0.05] bg-[#0b1728] text-white">
+    <Link href="/dashboard" className="flex h-[62px] items-center gap-3 px-4" aria-label="Prysight overzicht">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white/[0.055]">
+        <Image src="/prysight-mark.svg" width={29} height={22} alt="" priority className="h-auto w-[28px]" />
       </div>
-    </div>
+      <p className="text-[15px] font-semibold tracking-[-0.025em] text-white">PrySight</p>
+    </Link>
 
-    <div className="mx-4 h-px bg-white/[0.06]" />
-
-    <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
+    <nav className="min-h-0 flex-1 space-y-1 px-2.5 py-3">
       {navItems.map((item) => {
         const active = activeFor(pathname, item)
         return <Link
@@ -66,35 +59,23 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
           onMouseEnter={() => warm(item.href)}
           onFocus={() => warm(item.href)}
           className={cn(
-            'group relative flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13px] font-medium transition-all duration-150',
-            active
-              ? 'bg-white/[0.075] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.035)]'
-              : 'text-[#a6b4c5] hover:bg-white/[0.045] hover:text-white',
+            'group relative flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] font-medium transition-colors',
+            active ? 'bg-white/[0.08] text-white' : 'text-[#a8b5c5] hover:bg-white/[0.045] hover:text-white',
           )}
         >
-          {active ? <span className="absolute left-0 top-2.5 h-7 w-[3px] rounded-r-full bg-[#5b8ff6]" /> : null}
-          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] transition-colors', active ? 'bg-[#2f6fec] text-white' : 'bg-white/[0.035] text-[#98a8bb] group-hover:bg-white/[0.06] group-hover:text-white')}><NavIcon name={item.icon}/></span>
+          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px]', active ? 'bg-[#2f6fec] text-white' : 'text-[#91a1b5] group-hover:text-white')}><NavIcon name={item.icon}/></span>
           <span className="truncate">{item.label}</span>
         </Link>
       })}
     </nav>
 
     {user ? <div className="border-t border-white/[0.06] p-3">
-      <div className="rounded-[12px] bg-white/[0.035] p-2.5 ring-1 ring-white/[0.045]">
-        <div className="flex items-center gap-2.5">
-          <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} onFocus={() => warm('/instellingen/profiel')} className="flex min-w-0 flex-1 items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#22354d] text-[11px] font-semibold text-white ring-1 ring-white/[0.08]">{initials}</div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-semibold text-white">{user.name || user.email}</p>
-              <span className="mt-1 inline-flex rounded-full bg-white/[0.055] px-2 py-0.5 text-[9px] font-medium leading-none text-[#a7b6c7] ring-1 ring-white/[0.055]">{roleLabel(user.role)}</span>
-            </div>
-          </Link>
-          <form action={logoutAction}><button type="submit" className="rounded-lg p-1.5 text-[#778aa1] transition-colors hover:bg-white/[0.06] hover:text-white" title="Uitloggen" aria-label="Uitloggen"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg></button></form>
-        </div>
-        <div className="mt-2 flex gap-1">
-          <Link href="/onboarding" prefetch={false} onMouseEnter={() => warm('/onboarding')} className="flex-1 rounded-lg px-2 py-1.5 text-left text-[10px] font-medium text-[#8093a8] transition-colors hover:bg-white/[0.045] hover:text-white">Setup</Link>
-          <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} className="flex-1 rounded-lg px-2 py-1.5 text-left text-[10px] font-medium text-[#8093a8] transition-colors hover:bg-white/[0.045] hover:text-white">Profiel</Link>
-        </div>
+      <div className="flex items-center gap-2.5 rounded-[11px] px-2 py-2">
+        <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#22354d] text-[11px] font-semibold text-white">{initials}</div>
+          <p className="truncate text-[11px] font-medium text-[#dce4ed]">{user.name || user.email}</p>
+        </Link>
+        <form action={logoutAction}><button type="submit" className="rounded-lg p-2 text-[#778aa1] transition-colors hover:bg-white/[0.06] hover:text-white" title="Uitloggen" aria-label="Uitloggen"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg></button></form>
       </div>
     </div> : null}
   </aside>
