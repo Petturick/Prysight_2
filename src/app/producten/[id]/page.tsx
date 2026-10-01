@@ -104,8 +104,9 @@ function frequencyLabel(hours: number) {
 }
 
 
-function isCrawlDue(lastCheckedAt: Date | null | undefined, hours: number) {
+function isCrawlDue(nextCheckAt: Date | null | undefined, lastCheckedAt: Date | null | undefined, hours: number) {
   if (hours >= 876000) return false
+  if (nextCheckAt) return nextCheckAt.getTime() <= Date.now()
   if (!lastCheckedAt) return true
   return Date.now() - lastCheckedAt.getTime() >= hours * 60 * 60 * 1000
 }
@@ -243,6 +244,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const comparisonOwnPriceExVat = ownAmounts.priceEx
   const automaticMatches = crawlableMatches.filter((match) => match.competitorOffer.competitor.checkFrequencyHours < 876000)
   const automaticDue = automaticMatches.filter((match) => isCrawlDue(
+    match.competitorOffer.nextCheckAt,
     match.competitorOffer.lastCheckedAt,
     match.competitorOffer.competitor.checkFrequencyHours,
   )).length
