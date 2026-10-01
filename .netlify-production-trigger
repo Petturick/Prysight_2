@@ -4,3 +4,4 @@ Nieuwe Prysight stijl websitebreed, forsere interactieve componenten, rustigere 
 2026-09-24: deploy Brico en Praxis live bronverificatie, PR 96, commit a623a01ca40aa3fda4a4d84507e7ff1ceb68663e.
 
 2026-09-25: productbrede eenvoudrelease, progressive disclosure, minder permanente uitleg, compactere KPI's en dubbele dashboardinformatie verwijderd.
+2026-10-01: productenpagina vereenvoudigd, visuele ruis verminderd, filters en weergave samengevoegd, prijsvergelijking compacter gemaakt. Productiepublicatie aangevraagd na PR #108.
