@@ -18,6 +18,6 @@ test('premium comparison exposes transparent data quality instead of a cosmetic 
   assert.match(comparison, /row\.qualityLabel/)
   assert.match(comparison, /row\.qualityDetail/)
   assert.match(dashboard, /Datadekking/)
-  assert.match(dashboard, /Technische kwaliteit/)
+  assert.match(dashboard, /Monitoring en controles/)
   assert.doesNotMatch(comparison, /confidence score|betrouwbaarheidsscore/i)
 })
