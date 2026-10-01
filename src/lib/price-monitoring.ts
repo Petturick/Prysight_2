@@ -5,7 +5,7 @@ import { assertCompanyCapacity } from '@/lib/company-license'
 import { convertWithFxSnapshot, getFxSnapshot } from '@/lib/fx-rates'
 import { assessPriceQuality } from '@/lib/price-quality'
 import { normalizePrice } from '@/lib/price-normalization'
-import { monitoringLockUntil, nextFailureCheckAt, nextSuccessfulCheckAt } from '@/lib/monitoring-schedule'
+import { MANUAL_CHECK_FREQUENCY_HOURS, monitoringLockUntil, nextFailureCheckAt, nextSuccessfulCheckAt } from '@/lib/monitoring-schedule'
 import { createCorrelationId, logOperationalEvent } from '@/lib/observability'
 import { prisma } from '@/lib/prisma'
 import { safeRemoteFetch } from '@/lib/safe-remote-url'
@@ -1104,7 +1104,11 @@ export async function runDuePriceChecks({
         { OR: [{ checkLockedUntil: null }, { checkLockedUntil: { lt: now } }] },
         ...scheduledConstraint,
       ],
-      competitor: { isActive: true, ...(countryIds ? { countryId: { in: countryIds } } : {}) },
+      competitor: {
+        isActive: true,
+        ...(countryIds ? { countryId: { in: countryIds } } : {}),
+        ...(!force && !competitorOfferId ? { checkFrequencyHours: { lt: MANUAL_CHECK_FREQUENCY_HOURS } } : {}),
+      },
       productMatch: productId
         ? { productId, matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } }
         : { matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } },
