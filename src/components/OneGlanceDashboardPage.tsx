@@ -86,8 +86,6 @@ export default async function OneGlanceDashboardPage({ searchParams }: {
   const pct = (value: number) => snapshot.kpis.monitoredProducts
     ? Math.round(value / snapshot.kpis.monitoredProducts * 100) : 0
   const coveragePct = pct(comparable.length)
-  const monitoringIssues = snapshot.kpis.failedChecks + snapshot.kpis.staleData
-  const incompleteProducts = Math.max(0, snapshot.kpis.monitoredProducts - comparable.length)
 
   const priceRows = [...comparable]
     .map(item => ({
