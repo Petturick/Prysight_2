@@ -39,9 +39,10 @@ function sourceTone(successRate: number, consecutiveFailures: number) {
 export default async function MonitoringPage() {
   const user = await requireAuthenticatedUser()
   const companyId = user.companyId
-  const today = new Date()
+  const currentTime = new Date()
+  const today = new Date(currentTime)
   today.setHours(0, 0, 0, 0)
-  const last24Hours = new Date()
+  const last24Hours = new Date(currentTime)
   last24Hours.setHours(last24Hours.getHours() - 24)
 
   const result = await safeDatabaseQuery(async () => {
@@ -120,7 +121,6 @@ export default async function MonitoringPage() {
 
   const data = result.data
   const readyCoverage = data.products ? Math.round((Math.min(data.certainMatches, data.products) / data.products) * 100) : 0
-  const actionTotal = data.productsWithoutCompetitor + data.reviewMatches + data.failedChecks24h + data.unreadAlerts
   const successRate24h = data.checks24h ? Math.round(((data.checks24h - data.failedChecks24h) / data.checks24h) * 100) : 0
   const unhealthySources = data.sourceHealth.filter((source) => source.monitoringActive && (source.consecutiveFailures >= 3 || source.successRate < 60)).length
 
@@ -175,7 +175,7 @@ export default async function MonitoringPage() {
                     <td className="px-4 py-3 font-black text-[#111827]">{source.competitor}</td>
                     <td className="px-4 py-3"><p className="font-bold text-[#111827]">{source.product}</p>{source.articleNumber ? <p className="mt-1 text-[10px] text-[#6f7b91]">{source.articleNumber}</p> : null}</td>
                     <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.frequencyHours >= 876000 ? 'Handmatig' : source.frequencyHours === 24 ? 'Dagelijks' : `Elke ${source.frequencyHours} uur`}</td>
-                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{!source.monitoringActive ? 'Niet actief' : source.nextCheckAt ? (source.nextCheckAt.getTime() <= Date.now() ? 'Nu gepland' : formatDate(source.nextCheckAt)) : 'Nu gepland'}</td>
+                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{!source.monitoringActive ? 'Niet actief' : source.nextCheckAt ? (source.nextCheckAt.getTime() <= currentTime.getTime() ? 'Nu gepland' : formatDate(source.nextCheckAt)) : 'Nu gepland'}</td>
                     <td className={`px-4 py-3 font-black ${source.monitoringActive ? sourceTone(source.successRate, source.consecutiveFailures) : 'text-[#718096]'}`}>{source.lastAttemptAt ? `${source.successRate}%` : 'Nog geen data'}</td>
                     <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.lastSuccess ? formatDate(source.lastSuccess) : 'Nog geen succes'}</td>
                     <td className="max-w-[280px] px-4 py-3"><p className={`font-black ${source.monitoringActive ? sourceTone(source.successRate, source.consecutiveFailures) : 'text-[#718096]'}`}>{!source.monitoringActive ? 'Monitoring niet actief' : source.consecutiveFailures >= 3 || source.successRate < 60 ? 'Actie nodig' : source.consecutiveFailures > 0 || source.successRate < 90 ? 'Controleren' : 'Gezond'}</p>{source.latestError ? <p className="mt-1 line-clamp-2 text-[10px] font-medium leading-4 text-[#6f7b91]">{source.latestError}</p> : null}</td>
