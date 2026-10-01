@@ -240,7 +240,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
     copy.set('pagina', String(nextPage))
     return '/producten?' + copy.toString()
   }
-  const view = readParam(params.weergave) === 'tabel' ? 'tabel' : 'vergelijking'
+  const view = readParam(params.weergave) === 'vergelijking' ? 'vergelijking' : 'tabel'
   queryParams.set('weergave', view)
   const comparisonParams = new URLSearchParams(queryParams)
   comparisonParams.set('weergave', 'vergelijking')
@@ -261,6 +261,17 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       {resultMessage === 'klaar' ? <p role="status" className="rounded-lg bg-[#eaf8f0] px-4 py-2.5 text-[11px] text-[#20814d]">Prijscontrole afgerond. {readParam(params.bronnen) || '0'} bronnen gecontroleerd, resultaat {readParam(params.crawl) || 'onbekend'}.{readParam(params.limiet) === '1' ? ' De maximale batchgrootte is bereikt.' : ''}</p> : null}
       {resultMessage === 'mislukt' ? <p role="alert" className="rounded-lg bg-[#fff0f1] px-4 py-2.5 text-[11px] text-[#a93442]">Prijscontrole mislukt. Controleer de gekoppelde bronnen.</p> : null}
       {resultMessage === 'geen-bron' || resultMessage === 'geen-bronnen-selectie' ? <p role="status" className="rounded-lg bg-[#fff4df] px-4 py-2.5 text-[11px] text-[#92641f]">Voor de selectie zijn nog geen concurrentbronnen gekoppeld. Open een product om een bron toe te voegen.</p> : null}
+
+      <header className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-[22px] font-medium tracking-tight text-[#1f3349]">Producten</h1>
+          <div className="mt-1 text-[12px] text-[#748398]">{formatNumber(totalCount)} producten{selectedCountry ? ` · ${selectedCountry.name}` : ''}</div>
+        </div>
+        <div role="group" aria-label="Weergave" className="inline-flex w-fit gap-1 rounded-lg bg-[#edf2f8] p-1 text-[11px] font-medium">
+          <Link href={tableHref} aria-current={view === 'tabel' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'tabel' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Producten</Link>
+          <Link href={comparisonHref} aria-current={view === 'vergelijking' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'vergelijking' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Prijsvergelijking</Link>
+        </div>
+      </header>
 
       <section className="ps-panel px-3 py-3 sm:px-4">
         <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
@@ -311,16 +322,9 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         {selectedFeed ? <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-[#f5f8fc] px-3 py-2 text-[11px] text-[#52657d]"><span>Feed, {selectedFeed.name} · {selectedFeed.countryCode}</span><Link href="/instellingen/feedbeheer" className="font-semibold text-[#315fa7]">Beheer feed</Link></div> : null}
       </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
-        <span className="text-[12px] font-medium text-[#667085]">{formatNumber(totalCount)} producten{selectedCountry ? ` · ${selectedCountry.name}` : ''}</span>
-        <div role="group" aria-label="Weergave" className="inline-flex gap-1 rounded-lg bg-[#edf2f8] p-1 text-[11px] font-semibold">
-          <Link href={comparisonHref} aria-current={view === 'vergelijking' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'vergelijking' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Vergelijking</Link>
-          <Link href={tableHref} aria-current={view === 'tabel' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'tabel' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Tabel en bulkbeheer</Link>
-        </div>
-      </div>
       {view === 'vergelijking' ? (
         selectedCountry ? <ProductComparisonView rows={rows} canCrawl={canCrawl} refreshSinglePriceAction={refreshSingleProductPriceAction} />
-          : <section className="rounded-xl border border-[#dce5ef] bg-white px-6 py-10 text-center"><h3 className="text-[15px] font-semibold text-[#253a50]">Kies een markt om productprijzen te vergelijken</h3><p className="mt-2 text-[12px] text-[#687d95]">Zo blijven btw, valuta en concurrentieprijzen per land correct. Gebruik de marktkeuze bovenaan of open de tabel voor een overzicht van alle producten.</p><Link href={tableHref} className="secondary-action mt-4 inline-flex">Alle producten in tabel bekijken</Link></section>
+          : <section className="rounded-xl border border-[#dce5ef] bg-white px-6 py-10 text-center"><h3 className="text-[15px] font-medium text-[#253a50]">Kies een markt om prijzen te vergelijken</h3><div className="mt-2 text-[12px] text-[#687d95]">Selecteer bovenaan eerst het land waarvoor je de vergelijking wilt zien.</div><Link href={tableHref} className="secondary-action mt-4 inline-flex">Terug naar producten</Link></section>
       ) : <ProductOverviewGrid
         rows={rows}
         totalCount={totalCount}
