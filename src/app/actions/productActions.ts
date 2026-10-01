@@ -11,6 +11,7 @@ import { discoverCompetitorUrlsByEan } from '@/lib/ean-competitor-discovery'
 import { discoverProductCandidates } from '@/lib/smart-discovery'
 import { ingestCanonicalProducts } from '@/lib/feed-ingestion'
 import { runDuePriceChecks } from '@/lib/price-monitoring'
+import { rescheduleCompetitorOffers } from '@/lib/monitoring-reschedule'
 import { prisma } from '@/lib/prisma'
 import { isUnnamedGroup } from '@/lib/product-groups'
 import { parseOptionalShipping, validateVatPricePair } from '@/lib/manual-price-input'
@@ -334,6 +335,13 @@ export async function updateCompetitorDetailsAction(formData: FormData) {
     where: { id: competitorId, companyId: actor.companyId },
     data: { name, website, countryId, checkFrequencyHours },
   })
+  if (checkFrequencyHours !== competitor.checkFrequencyHours) {
+    await rescheduleCompetitorOffers({
+      companyId: actor.companyId,
+      competitorId,
+      frequencyHours: checkFrequencyHours,
+    })
+  }
   await createAuditLog({
     companyId: actor.companyId,
     userId: actor.id,
@@ -369,6 +377,13 @@ export async function addCompetitorOfferAction(formData: FormData) {
   const existingCompetitor = await prisma.competitor.findUnique({ where: competitorWhere })
   if (!existingCompetitor) await assertCompanyCapacity(user.companyId, 'competitors')
   const competitor = await prisma.competitor.upsert({ where: competitorWhere, update: { website, isActive: true, checkFrequencyHours }, create: { companyId: user.companyId, name: competitorName, website, countryId, isActive: true, checkFrequencyHours } })
+  if (existingCompetitor && existingCompetitor.checkFrequencyHours !== checkFrequencyHours) {
+    await rescheduleCompetitorOffers({
+      companyId: user.companyId,
+      competitorId: competitor.id,
+      frequencyHours: checkFrequencyHours,
+    })
+  }
   const existingOffer = await prisma.competitorOffer.findUnique({ where: { companyId_competitorId_url: { companyId: user.companyId, competitorId: competitor.id, url: safeOfferUrl } }, include: { productMatch: true } })
   if (existingOffer?.productMatch && existingOffer.productMatch.productId !== product.id) throw new Error('Deze concurrent URL is al aan een ander product gekoppeld.')
   const offer = existingOffer ?? await prisma.competitorOffer.create({ data: { companyId: user.companyId, competitorId: competitor.id, url: safeOfferUrl, currency: country.currency, vatIncluded: true, packagingUnit: product.packagingUnit, packagingQty: product.packagingQty, isActive: true } })
@@ -508,6 +523,12 @@ export async function updateCompetitorOfferAction(formData: FormData) {
               shippingLabel: null,
               stockStatus: null,
               lastCheckedAt: null,
+              lastAttemptAt: null,
+              lastSuccessfulCheckAt: null,
+              nextCheckAt: null,
+              consecutiveFailures: 0,
+              checkLockedUntil: null,
+              checkLockToken: null,
             }
           : {}),
       },
@@ -531,6 +552,14 @@ export async function updateCompetitorOfferAction(formData: FormData) {
       }}),
     ]),
   ])
+
+  if (checkFrequencyHours !== existing.competitor.checkFrequencyHours) {
+    await rescheduleCompetitorOffers({
+      companyId: user.companyId,
+      competitorId: existing.competitorId,
+      frequencyHours: checkFrequencyHours,
+    })
+  }
 
   if (urlChanged && (existing.productMatch?.product.ean || existing.productMatch?.product.gtin)) {
     try {
