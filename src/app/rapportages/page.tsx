@@ -446,7 +446,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
       <section className="surface-card overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-[#edf0f3] px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8793a4]">Historie</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8793a4]">Historische momentopname</p>
             <h2 className="mt-1 text-[16px] font-semibold text-[#25324a]">Ontwikkeling ten opzichte van vorige momentopname</h2>
             <p className="mt-1 text-[10px] text-[#8995a5]">
               {selectedReport ? 'Vergelijk ' + selectedReport.title + (previousReport ? ' met ' + previousReport.title + '.' : '.') : 'Sla een eerste momentopname op om ontwikkeling te kunnen vergelijken.'}
