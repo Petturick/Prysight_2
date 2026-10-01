@@ -69,13 +69,13 @@ export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction
 
             <div className="grid border-t border-[#edf1f5] sm:grid-cols-3">
               <div className="px-4 py-4 sm:px-5">
-                <p className="text-[10px] text-[#8190a3]">Jouw prijs excl. btw</p>
+                <p className="text-[10px] text-[#8190a3]">Jouw B2B prijs</p>
                 <p className="mt-1 text-[20px] font-semibold tracking-tight text-[#1f344b] tabular-nums">{row.ownEx}</p>
-                <p className="mt-1 text-[10px] text-[#7a899c]">{hasOwnPrice ? `Incl. btw ${row.ownInc}` : 'Nog geen eigen prijs'}</p>
+                <p className="mt-1 text-[10px] text-[#7a899c]">{hasOwnPrice ? `excl. btw · Incl. btw ${row.ownInc}` : 'Nog geen eigen prijs'}</p>
               </div>
 
               <div className="border-t border-[#edf1f5] px-4 py-4 sm:border-l sm:border-t-0 sm:px-5">
-                <p className="text-[10px] text-[#8190a3]">Laagste bevestigde prijs</p>
+                <p className="text-[10px] text-[#8190a3]">Laagste bevestigde prijs, excl. btw</p>
                 <p className="mt-1 text-[20px] font-semibold tracking-tight text-[#1f344b] tabular-nums">{row.marketEx}</p>
                 <p className="mt-1 text-[10px] text-[#7a899c]">{hasCompetitorPrice ? `${row.sources} gekoppelde bronnen` : 'Nog geen bevestigde prijs'}</p>
               </div>
