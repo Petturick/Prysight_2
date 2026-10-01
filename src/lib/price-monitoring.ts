@@ -1092,9 +1092,28 @@ export async function runDuePriceChecks({
   if (!companyId?.trim()) throw new Error('companyId is verplicht voor prijsmonitoring.')
   const cappedLimit = Math.min(Math.max(limit, 1), 200)
   const now = new Date()
+  const automaticFrequencies = [6, 12, 24, 48, 168] as const
   const scheduledConstraint = force || competitorOfferId
     ? []
-    : [{ OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: now } }] }]
+    : [{
+        OR: [
+          {
+            consecutiveFailures: { gt: 0 },
+            OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: now } }],
+          },
+          {
+            consecutiveFailures: 0,
+            lastSuccessfulCheckAt: null,
+          },
+          ...automaticFrequencies.map((frequencyHours) => ({
+            consecutiveFailures: 0,
+            competitor: { checkFrequencyHours: frequencyHours },
+            lastSuccessfulCheckAt: {
+              lte: new Date(now.getTime() - frequencyHours * 60 * 60 * 1000),
+            },
+          })),
+        ],
+      }]
   const offers = await prisma.competitorOffer.findMany({
     where: {
       companyId,
@@ -1114,7 +1133,7 @@ export async function runDuePriceChecks({
         : { matchStatus: { in: [MatchStatus.CERTAIN, MatchStatus.REVIEW] } },
     },
     include: { competitor: true },
-    orderBy: [{ nextCheckAt: 'asc' }, { lastSuccessfulCheckAt: 'asc' }],
+    orderBy: [{ lastSuccessfulCheckAt: 'asc' }, { nextCheckAt: 'asc' }],
     take: cappedLimit,
   })
 
