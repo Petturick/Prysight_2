@@ -188,7 +188,7 @@ export function ProductOverviewGrid({
       <input type="hidden" name="filterIdentifierStatus" value={filters.identifierStatus ?? ''} />
       <input type="hidden" name="filterFeedSourceId" value={filters.feedSourceId ?? ''} />
       <input type="hidden" name="expectedCount" value={selectionCount} />
-      <section className="ps-panel">
+      <section className="ps-panel !overflow-visible">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e7edf3] px-3 py-2.5 sm:px-4">
           <div className="flex flex-wrap items-center gap-2">
             {selectionCount > 0
@@ -219,16 +219,21 @@ export function ProductOverviewGrid({
             </details> : null}
             <details className="relative">
               <summary className="secondary-action min-h-[34px] cursor-pointer list-none px-3 py-1.5 text-[10px]">Weergave</summary>
-              <div className="absolute right-0 top-full z-30 mt-2 w-[240px] rounded-xl border border-[#dbe3ed] bg-white p-3 shadow-xl">
-                <div className="flex items-center justify-between gap-3 border-b border-[#edf1f5] pb-3">
-                  <span className="text-[10px] text-[#60738a]">Rijhoogte</span>
-                  <button type="button" onClick={() => setCompact((value) => !value)} className="text-[10px] font-medium text-[#346ed6]">{compact ? 'Ruimer tonen' : 'Compacter tonen'}</button>
+              <div
+                className="absolute right-0 top-full z-50 mt-2 w-[280px] max-w-[calc(100vw-32px)] overflow-y-auto overscroll-contain rounded-xl border border-[#dbe3ed] bg-white p-3 shadow-xl"
+                style={{ maxHeight: 'min(360px, calc(100vh - 330px))' }}
+              >
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#edf1f5] bg-white pb-3">
+                  <span className="text-[11px] font-medium text-[#34495f]">Rijhoogte</span>
+                  <button type="button" onClick={() => setCompact((value) => !value)} className="text-[11px] font-medium text-[#346ed6]">{compact ? 'Ruimer tonen' : 'Compacter tonen'}</button>
                 </div>
-                <div className="mb-2 mt-3 text-[10px] text-[#60738a]">Kolommen</div>
-                <div className="grid gap-2">
-                  {COLUMNS.map((column) => <label key={column.key} className="flex cursor-pointer items-center gap-2 text-[11px] text-[#34495f]"><input type="checkbox" checked={visible.includes(column.key)} disabled={column.key === 'name'} onChange={() => toggleColumn(column.key)} className="h-4 w-4 accent-[#346ed6]" />{column.label}</label>)}
+                <div className="mb-2 mt-3 text-[11px] font-medium text-[#60738a]">Kolommen</div>
+                <div className="grid gap-2.5">
+                  {COLUMNS.map((column) => <label key={column.key} className="flex min-h-[28px] cursor-pointer items-center gap-2.5 text-[12px] text-[#34495f]"><input type="checkbox" checked={visible.includes(column.key)} disabled={column.key === 'name'} onChange={() => toggleColumn(column.key)} className="h-4 w-4 shrink-0 accent-[#346ed6]" /><span>{column.label}</span></label>)}
                 </div>
-                <button type="button" onClick={() => setVisible(DEFAULT_COLUMNS)} className="mt-3 text-[10px] text-[#346ed6]">Standaard herstellen</button>
+                <div className="sticky bottom-0 mt-3 border-t border-[#edf1f5] bg-white pt-3">
+                  <button type="button" onClick={() => setVisible(DEFAULT_COLUMNS)} className="text-[11px] font-medium text-[#346ed6]">Standaard herstellen</button>
+                </div>
               </div>
             </details>
           </div>
