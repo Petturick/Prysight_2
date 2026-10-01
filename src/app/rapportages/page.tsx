@@ -2,36 +2,12 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { generateWeeklyReportAction } from '@/app/actions/reportActions'
-import { DataTable } from '@/components/DataTable'
 import { DatabaseNotice } from '@/components/DatabaseNotice'
 import { requirePermission } from '@/lib/authz'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format'
 import { getFreshDashboardSnapshot } from '@/lib/dashboard'
 import { prisma } from '@/lib/prisma'
 import { safeDatabaseQuery } from '@/lib/safe-database'
-
-type PriceMovement = {
-  productName: string
-  competitor: string
-  latestPrice: number
-  previousPrice: number
-  delta: number
-  recordedAt?: string | null
-}
-
-type FailedCheck = {
-  concurrent: string
-  product: string
-  fout: string | null
-  tijd: string | null
-}
-
-type StaleOffer = {
-  concurrent: string
-  product: string
-  laatstGecontroleerd: string | null
-  prijs: number | null
-}
 
 type ReportKpis = {
   monitoredProducts: number
@@ -48,20 +24,10 @@ type ReportKpis = {
 
 type WeeklyReportContent = {
   samenvatting?: ReportKpis
-  topStijgers?: PriceMovement[]
-  topDalers?: PriceMovement[]
-  mislukteControles?: FailedCheck[]
-  verouderdeData?: StaleOffer[]
 }
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
-}
-
-function statusLabel(status: string) {
-  if (status === 'GENERATED') return 'Gegenereerd'
-  if (status === 'FAILED') return 'Mislukt'
-  return 'Wordt opgebouwd'
 }
 
 function reportContent(value: unknown): WeeklyReportContent | null {
@@ -69,68 +35,71 @@ function reportContent(value: unknown): WeeklyReportContent | null {
   return value as WeeklyReportContent
 }
 
-function KpiCard({ label, value, helper, tone = 'neutral' }: { label: string; value: string; helper: string; tone?: 'neutral' | 'good' | 'warning' | 'danger' }) {
-  const toneClasses = {
-    neutral: 'bg-[#f3f6fb] text-[#416bbd]',
-    good: 'bg-[#edf8f3] text-[#16785a]',
-    warning: 'bg-[#fff8ea] text-[#a9640d]',
-    danger: 'bg-[#fff2f2] text-[#b94d53]',
+function statusLabel(status: string) {
+  if (status === 'GENERATED') return 'Gereed'
+  if (status === 'FAILED') return 'Mislukt'
+  return 'Wordt opgebouwd'
+}
+
+function numberValue(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function pct(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return '—'
+  return formatNumber(value, 1) + '%'
+}
+
+function signed(value: number | null, suffix = '') {
+  if (value === null || !Number.isFinite(value)) return '—'
+  return (value > 0 ? '+' : '') + formatNumber(value, 1) + suffix
+}
+
+function InsightCard({
+  eyebrow,
+  value,
+  title,
+  detail,
+  href,
+  action,
+  tone = 'neutral',
+}: {
+  eyebrow: string
+  value: string
+  title: string
+  detail: string
+  href: string
+  action: string
+  tone?: 'neutral' | 'danger' | 'warning' | 'good'
+}) {
+  const styles = {
+    neutral: 'border-[#dfe7f2] bg-white text-[#315f9f]',
+    danger: 'border-[#f1d9dc] bg-[#fffafa] text-[#a74349]',
+    warning: 'border-[#f0e2c7] bg-[#fffdf8] text-[#946019]',
+    good: 'border-[#d6eadf] bg-[#fbfefc] text-[#147451]',
   }[tone]
 
   return (
-    <div className="min-h-[132px] rounded-[16px] border border-[#e7ebf0] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,.02),0_8px_22px_rgba(16,24,40,.03)]">
-      <div className="flex items-start justify-between gap-3">
+    <Link href={href} className={'group rounded-[18px] border p-5 shadow-[0_8px_24px_rgba(16,24,40,.035)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(16,24,40,.06)] ' + styles}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] opacity-70">{eyebrow}</p>
+      <div className="mt-3 flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold text-[#667085]">{label}</p>
-          <p className="mt-3 text-[28px] font-semibold leading-none tracking-[-0.04em] text-[#172033]">{value}</p>
+          <p className="text-[30px] font-semibold leading-none tracking-[-0.04em] text-[#172033]">{value}</p>
+          <h3 className="mt-3 text-[13px] font-semibold text-[#29384d]">{title}</h3>
         </div>
-        <span className={`flex h-9 w-9 items-center justify-center rounded-[11px] text-[13px] font-semibold ${toneClasses}`}>●</span>
+        <span className="text-[18px] transition group-hover:translate-x-0.5">→</span>
       </div>
-      <p className="mt-4 text-[10px] leading-4 text-[#98a2b3]">{helper}</p>
-    </div>
+      <p className="mt-2 text-[11px] leading-5 text-[#78869a]">{detail}</p>
+      <p className="mt-4 text-[10px] font-semibold">{action}</p>
+    </Link>
   )
 }
 
-function MovementPanel({ title, subtitle, rows, direction }: { title: string; subtitle: string; rows: PriceMovement[]; direction: 'up' | 'down' }) {
-  const maxDelta = Math.max(...rows.map((row) => Math.abs(Number(row.delta) || 0)), 1)
-
+function EmptyState({ children }: { children: React.ReactNode }) {
   return (
-    <div className="surface-card p-5 sm:p-6">
-      <div>
-        <h3 className="text-[15px] font-semibold text-[#25324a]">{title}</h3>
-        <p className="mt-1 text-[10px] text-[#98a2b3]">{subtitle}</p>
-      </div>
-      {rows.length ? (
-        <div className="mt-5 space-y-4">
-          {rows.map((row, index) => {
-            const delta = Number(row.delta) || 0
-            const width = Math.max(8, Math.round((Math.abs(delta) / maxDelta) * 100))
-            return (
-              <div key={`${row.productName}-${row.competitor}-${index}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="truncate text-[11px] font-semibold text-[#344054]">{row.productName}</p>
-                    <p className="mt-0.5 truncate text-[10px] text-[#98a2b3]">{row.competitor}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className={`text-[11px] font-semibold ${direction === 'up' ? 'text-[#b94d53]' : 'text-[#16785a]'}`}>
-                      {delta > 0 ? '+' : ''}{formatCurrency(delta)}
-                    </p>
-                    <p className="mt-0.5 text-[9px] text-[#98a2b3]">{formatCurrency(row.previousPrice)} → {formatCurrency(row.latestPrice)}</p>
-                  </div>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#eef1f4]">
-                  <div className={`h-full rounded-full ${direction === 'up' ? 'bg-[#c95c61]' : 'bg-[#2a9b73]'}`} style={{ width: `${width}%` }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="mt-5 flex min-h-[180px] items-center justify-center rounded-[12px] border border-dashed border-[#dce3ea] bg-[#fafbfc] px-5 text-center text-[11px] text-[#98a2b3]">
-          Geen prijsbewegingen in deze rapportage.
-        </div>
-      )}
+    <div className="flex min-h-[150px] items-center justify-center rounded-[14px] border border-dashed border-[#dfe5ec] bg-[#fbfcfd] px-6 text-center text-[11px] leading-5 text-[#8b98a9]">
+      {children}
     </div>
   )
 }
@@ -138,257 +107,420 @@ function MovementPanel({ title, subtitle, rows, direction }: { title: string; su
 export default async function RapportagesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await requirePermission('reports.read')
   const params = await searchParams
-  const result = await safeDatabaseQuery(
-    () => prisma.report.findMany({ where: { companyId: actor.companyId }, orderBy: { createdAt: 'desc' } }),
-    [],
-  )
-  const reports = result.data
-  const live = await safeDatabaseQuery(() => getFreshDashboardSnapshot({}, actor.companyId), null)
+
+  const [reportsResult, live] = await Promise.all([
+    safeDatabaseQuery(
+      () => prisma.report.findMany({ where: { companyId: actor.companyId }, orderBy: { createdAt: 'desc' } }),
+      [],
+    ),
+    safeDatabaseQuery(() => getFreshDashboardSnapshot({}, actor.companyId), null),
+  ])
+
+  const reports = reportsResult.data
   const requestedReportId = readParam(params.rapport)
   const selectedReport = reports.find((report) => report.id === requestedReportId) ?? reports[0] ?? null
-  const selectedContent = reportContent(selectedReport?.content)
+  const selectedIndex = selectedReport ? reports.findIndex((report) => report.id === selectedReport.id) : -1
+  const previousReport = selectedIndex >= 0 ? reports[selectedIndex + 1] ?? null : null
+  const selectedKpis = reportContent(selectedReport?.content)?.samenvatting ?? null
+  const previousKpis = reportContent(previousReport?.content)?.samenvatting ?? null
 
-  const kpis = selectedContent?.samenvatting
-  const increases = Array.isArray(selectedContent?.topStijgers) ? selectedContent.topStijgers : []
-  const decreases = Array.isArray(selectedContent?.topDalers) ? selectedContent.topDalers : []
-  const failedChecks = Array.isArray(selectedContent?.mislukteControles) ? selectedContent.mislukteControles : []
-  const staleOffers = Array.isArray(selectedContent?.verouderdeData) ? selectedContent.verouderdeData : []
+  const snapshot = live.data
+  const metrics = snapshot?.metrics ?? []
+  const monitoredProducts = snapshot?.kpis.monitoredProducts ?? 0
 
-  const totalPosition = Math.max((kpis?.engelsLowest ?? 0) + (kpis?.engelsHigher ?? 0) + (kpis?.withoutCompetitorPrice ?? 0), 1)
-  const lowestPct = Math.round(((kpis?.engelsLowest ?? 0) / totalPosition) * 100)
-  const higherPct = Math.round(((kpis?.engelsHigher ?? 0) / totalPosition) * 100)
-  const missingPct = Math.max(0, 100 - lowestPct - higherPct)
+  const comparable = metrics.filter((item) =>
+    !item.stale &&
+    item.comparisonOwnPrice !== null &&
+    item.lowestPrice !== null &&
+    item.lowestPrice > 0,
+  )
+
+  const overMarket = comparable
+    .filter((item) => item.difference.position === 'DUURDER')
+    .sort((a, b) => Math.abs(numberValue(b.difference.pctDiff) ?? 0) - Math.abs(numberValue(a.difference.pctDiff) ?? 0))
+
+  const priceRoom = comparable
+    .filter((item) => item.difference.position === 'LAAGSTE')
+    .sort((a, b) => {
+      const aRoom = (a.lowestPrice ?? 0) - (a.comparisonOwnPrice ?? 0)
+      const bRoom = (b.lowestPrice ?? 0) - (b.comparisonOwnPrice ?? 0)
+      return bRoom - aRoom
+    })
+
+  const missingMarketPrice = metrics.filter((item) => item.lowestPrice === null)
+  const coveragePct = monitoredProducts ? (comparable.length / monitoredProducts) * 100 : 0
+  const averageOverMarketPct = overMarket.length
+    ? overMarket.reduce((sum, item) => sum + Math.max(0, numberValue(item.difference.pctDiff) ?? 0), 0) / overMarket.length
+    : 0
+  const averagePriceRoomPct = priceRoom.length
+    ? priceRoom.reduce((sum, item) => {
+        const own = item.comparisonOwnPrice ?? 0
+        const market = item.lowestPrice ?? 0
+        return sum + (market > 0 ? Math.max(0, ((market - own) / market) * 100) : 0)
+      }, 0) / priceRoom.length
+    : 0
+  const sourceIssues = (snapshot?.kpis.failedChecks ?? 0) + (snapshot?.kpis.staleData ?? 0)
+  const reviewMatches = snapshot?.kpis.reviewMatches ?? 0
+
+  const marketMoves = [
+    ...(snapshot?.biggestDecreases ?? []).slice(0, 3).map((item) => ({ ...item, kind: 'down' as const })),
+    ...(snapshot?.biggestIncreases ?? []).slice(0, 3).map((item) => ({ ...item, kind: 'up' as const })),
+  ].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5)
+
+  const biggestRisk = overMarket[0]
+  const biggestRoom = priceRoom[0]
 
   return (
     <div className="space-y-6">
-      {(!result.available || !live.available) && <DatabaseNotice />}
+      {(!reportsResult.available || !live.available) && <DatabaseNotice />}
 
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#172033]">Rapportages</h1>
-          <p className="mt-2 max-w-[760px] text-[13px] leading-5 text-[#7a8699]">
-            Bekijk de volledige managementrapportage direct in PrySight, inclusief prijspositie, bewegingen, datakwaliteit en controles.
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8c98a8]">Prysight intelligence</p>
+          <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.045em] text-[#172033]">Inzichten</h1>
+          <p className="mt-2 max-w-[720px] text-[13px] leading-5 text-[#768397]">
+            Niet alleen zien wat er gebeurt, maar direct begrijpen waar prijsrisico, commerciële ruimte en dataproblemen zitten.
           </p>
         </div>
         <form action={generateWeeklyReportAction}>
-          <button disabled={!result.available} className="primary-action min-h-[42px] px-5 disabled:cursor-not-allowed disabled:opacity-40">
-            Weekrapport genereren
+          <button disabled={!reportsResult.available || !live.available} className="primary-action min-h-[42px] px-5 disabled:cursor-not-allowed disabled:opacity-40">
+            Momentopname opslaan
           </button>
         </form>
-      </div>
+      </header>
 
-      <section className="surface-card p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[17px] font-semibold text-[#25324a]">Actuele stand</h2>
-            <p className="mt-1 text-[11px] text-[#7a8699]">Rechtstreeks uit de huidige actieve producten en prijsbronnen, los van opgeslagen weekrapporten.</p>
-          </div>
-          <Link href="/producten" className="rounded-[10px] border border-[#dfe5ec] px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">Producten bekijken</Link>
-        </div>
-        {live.available && live.data ? (
-          <>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard label="Actieve producten nu" value={formatNumber(live.data.kpis.monitoredProducts)} helper="Bestaande, actieve producten in deze organisatie." />
-              <KpiCard label="Actieve prijsmetingen nu" value={formatNumber(live.data.kpis.activeOffers)} helper="Bruikbare prijsmetingen voor actieve producten." />
-              <KpiCard label="Mislukte controles, 7 dagen" value={formatNumber(live.data.kpis.failedChecks)} helper="Alle mislukte pogingen in de afgelopen 7 dagen, niet alleen de laatste 10." tone={live.data.kpis.failedChecks ? 'danger' : 'good'} />
-              <KpiCard label="Zonder concurrentieprijs nu" value={formatNumber(live.data.kpis.withoutCompetitorPrice)} helper="Actieve producten zonder verifieerbare marktprijs." tone={live.data.kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
-            </div>
-            {live.data.kpis.monitoredProducts === 0 && <p className="mt-4 rounded-[10px] bg-[#f3f6fb] px-4 py-3 text-[12px] text-[#526071]">Er zijn momenteel geen actieve producten. Oudere weekrapporten hieronder blijven bewaard als historische momentopname.</p>}
-          </>
-        ) : (
-          <p className="mt-4 rounded-[10px] bg-[#fff2f2] px-4 py-3 text-[12px] text-[#8f3f44]">Actuele aantallen konden niet worden geladen. Oude rapportcijfers worden daarom niet als actuele stand getoond.</p>
-        )}
-      </section>
-
-      {selectedReport ? (
+      {snapshot ? (
         <>
-          <section className="surface-card overflow-hidden">
-            <div className="flex flex-col gap-4 border-b border-[#edf0f3] px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <section className="overflow-hidden rounded-[20px] border border-[#dfe6ee] bg-[#172033] px-5 py-5 text-white shadow-[0_12px_30px_rgba(16,24,40,.08)] sm:px-6">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.6fr)] xl:items-center">
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-[#edf8f3] px-2.5 py-1 text-[10px] font-semibold text-[#16785a]">{statusLabel(selectedReport.status)}</span>
-                  <span className="rounded-full bg-[#f3f6fb] px-2.5 py-1 text-[10px] font-semibold text-[#475467]">Historische momentopname</span>
-                  <span className="text-[10px] text-[#98a2b3]">Gegenereerd {formatDate(selectedReport.generatedAt)}</span>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">Managementsamenvatting</p>
+                <h2 className="mt-2 max-w-[760px] text-[22px] font-semibold leading-8 tracking-[-0.03em]">
+                  {overMarket.length > 0
+                    ? formatNumber(overMarket.length) + ' prijsposities vragen nu commerciële aandacht.'
+                    : 'De actuele prijsposities tonen op dit moment geen directe prijsachterstand.'}
+                </h2>
+                <div className="mt-4 grid gap-2 text-[11px] leading-5 text-white/72 md:grid-cols-3">
+                  <p>
+                    <strong className="font-semibold text-white">{pct(coveragePct)}</strong><br />
+                    van actieve producten is nu betrouwbaar vergelijkbaar.
+                  </p>
+                  <p>
+                    <strong className="font-semibold text-white">{formatNumber(priceRoom.length)}</strong><br />
+                    producten staan onder de laagste gemeten marktprijs en verdienen een prijscheck.
+                  </p>
+                  <p>
+                    <strong className="font-semibold text-white">{formatNumber(sourceIssues + missingMarketPrice.length + reviewMatches)}</strong><br />
+                    signalen beperken de kwaliteit of volledigheid van de marktvergelijking.
+                  </p>
                 </div>
-                <h2 className="mt-3 text-[20px] font-semibold tracking-[-0.03em] text-[#25324a]">{selectedReport.title}</h2>
-                <p className="mt-1 text-[11px] text-[#7a8699]">{formatDate(selectedReport.weekStart, false)} tot {formatDate(selectedReport.weekEnd, false)}</p>
-                <p className="mt-2 max-w-[650px] text-[11px] leading-5 text-[#7a8699]">Deze cijfers zijn vastgelegd op {formatDate(selectedReport.generatedAt)} en veranderen niet als producten later worden gewijzigd of verwijderd. Bekijk de actuele stand hierboven.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href={`/api/rapportages?id=${selectedReport.id}&format=csv`} className="rounded-[10px] border border-[#dfe5ec] bg-white px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">CSV export</Link>
-                <Link href={`/api/rapportages?id=${selectedReport.id}&format=xlsx`} className="rounded-[10px] border border-[#dfe5ec] bg-white px-3.5 py-2 text-[11px] font-semibold text-[#475467] hover:bg-[#f7f9fb]">XLSX export</Link>
+              <div className="rounded-[16px] border border-white/10 bg-white/[0.06] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/55">Eerst doen</p>
+                <p className="mt-2 text-[13px] font-semibold leading-5">
+                  {biggestRisk
+                    ? 'Controleer ' + biggestRisk.product.name + ', dit product staat het verst boven de laagste gemeten marktprijs.'
+                    : biggestRoom
+                      ? 'Controleer de prijsruimte op ' + biggestRoom.product.name + '.'
+                      : 'Verbeter eerst de marktdekking en bronkwaliteit zodat Prysight meer prijsbeslissingen kan onderbouwen.'}
+                </p>
+                <Link
+                  href={biggestRisk ? '/producten/' + biggestRisk.product.id : biggestRoom ? '/producten/' + biggestRoom.product.id : '/monitoring'}
+                  className="mt-4 inline-flex text-[10px] font-semibold text-white underline decoration-white/35 underline-offset-4"
+                >
+                  Open actie →
+                </Link>
               </div>
             </div>
-
-            {kpis ? (
-              <div className="p-5 sm:p-6">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <KpiCard label="Gemonitorde producten" value={formatNumber(kpis.monitoredProducts)} helper="Producten die in deze rapportage worden bewaakt" />
-                  <KpiCard label="Actieve prijsmetingen" value={formatNumber(kpis.activeOffers)} helper="Actuele en bruikbare concurrentieprijzen" />
-                  <KpiCard label="Bevestigde matches" value={formatNumber(kpis.validMatches)} helper="Producten met minimaal één bevestigde match" tone="good" />
-                  <KpiCard label="Matches ter controle" value={formatNumber(kpis.reviewMatches)} helper="Matches die handmatige beoordeling vragen" tone={kpis.reviewMatches ? 'warning' : 'good'} />
-                  <KpiCard label="Zonder concurrentieprijs" value={formatNumber(kpis.withoutCompetitorPrice)} helper="Producten waarvoor nog geen marktprijs beschikbaar is" tone={kpis.withoutCompetitorPrice ? 'warning' : 'good'} />
-                  <KpiCard label="Engels laagste" value={formatNumber(kpis.engelsLowest)} helper="Producten op of onder de laagste gemeten marktprijs" tone="good" />
-                  <KpiCard label="Engels duurder" value={formatNumber(kpis.engelsHigher)} helper="Producten boven de laagste gemeten marktprijs" tone={kpis.engelsHigher ? 'danger' : 'good'} />
-                  <KpiCard label="Gemiddelde prijsindex" value={formatNumber(kpis.averagePriceIndex, 1)} helper="Index 100 betekent gelijk aan de laagste gemeten marktprijs" />
-                  <KpiCard label="Mislukte controles" value={formatNumber(kpis.failedChecks)} helper="Bij nieuwe rapporten, alle mislukte pogingen in de rapportweek voor actieve producten. Oude rapporten volgen de toenmalige berekening." tone={kpis.failedChecks ? 'danger' : 'good'} />
-                  <KpiCard label="Verouderde data" value={formatNumber(kpis.staleData)} helper="Prijsdata die langer dan 72 uur niet succesvol is vernieuwd" tone={kpis.staleData ? 'warning' : 'good'} />
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 py-10 text-center text-[11px] text-[#98a2b3] sm:px-6">Voor deze rapportage is geen visuele samenvatting beschikbaar.</div>
-            )}
           </section>
 
-          {kpis && (
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.6fr)]">
-              <div className="surface-card p-5 sm:p-6">
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <InsightCard
+              eyebrow="Prijsrisico"
+              value={formatNumber(overMarket.length)}
+              title="Producten boven markt"
+              detail={overMarket.length ? 'Gemiddeld ' + pct(averageOverMarketPct) + ' boven de laagste betrouwbare marktprijs.' : 'Geen vergelijkbare producten staan boven de laagste marktprijs.'}
+              href="/producten"
+              action="Bekijk prijsposities"
+              tone={overMarket.length ? 'danger' : 'good'}
+            />
+            <InsightCard
+              eyebrow="Prijsruimte"
+              value={formatNumber(priceRoom.length)}
+              title="Mogelijke ruimte om te toetsen"
+              detail={priceRoom.length ? 'Gemiddeld ' + pct(averagePriceRoomPct) + ' onder de laagste gemeten marktprijs. Dit is een signaal, geen automatische prijsverhoging.' : 'Geen duidelijke prijsruimte zichtbaar in de huidige vergelijkingen.'}
+              href="/prijsstrategie"
+              action="Beoordeel prijsstrategie"
+              tone={priceRoom.length ? 'good' : 'neutral'}
+            />
+            <InsightCard
+              eyebrow="Dekking"
+              value={pct(coveragePct)}
+              title="Producten goed vergelijkbaar"
+              detail={formatNumber(missingMarketPrice.length) + ' actieve producten hebben nog geen bruikbare concurrentieprijs.'}
+              href="/concurrenten"
+              action="Verbeter marktdekking"
+              tone={coveragePct >= 80 ? 'good' : coveragePct >= 60 ? 'warning' : 'danger'}
+            />
+            <InsightCard
+              eyebrow="Datakwaliteit"
+              value={formatNumber(sourceIssues)}
+              title="Bronproblemen"
+              detail={formatNumber(snapshot.kpis.failedChecks) + ' mislukte controles en ' + formatNumber(snapshot.kpis.staleData) + ' verouderde prijsbronnen.'}
+              href="/monitoring"
+              action="Los bronproblemen op"
+              tone={sourceIssues ? 'warning' : 'good'}
+            />
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-2">
+            <div className="surface-card overflow-hidden">
+              <div className="flex items-start justify-between gap-4 border-b border-[#edf0f3] px-5 py-5 sm:px-6">
                 <div>
-                  <h3 className="text-[15px] font-semibold text-[#25324a]">Prijspositie in één oogopslag</h3>
-                  <p className="mt-1 text-[10px] text-[#98a2b3]">Verdeling van de producten waarvoor PrySight de marktpositie kan beoordelen.</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#a3484e]">Prioriteit</p>
+                  <h2 className="mt-1 text-[16px] font-semibold text-[#25324a]">Waar je mogelijk omzet verliest</h2>
+                  <p className="mt-1 text-[10px] leading-4 text-[#8995a5]">Producten die boven de laagste betrouwbare marktprijs staan, gesorteerd op grootste afwijking.</p>
                 </div>
-                <div className="mt-6 grid gap-6 md:grid-cols-[190px_minmax(0,1fr)] md:items-center">
-                  <div className="flex justify-center">
-                    <div
-                      className="relative h-[170px] w-[170px] rounded-full"
-                      style={{ background: `conic-gradient(#2a9b73 0 ${lowestPct}%, #c95c61 ${lowestPct}% ${lowestPct + higherPct}%, #dfa13d ${lowestPct + higherPct}% 100%)` }}
-                    >
-                      <div className="absolute inset-[30px] flex flex-col items-center justify-center rounded-full bg-white shadow-[0_1px_4px_rgba(16,24,40,.04)]">
-                        <span className="text-[26px] font-semibold tracking-[-0.04em] text-[#172033]">{formatNumber(kpis.monitoredProducts)}</span>
-                        <span className="mt-1 text-[10px] text-[#98a2b3]">producten</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between text-[11px]"><span className="font-medium text-[#526071]">Laagste of gelijk aan markt</span><strong className="text-[#16785a]">{lowestPct}%</strong></div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eef1f4]"><div className="h-full rounded-full bg-[#2a9b73]" style={{ width: `${lowestPct}%` }} /></div>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between text-[11px]"><span className="font-medium text-[#526071]">Boven markt</span><strong className="text-[#b94d53]">{higherPct}%</strong></div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eef1f4]"><div className="h-full rounded-full bg-[#c95c61]" style={{ width: `${higherPct}%` }} /></div>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between text-[11px]"><span className="font-medium text-[#526071]">Nog geen prijsdata</span><strong className="text-[#a9640d]">{missingPct}%</strong></div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eef1f4]"><div className="h-full rounded-full bg-[#dfa13d]" style={{ width: `${missingPct}%` }} /></div>
-                    </div>
-                  </div>
-                </div>
+                <Link href="/producten" className="shrink-0 text-[10px] font-semibold text-[#4774bb]">Alle producten →</Link>
               </div>
-
-              <div className="surface-card p-5 sm:p-6">
-                <h3 className="text-[15px] font-semibold text-[#25324a]">Datakwaliteit</h3>
-                <p className="mt-1 text-[10px] text-[#98a2b3]">Direct zichtbaar welke onderdelen de betrouwbaarheid van de rapportage beïnvloeden.</p>
-                <div className="mt-5 space-y-3">
-                  <div className="rounded-[12px] bg-[#fff4f4] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[11px] font-semibold text-[#8f3f44]">Mislukte controles</span>
-                      <strong className="text-[18px] font-semibold text-[#b94d53]">{formatNumber(kpis.failedChecks)}</strong>
-                    </div>
-                    <p className="mt-2 text-[10px] leading-4 text-[#9b6b6f]">Controles die geen betrouwbare prijsmeting hebben opgeleverd.</p>
-                  </div>
-                  <div className="rounded-[12px] bg-[#fff8ea] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[11px] font-semibold text-[#8c5b16]">Verouderde prijsdata</span>
-                      <strong className="text-[18px] font-semibold text-[#a9640d]">{formatNumber(kpis.staleData)}</strong>
-                    </div>
-                    <p className="mt-2 text-[10px] leading-4 text-[#9c7a49]">Bronnen die langer dan 72 uur niet succesvol zijn gecontroleerd.</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <section className="grid gap-4 xl:grid-cols-2">
-            <MovementPanel title="Grootste prijsstijgingen" subtitle="Concurrentieprijzen die het sterkst zijn gestegen ten opzichte van de vorige meting." rows={increases} direction="up" />
-            <MovementPanel title="Grootste prijsdalingen" subtitle="Concurrentieprijzen die het sterkst zijn gedaald ten opzichte van de vorige meting." rows={decreases} direction="down" />
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-2">
-            <div className="surface-card overflow-hidden">
-              <div className="px-5 py-4 sm:px-6">
-                <h3 className="text-[15px] font-semibold text-[#25324a]">Mislukte controles</h3>
-                <p className="mt-1 text-[10px] text-[#98a2b3]">De recentste mislukte controles uit de rapportage. {kpis && kpis.failedChecks > failedChecks.length ? `De lijst toont ${failedChecks.length} van ${formatNumber(kpis.failedChecks)} registraties.` : ''}</p>
-              </div>
-              <div className="border-t border-[#edf0f3]">
-                {failedChecks.length ? (
-                  <div className="divide-y divide-[#eef1f4]">
-                    {failedChecks.map((check, index) => (
-                      <div key={`${check.concurrent}-${check.product}-${index}`} className="grid gap-2 px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+              {overMarket.length ? (
+                <div className="divide-y divide-[#eef1f4]">
+                  {overMarket.slice(0, 5).map((item) => {
+                    const own = item.comparisonOwnPrice ?? 0
+                    const market = item.lowestPrice ?? 0
+                    const gap = own - market
+                    const gapPct = numberValue(item.difference.pctDiff)
+                    return (
+                      <Link key={item.product.id} href={'/producten/' + item.product.id} className="grid gap-3 px-5 py-4 transition hover:bg-[#fbfcfe] sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                         <div className="min-w-0">
-                          <p className="truncate text-[11px] font-semibold text-[#344054]">{check.product}</p>
-                          <p className="mt-0.5 truncate text-[10px] text-[#98a2b3]">{check.concurrent}</p>
+                          <p className="truncate text-[11px] font-semibold text-[#314056]">{item.product.name}</p>
+                          <p className="mt-1 truncate text-[9px] text-[#98a2b3]">
+                            {item.lowestOffer?.competitorOffer.competitor.name ?? 'Laagste marktprijs'} · artikel {item.product.articleNumber}
+                          </p>
                         </div>
-                        <p className="text-[10px] leading-4 text-[#7a8699]">{check.fout || 'Geen foutmelding beschikbaar'}</p>
-                        <p className="text-[9px] text-[#98a2b3]">{formatDate(check.tijd)}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="px-5 py-10 text-center text-[11px] text-[#98a2b3] sm:px-6">Geen mislukte controles in deze rapportage.</div>
-                )}
-              </div>
+                        <div className="flex items-center gap-4 md:justify-end">
+                          <div className="text-right">
+                            <p className="text-[9px] text-[#98a2b3]">Jouw prijs</p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#344054]">{formatCurrency(own)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[9px] text-[#98a2b3]">Laagste markt</p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#344054]">{formatCurrency(market)}</p>
+                          </div>
+                          <div className="min-w-[72px] rounded-[10px] bg-[#fff1f2] px-2.5 py-2 text-right">
+                            <p className="text-[11px] font-semibold text-[#b14950]">+{formatCurrency(gap)}</p>
+                            <p className="mt-0.5 text-[9px] text-[#a45c61]">{signed(gapPct, '%')}</p>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="p-5 sm:p-6"><EmptyState>Geen actuele prijsachterstand gevonden binnen de betrouwbaar vergelijkbare producten.</EmptyState></div>
+              )}
             </div>
 
             <div className="surface-card overflow-hidden">
-              <div className="px-5 py-4 sm:px-6">
-                <h3 className="text-[15px] font-semibold text-[#25324a]">Verouderde prijsdata</h3>
-                <p className="mt-1 text-[10px] text-[#98a2b3]">Bronnen waarvan de prijs opnieuw gecontroleerd moet worden. {kpis && kpis.staleData > staleOffers.length ? `De lijst toont ${staleOffers.length} van ${formatNumber(kpis.staleData)} bronnen.` : ''}</p>
+              <div className="flex items-start justify-between gap-4 border-b border-[#edf0f3] px-5 py-5 sm:px-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#177552]">Kans</p>
+                  <h2 className="mt-1 text-[16px] font-semibold text-[#25324a]">Waar mogelijk prijsruimte zit</h2>
+                  <p className="mt-1 text-[10px] leading-4 text-[#8995a5]">Producten die onder de laagste gemeten marktprijs staan. Eerst marge en strategie toetsen voordat een prijs verandert.</p>
+                </div>
+                <Link href="/prijsstrategie" className="shrink-0 text-[10px] font-semibold text-[#4774bb]">Prijsstrategie →</Link>
               </div>
-              <div className="border-t border-[#edf0f3]">
-                {staleOffers.length ? (
-                  <div className="divide-y divide-[#eef1f4]">
-                    {staleOffers.map((offer, index) => (
-                      <div key={`${offer.concurrent}-${offer.product}-${index}`} className="grid gap-2 px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+              {priceRoom.length ? (
+                <div className="divide-y divide-[#eef1f4]">
+                  {priceRoom.slice(0, 5).map((item) => {
+                    const own = item.comparisonOwnPrice ?? 0
+                    const market = item.lowestPrice ?? 0
+                    const room = Math.max(0, market - own)
+                    const roomPct = market > 0 ? (room / market) * 100 : 0
+                    return (
+                      <Link key={item.product.id} href={'/producten/' + item.product.id} className="grid gap-3 px-5 py-4 transition hover:bg-[#fbfcfe] sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                         <div className="min-w-0">
-                          <p className="truncate text-[11px] font-semibold text-[#344054]">{offer.product}</p>
-                          <p className="mt-0.5 truncate text-[10px] text-[#98a2b3]">{offer.concurrent}</p>
+                          <p className="truncate text-[11px] font-semibold text-[#314056]">{item.product.name}</p>
+                          <p className="mt-1 truncate text-[9px] text-[#98a2b3]">
+                            {item.lowestOffer?.competitorOffer.competitor.name ?? 'Laagste marktprijs'} · artikel {item.product.articleNumber}
+                          </p>
                         </div>
-                        <p className="text-[10px] font-semibold text-[#475467]">{formatCurrency(offer.prijs)}</p>
-                        <p className="text-[9px] text-[#98a2b3]">{offer.laatstGecontroleerd ? formatDate(offer.laatstGecontroleerd) : 'Nog niet gecontroleerd'}</p>
+                        <div className="flex items-center gap-4 md:justify-end">
+                          <div className="text-right">
+                            <p className="text-[9px] text-[#98a2b3]">Jouw prijs</p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#344054]">{formatCurrency(own)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[9px] text-[#98a2b3]">Laagste markt</p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#344054]">{formatCurrency(market)}</p>
+                          </div>
+                          <div className="min-w-[72px] rounded-[10px] bg-[#edf8f3] px-2.5 py-2 text-right">
+                            <p className="text-[11px] font-semibold text-[#16785a]">{formatCurrency(room)}</p>
+                            <p className="mt-0.5 text-[9px] text-[#4d8b76]">{pct(roomPct)} ruimte</p>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="p-5 sm:p-6"><EmptyState>Er is nu geen duidelijke prijsruimte ten opzichte van de laagste betrouwbare marktprijs.</EmptyState></div>
+              )}
+            </div>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)]">
+            <div className="surface-card overflow-hidden">
+              <div className="border-b border-[#edf0f3] px-5 py-5 sm:px-6">
+                <h2 className="text-[16px] font-semibold text-[#25324a]">Wat beweegt er in de markt</h2>
+                <p className="mt-1 text-[10px] leading-4 text-[#8995a5]">De grootste recente prijsbewegingen bij concurrenten, zodat veranderingen niet verdwijnen in losse productpagina's.</p>
+              </div>
+              {marketMoves.length ? (
+                <div className="divide-y divide-[#eef1f4]">
+                  {marketMoves.map((move, index) => {
+                    const relative = move.previousPrice ? (move.delta / move.previousPrice) * 100 : null
+                    return (
+                      <div key={move.productName + move.competitor + index} className="grid gap-3 px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-semibold text-[#314056]">{move.productName}</p>
+                          <p className="mt-1 truncate text-[9px] text-[#98a2b3]">{move.competitor}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <p className="text-[10px] text-[#7a8699]">{formatCurrency(move.previousPrice)} → {formatCurrency(move.latestPrice)}</p>
+                          <div className={'min-w-[78px] rounded-[10px] px-2.5 py-2 text-right ' + (move.kind === 'down' ? 'bg-[#fff1f2]' : 'bg-[#edf8f3]')}>
+                            <p className={'text-[11px] font-semibold ' + (move.kind === 'down' ? 'text-[#b14950]' : 'text-[#16785a]')}>{move.delta > 0 ? '+' : ''}{formatCurrency(move.delta)}</p>
+                            <p className="mt-0.5 text-[9px] text-[#7a8699]">{signed(relative, '%')}</p>
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="p-5 sm:p-6"><EmptyState>Nog onvoldoende prijsveranderingen om een marktbeweging te tonen.</EmptyState></div>
+              )}
+            </div>
+
+            <div className="surface-card p-5 sm:p-6">
+              <h2 className="text-[16px] font-semibold text-[#25324a]">Betrouwbaarheid van het inzicht</h2>
+              <p className="mt-1 text-[10px] leading-4 text-[#8995a5]">Prysight maakt zichtbaar waarom een conclusie sterk of juist onvolledig is.</p>
+              <div className="mt-5 space-y-3">
+                <Link href="/concurrenten" className="flex items-center justify-between rounded-[12px] border border-[#edf0f3] px-4 py-3 hover:bg-[#fbfcfe]">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#344054]">Geen concurrentieprijs</p>
+                    <p className="mt-0.5 text-[9px] text-[#98a2b3]">Producten die nog niet vergelijkbaar zijn</p>
                   </div>
-                ) : (
-                  <div className="px-5 py-10 text-center text-[11px] text-[#98a2b3] sm:px-6">Geen verouderde prijsdata in deze rapportage.</div>
-                )}
+                  <strong className="text-[18px] font-semibold text-[#a9640d]">{formatNumber(missingMarketPrice.length)}</strong>
+                </Link>
+                <Link href="/productmatches" className="flex items-center justify-between rounded-[12px] border border-[#edf0f3] px-4 py-3 hover:bg-[#fbfcfe]">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#344054]">Matches ter controle</p>
+                    <p className="mt-0.5 text-[9px] text-[#98a2b3]">Koppelingen die nog bevestiging nodig hebben</p>
+                  </div>
+                  <strong className="text-[18px] font-semibold text-[#a9640d]">{formatNumber(reviewMatches)}</strong>
+                </Link>
+                <Link href="/monitoring" className="flex items-center justify-between rounded-[12px] border border-[#edf0f3] px-4 py-3 hover:bg-[#fbfcfe]">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#344054]">Verouderde bronnen</p>
+                    <p className="mt-0.5 text-[9px] text-[#98a2b3]">Langer dan 72 uur niet succesvol vernieuwd</p>
+                  </div>
+                  <strong className="text-[18px] font-semibold text-[#b94d53]">{formatNumber(snapshot.kpis.staleData)}</strong>
+                </Link>
+                <Link href="/monitoring" className="flex items-center justify-between rounded-[12px] border border-[#edf0f3] px-4 py-3 hover:bg-[#fbfcfe]">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#344054]">Mislukte controles</p>
+                    <p className="mt-0.5 text-[9px] text-[#98a2b3]">Mislukte pogingen in de afgelopen 7 dagen</p>
+                  </div>
+                  <strong className="text-[18px] font-semibold text-[#b94d53]">{formatNumber(snapshot.kpis.failedChecks)}</strong>
+                </Link>
               </div>
             </div>
           </section>
         </>
       ) : (
-        <section className="surface-card px-6 py-14 text-center">
-          <h2 className="text-[16px] font-semibold text-[#25324a]">Nog geen rapportages beschikbaar</h2>
-          <p className="mx-auto mt-2 max-w-[520px] text-[11px] leading-5 text-[#98a2b3]">Genereer het eerste weekrapport. Daarna verschijnt de volledige visuele rapportage direct op deze pagina.</p>
+        <section className="surface-card p-6">
+          <EmptyState>De actuele marktinzichten konden niet worden geladen. Er worden geen oude cijfers als actuele conclusie gepresenteerd.</EmptyState>
         </section>
       )}
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-[16px] font-semibold text-[#25324a]">Rapportagearchief</h2>
-          <p className="mt-1 text-[10px] text-[#98a2b3]">Open een eerder rapport om de volledige inhoud direct hierboven te bekijken.</p>
+      <section className="surface-card overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-[#edf0f3] px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8793a4]">Historie</p>
+            <h2 className="mt-1 text-[16px] font-semibold text-[#25324a]">Ontwikkeling ten opzichte van vorige momentopname</h2>
+            <p className="mt-1 text-[10px] text-[#8995a5]">
+              {selectedReport ? 'Vergelijk ' + selectedReport.title + (previousReport ? ' met ' + previousReport.title + '.' : '.') : 'Sla een eerste momentopname op om ontwikkeling te kunnen vergelijken.'}
+            </p>
+          </div>
+          {selectedReport ? (
+            <div className="flex gap-2">
+              <Link href={'/api/rapportages?id=' + selectedReport.id + '&format=csv'} className="rounded-[10px] border border-[#dfe5ec] bg-white px-3 py-2 text-[10px] font-semibold text-[#526071] hover:bg-[#f7f9fb]">CSV</Link>
+              <Link href={'/api/rapportages?id=' + selectedReport.id + '&format=xlsx'} className="rounded-[10px] border border-[#dfe5ec] bg-white px-3 py-2 text-[10px] font-semibold text-[#526071] hover:bg-[#f7f9fb]">XLSX</Link>
+            </div>
+          ) : null}
         </div>
-        <DataTable
-          columns={[
-            { key: 'titel', header: 'Titel' },
-            { key: 'periode', header: 'Periode' },
-            { key: 'status', header: 'Status' },
-            { key: 'gegenereerd', header: 'Gegenereerd op' },
-            { key: 'export', header: 'Export' },
-          ]}
-          rows={reports.map((report) => ({
-            titel: <Link href={`/rapportages?rapport=${report.id}`} className="font-semibold text-[#344054] hover:text-[#416bbd]">{report.title}</Link>,
-            periode: `${formatDate(report.weekStart, false)} tot ${formatDate(report.weekEnd, false)}`,
-            status: statusLabel(report.status),
-            gegenereerd: formatDate(report.generatedAt),
-            export: (
-              <div className="flex gap-2">
-                <Link href={`/api/rapportages?id=${report.id}&format=csv`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium">CSV</Link>
-                <Link href={`/api/rapportages?id=${report.id}&format=xlsx`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium">XLSX</Link>
-              </div>
-            ),
-          }))}
-        />
+
+        {selectedKpis ? (
+          <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
+            {[
+              {
+                label: 'Boven markt',
+                current: selectedKpis.engelsHigher,
+                previous: previousKpis?.engelsHigher ?? null,
+                value: formatNumber(selectedKpis.engelsHigher),
+              },
+              {
+                label: 'Zonder marktprijs',
+                current: selectedKpis.withoutCompetitorPrice,
+                previous: previousKpis?.withoutCompetitorPrice ?? null,
+                value: formatNumber(selectedKpis.withoutCompetitorPrice),
+              },
+              {
+                label: 'Gemiddelde prijsindex',
+                current: selectedKpis.averagePriceIndex,
+                previous: previousKpis?.averagePriceIndex ?? null,
+                value: selectedKpis.averagePriceIndex === null ? '—' : formatNumber(selectedKpis.averagePriceIndex, 1),
+              },
+              {
+                label: 'Bronproblemen',
+                current: selectedKpis.failedChecks + selectedKpis.staleData,
+                previous: previousKpis ? previousKpis.failedChecks + previousKpis.staleData : null,
+                value: formatNumber(selectedKpis.failedChecks + selectedKpis.staleData),
+              },
+            ].map((item) => {
+              const change = item.current !== null && item.previous !== null ? Number(item.current) - Number(item.previous) : null
+              return (
+                <div key={item.label} className="rounded-[14px] border border-[#e7ebf0] bg-white p-4">
+                  <p className="text-[10px] font-semibold text-[#7b8798]">{item.label}</p>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <strong className="text-[24px] font-semibold tracking-[-0.04em] text-[#172033]">{item.value}</strong>
+                    <span className={'text-[10px] font-semibold ' + (change === null ? 'text-[#98a2b3]' : change > 0 ? 'text-[#b14950]' : change < 0 ? 'text-[#16785a]' : 'text-[#7b8798]')}>
+                      {change === null ? 'geen vergelijking' : change === 0 ? 'gelijk' : signed(change)}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="p-5 sm:p-6"><EmptyState>Nog geen opgeslagen momentopname beschikbaar.</EmptyState></div>
+        )}
+
+        {reports.length ? (
+          <div className="border-t border-[#edf0f3] px-5 py-4 sm:px-6">
+            <div className="flex flex-wrap gap-2">
+              {reports.slice(0, 8).map((report) => (
+                <Link
+                  key={report.id}
+                  href={'/rapportages?rapport=' + report.id}
+                  className={'rounded-[10px] border px-3 py-2 text-[10px] font-semibold transition ' + (selectedReport?.id === report.id ? 'border-[#9fbce8] bg-[#f2f6fd] text-[#365f9d]' : 'border-[#e1e6ec] bg-white text-[#647185] hover:bg-[#f8fafc]')}
+                >
+                  {formatDate(report.weekStart, false)} · {statusLabel(report.status)}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   )
