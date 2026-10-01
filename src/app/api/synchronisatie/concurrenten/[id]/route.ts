@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { requirePermission } from '@/lib/authz'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
+import { rescheduleCompetitorOffers } from '@/lib/monitoring-reschedule'
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -23,6 +24,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await prisma.competitor.update({
       where: { id: competitor.id, companyId: actor.companyId },
       data: { checkFrequencyHours: frequency },
+    })
+    await rescheduleCompetitorOffers({
+      companyId: actor.companyId,
+      competitorId: competitor.id,
+      frequencyHours: frequency,
     })
     revalidatePath('/concurrenten')
     revalidatePath('/beheer/synchronisatie')
