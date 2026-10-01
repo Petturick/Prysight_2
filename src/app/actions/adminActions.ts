@@ -8,6 +8,7 @@ import { ACTIVE_COMPANY_COOKIE, requirePermission, requireSuperAdmin } from '@/l
 import { assertCompanyCapacity } from '@/lib/company-license'
 import { requireLicensedCountry } from '@/lib/company-countries'
 import { prisma } from '@/lib/prisma'
+import { rescheduleCompetitorOffers } from '@/lib/monitoring-reschedule'
 import { competitorSchema, countrySchema, userSchema, webshopSchema } from '@/lib/validators'
 import { isUnnamedGroup, MERGED_GROUP_PREFIX, mergedGroupTarget, productGroupLabel } from '@/lib/product-groups'
 import { revalidatePath } from 'next/cache'
@@ -102,7 +103,19 @@ export async function saveCompetitorAdminAction(formData: FormData) {
   await requireLicensedCountry(actor.companyId, parsed.countryId)
   const id = formData.get('id') ? String(formData.get('id')) : undefined
   if (!id) await assertCompanyCapacity(actor.companyId, 'competitors')
+  const existing = id ? await prisma.competitor.findFirst({
+    where: { id, companyId: actor.companyId },
+    select: { id: true, checkFrequencyHours: true, isActive: true },
+  }) : null
+  if (id && !existing) throw new Error('Concurrent niet gevonden binnen deze organisatie.')
   const result = id ? await prisma.competitor.update({ where: { id, companyId: actor.companyId }, data: parsed }) : await prisma.competitor.create({ data: { ...parsed, companyId: actor.companyId } })
+  if (existing && (existing.checkFrequencyHours !== parsed.checkFrequencyHours || (!existing.isActive && parsed.isActive))) {
+    await rescheduleCompetitorOffers({
+      companyId: actor.companyId,
+      competitorId: result.id,
+      frequencyHours: parsed.checkFrequencyHours,
+    })
+  }
   await audit(actor.id, 'COMPETITOR_SAVED', 'Competitor', result.id, null, { companyId: actor.companyId, name: result.name }); revalidatePath('/beheer/concurrenten'); revalidatePath('/concurrenten')
 }
 export async function setCompetitorActiveAction(formData: FormData) {
@@ -111,11 +124,18 @@ export async function setCompetitorActiveAction(formData: FormData) {
   const isActive = String(formData.get('isActive')) === 'true'
   const competitor = await prisma.competitor.findFirst({
     where: { id, companyId: actor.companyId },
-    select: { id: true, name: true, isActive: true, countryId: true },
+    select: { id: true, name: true, isActive: true, countryId: true, checkFrequencyHours: true },
   })
   if (!competitor) throw new Error('Concurrent niet gevonden binnen deze organisatie.')
   if (isActive) await requireLicensedCountry(actor.companyId, competitor.countryId)
   await prisma.competitor.update({ where: { id, companyId: actor.companyId }, data: { isActive } })
+  if (isActive && !competitor.isActive) {
+    await rescheduleCompetitorOffers({
+      companyId: actor.companyId,
+      competitorId: competitor.id,
+      frequencyHours: competitor.checkFrequencyHours,
+    })
+  }
   await audit(actor.id, isActive ? 'COMPETITOR_RESUMED' : 'COMPETITOR_PAUSED', 'Competitor', id,
     { isActive: competitor.isActive }, { companyId: actor.companyId, isActive })
   revalidatePath('/concurrenten')
