@@ -373,7 +373,7 @@ export default async function RapportagesPage({ searchParams }: { searchParams: 
             <div className="surface-card overflow-hidden">
               <div className="border-b border-[#edf0f3] px-5 py-5 sm:px-6">
                 <h2 className="text-[16px] font-semibold text-[#25324a]">Wat beweegt er in de markt</h2>
-                <p className="mt-1 text-[10px] leading-4 text-[#8995a5]">De grootste recente prijsbewegingen bij concurrenten, zodat veranderingen niet verdwijnen in losse productpagina's.</p>
+                <p className="mt-1 text-[10px] leading-4 text-[#8995a5]">De grootste recente prijsbewegingen bij concurrenten, zodat veranderingen niet verdwijnen in losse productpagina&apos;s.</p>
               </div>
               {marketMoves.length ? (
                 <div className="divide-y divide-[#eef1f4]">
