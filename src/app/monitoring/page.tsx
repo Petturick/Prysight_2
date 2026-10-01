@@ -64,8 +64,11 @@ export default async function MonitoringPage() {
           id: true,
           url: true,
           lastCheckedAt: true,
-          competitor: { select: { name: true } },
-          productMatch: { select: { product: { select: { name: true, articleNumber: true } } } },
+          lastAttemptAt: true,
+          lastSuccessfulCheckAt: true,
+          nextCheckAt: true,
+          competitor: { select: { name: true, isActive: true, checkFrequencyHours: true } },
+          productMatch: { select: { matchStatus: true, product: { select: { name: true, articleNumber: true } } } },
           priceChecks: {
             orderBy: { checkedAt: 'desc' },
             take: 20,
@@ -83,8 +86,11 @@ export default async function MonitoringPage() {
       const successRate = checks.length ? Math.round((successful / checks.length) * 100) : 0
       const consecutiveFailures = checks.findIndex((check) => check.isSuccess)
       const failureStreak = consecutiveFailures === -1 ? checks.length : consecutiveFailures
-      const lastSuccess = checks.find((check) => check.isSuccess)?.checkedAt ?? null
+      const lastSuccess = offer.lastSuccessfulCheckAt ?? checks.find((check) => check.isSuccess)?.checkedAt ?? null
       const latest = checks[0] ?? null
+      const automatic = offer.competitor.checkFrequencyHours < 876000
+      const matched = offer.productMatch?.matchStatus === 'CERTAIN' || offer.productMatch?.matchStatus === 'REVIEW'
+      const monitoringActive = offer.competitor.isActive && automatic && matched
       return {
         id: offer.id,
         competitor: offer.competitor.name,
@@ -92,6 +98,10 @@ export default async function MonitoringPage() {
         articleNumber: offer.productMatch?.product.articleNumber ?? '',
         url: offer.url,
         lastCheckedAt: offer.lastCheckedAt,
+        lastAttemptAt: offer.lastAttemptAt,
+        nextCheckAt: offer.nextCheckAt,
+        frequencyHours: offer.competitor.checkFrequencyHours,
+        monitoringActive,
         lastSuccess,
         successRate,
         consecutiveFailures: failureStreak,
@@ -105,14 +115,14 @@ export default async function MonitoringPage() {
     products: 0, marketLinks: 0, productsWithoutCompetitor: 0, competitorUrls: 0, certainMatches: 0, reviewMatches: 0, checksToday: 0, checks24h: 0, failedChecks24h: 0, unreadAlerts: 0,
     latestCheck: null as { checkedAt: Date; isSuccess: boolean } | null,
     latestSuccessfulCheck: null as { checkedAt: Date } | null,
-    sourceHealth: [] as Array<{ id: string; competitor: string; product: string; articleNumber: string; url: string; lastCheckedAt: Date | null; lastSuccess: Date | null; successRate: number; consecutiveFailures: number; latestError: string | null; method: string | null }>,
+    sourceHealth: [] as Array<{ id: string; competitor: string; product: string; articleNumber: string; url: string; lastCheckedAt: Date | null; lastAttemptAt: Date | null; nextCheckAt: Date | null; frequencyHours: number; monitoringActive: boolean; lastSuccess: Date | null; successRate: number; consecutiveFailures: number; latestError: string | null; method: string | null }>,
   })
 
   const data = result.data
   const readyCoverage = data.products ? Math.round((Math.min(data.certainMatches, data.products) / data.products) * 100) : 0
   const actionTotal = data.productsWithoutCompetitor + data.reviewMatches + data.failedChecks24h + data.unreadAlerts
   const successRate24h = data.checks24h ? Math.round(((data.checks24h - data.failedChecks24h) / data.checks24h) * 100) : 0
-  const unhealthySources = data.sourceHealth.filter((source) => source.consecutiveFailures >= 3 || source.successRate < 60).length
+  const unhealthySources = data.sourceHealth.filter((source) => source.monitoringActive && (source.consecutiveFailures >= 3 || source.successRate < 60)).length
 
   return (
     <div className="space-y-5">
@@ -157,18 +167,18 @@ export default async function MonitoringPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-[11px]">
               <thead className="border-b-2 border-[var(--border)] bg-[#f4f6f9] text-[#5d687d]">
-                <tr><th className="px-4 py-3 font-black">Concurrent</th><th className="px-4 py-3 font-black">Product</th><th className="px-4 py-3 font-black">Succes</th><th className="px-4 py-3 font-black">Foutreeks</th><th className="px-4 py-3 font-black">Laatste succes</th><th className="px-4 py-3 font-black">Methode</th><th className="px-4 py-3 font-black">Status</th></tr>
+                <tr><th className="px-4 py-3 font-black">Concurrent</th><th className="px-4 py-3 font-black">Product</th><th className="px-4 py-3 font-black">Planning</th><th className="px-4 py-3 font-black">Volgende controle</th><th className="px-4 py-3 font-black">Succes</th><th className="px-4 py-3 font-black">Laatste succes</th><th className="px-4 py-3 font-black">Status</th></tr>
               </thead>
               <tbody>
                 {data.sourceHealth.slice(0, 50).map((source) => (
                   <tr key={source.id} className="border-b border-[var(--border)] align-top last:border-0">
                     <td className="px-4 py-3 font-black text-[#111827]">{source.competitor}</td>
                     <td className="px-4 py-3"><p className="font-bold text-[#111827]">{source.product}</p>{source.articleNumber ? <p className="mt-1 text-[10px] text-[#6f7b91]">{source.articleNumber}</p> : null}</td>
-                    <td className={`px-4 py-3 font-black ${sourceTone(source.successRate, source.consecutiveFailures)}`}>{source.successRate}%</td>
-                    <td className={`px-4 py-3 font-black ${source.consecutiveFailures ? 'text-[#b4233d]' : 'text-[#0d7a49]'}`}>{source.consecutiveFailures}</td>
+                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.frequencyHours >= 876000 ? 'Handmatig' : source.frequencyHours === 24 ? 'Dagelijks' : `Elke ${source.frequencyHours} uur`}</td>
+                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{!source.monitoringActive ? 'Niet actief' : source.nextCheckAt ? (source.nextCheckAt.getTime() <= Date.now() ? 'Nu gepland' : formatDate(source.nextCheckAt)) : 'Nu gepland'}</td>
+                    <td className={`px-4 py-3 font-black ${source.monitoringActive ? sourceTone(source.successRate, source.consecutiveFailures) : 'text-[#718096]'}`}>{source.lastAttemptAt ? `${source.successRate}%` : 'Nog geen data'}</td>
                     <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.lastSuccess ? formatDate(source.lastSuccess) : 'Nog geen succes'}</td>
-                    <td className="px-4 py-3 font-semibold text-[#4b5870]">{source.method ?? 'Onbekend'}</td>
-                    <td className="max-w-[280px] px-4 py-3"><p className={`font-black ${sourceTone(source.successRate, source.consecutiveFailures)}`}>{source.consecutiveFailures >= 3 || source.successRate < 60 ? 'Actie nodig' : source.consecutiveFailures > 0 || source.successRate < 90 ? 'Controleren' : 'Gezond'}</p>{source.latestError ? <p className="mt-1 line-clamp-2 text-[10px] font-medium leading-4 text-[#6f7b91]">{source.latestError}</p> : null}</td>
+                    <td className="max-w-[280px] px-4 py-3"><p className={`font-black ${source.monitoringActive ? sourceTone(source.successRate, source.consecutiveFailures) : 'text-[#718096]'}`}>{!source.monitoringActive ? 'Monitoring niet actief' : source.consecutiveFailures >= 3 || source.successRate < 60 ? 'Actie nodig' : source.consecutiveFailures > 0 || source.successRate < 90 ? 'Controleren' : 'Gezond'}</p>{source.latestError ? <p className="mt-1 line-clamp-2 text-[10px] font-medium leading-4 text-[#6f7b91]">{source.latestError}</p> : null}</td>
                   </tr>
                 ))}
               </tbody>
