@@ -218,16 +218,19 @@ export function ProductOverviewGrid({
               </div>
             </details> : null}
             <details className="relative">
-              <summary className="secondary-action min-h-[34px] cursor-pointer list-none px-3 py-1.5 text-[10px]">Kolommen</summary>
-              <div className="absolute right-0 top-full z-30 mt-2 w-[230px] rounded-xl border border-[#dbe3ed] bg-white p-3 shadow-xl">
-                <div className="mb-2 text-[10px] font-medium text-[#60738a]">Zichtbare kolommen</div>
+              <summary className="secondary-action min-h-[34px] cursor-pointer list-none px-3 py-1.5 text-[10px]">Weergave</summary>
+              <div className="absolute right-0 top-full z-30 mt-2 w-[240px] rounded-xl border border-[#dbe3ed] bg-white p-3 shadow-xl">
+                <div className="flex items-center justify-between gap-3 border-b border-[#edf1f5] pb-3">
+                  <span className="text-[10px] text-[#60738a]">Rijhoogte</span>
+                  <button type="button" onClick={() => setCompact((value) => !value)} className="text-[10px] font-medium text-[#346ed6]">{compact ? 'Ruimer tonen' : 'Compacter tonen'}</button>
+                </div>
+                <div className="mb-2 mt-3 text-[10px] text-[#60738a]">Kolommen</div>
                 <div className="grid gap-2">
                   {COLUMNS.map((column) => <label key={column.key} className="flex cursor-pointer items-center gap-2 text-[11px] text-[#34495f]"><input type="checkbox" checked={visible.includes(column.key)} disabled={column.key === 'name'} onChange={() => toggleColumn(column.key)} className="h-4 w-4 accent-[#346ed6]" />{column.label}</label>)}
                 </div>
-                <button type="button" onClick={() => setVisible(DEFAULT_COLUMNS)} className="mt-3 text-[10px] font-medium text-[#346ed6]">Standaard herstellen</button>
+                <button type="button" onClick={() => setVisible(DEFAULT_COLUMNS)} className="mt-3 text-[10px] text-[#346ed6]">Standaard herstellen</button>
               </div>
             </details>
-            <button type="button" onClick={() => setCompact((value) => !value)} className="secondary-action min-h-[34px] px-3 py-1.5 text-[10px]">{compact ? 'Ruimer' : 'Compacter'}</button>
           </div>
         </div>
         {sourceLookup ? <div role="status" aria-live="polite" className="border-b border-[#e7edf3] bg-[#f3f8ff] px-4 py-2 text-[11px] font-medium text-[#315fa7]">{sourceLookup.message} {sourceLookup.created > 0 ? <Link href="/productmatches" className="ml-2 font-semibold underline">Bekijk suggesties</Link> : null}</div> : null}

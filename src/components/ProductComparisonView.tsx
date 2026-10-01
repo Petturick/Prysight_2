@@ -3,8 +3,14 @@
 import Link from 'next/link'
 import type { ProductGridRow } from '@/components/ProductOverviewGrid'
 
-function LabelValue({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
-  return <div className="min-w-0"><dt className="text-[11px] text-[#718196]">{label}</dt><dd className={`mt-1 tabular-nums ${emphasis ? 'text-[17px] font-semibold text-[#1d344e]' : 'text-[12px] font-medium text-[#40546c]'}`}>{value}</dd></div>
+function Tone({ value, positive }: { value: string; positive: boolean | null }) {
+  const tone = positive === null
+    ? 'bg-[#f3f6fa] text-[#66778b]'
+    : positive
+      ? 'bg-[#ecf8f2] text-[#247554]'
+      : 'bg-[#fff1f1] text-[#a8464d]'
+
+  return <span className={'inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium tabular-nums ' + tone}>{value}</span>
 }
 
 export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction }: {
@@ -13,76 +19,133 @@ export function ProductComparisonView({ rows, canCrawl, refreshSinglePriceAction
   refreshSinglePriceAction: (data: FormData) => Promise<void>
 }) {
   const withPrices = rows.filter(row => row.comparisons.some(offer => offer.priceEx !== '—')).length
-  const stronglySupported = rows.filter(row => row.quality === 'VERIFIED').length
   const needingReview = rows.filter(row => row.quality === 'ATTENTION').length
 
   return (
-    <section className="space-y-4" aria-label="Producten en concurrentieprijzen">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#e3eaf2] bg-white px-4 py-2.5 text-[11px] text-[#66788d]">
-        <span>{rows.length} producten</span>
-        <span>{withPrices} met prijs</span>
-        <span>{stronglySupported} bevestigd</span>
-        {needingReview > 0 ? <Link href="/productmatches" className="font-medium text-[#315fa7]">{needingReview} te beoordelen</Link> : null}
+    <section className="space-y-3" aria-label="Producten en concurrentieprijzen">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] text-[#718096]">
+        <span>{rows.length} producten op deze pagina, {withPrices} met bevestigde prijzen</span>
+        {needingReview > 0 ? <Link href="/productmatches" className="text-[#315fa7] hover:underline">{needingReview} vragen om controle</Link> : null}
       </div>
+
       {rows.map(row => {
-        const hasOwnPrice = row.ownInc !== '—'
-        const sortedOffers = row.comparisons
-        return <article key={row.id} className="premium-comparison-card overflow-hidden border bg-white">
-          <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e9eef4] px-4 py-4 sm:px-5">
-            <div className="min-w-0 flex-1">
-              <Link href={row.detailHref} className="text-[15px] font-medium leading-6 text-[#20344c] hover:text-[#315fa7]">{row.name || `Artikel ${row.articleNumber}`}</Link>
-              <p className="mt-1 text-[11px] text-[#75849a]">Artikel {row.articleNumber}{row.ean ? ` · EAN ${row.ean}` : ''} · {row.group} · {row.markets}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span title={row.qualityDetail} className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${row.quality === 'VERIFIED' ? 'bg-[#e9f7ef] text-[#21774a]' : row.quality === 'ATTENTION' ? 'bg-[#fff0f1] text-[#a53b46]' : row.quality === 'LIMITED' ? 'bg-[#eef4ff] text-[#315fa7]' : 'bg-[#fff5e5] text-[#92641f]'}`}>{row.qualityLabel}</span>
-              <Link href={row.detailHref} className="secondary-action min-h-[34px] px-3 py-1.5 text-[11px]">Product beheren</Link>
-            </div>
-          </header>
+        const hasOwnPrice = row.ownEx !== '—'
+        const hasCompetitorPrice = row.marketEx !== '—'
+        const deltaPositive = row.differencePct === null ? null : row.differencePct <= 0
 
-          <div className="grid gap-4 bg-[#f8fafd] px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-            <div>
-              <p className="text-[11px] font-medium text-[#62768e]">Jouw B2B prijs</p>
-              <p className="mt-1 text-[24px] font-semibold tracking-tight text-[#1e344c]">{row.ownEx}<span className="ml-2 text-[11px] font-normal text-[#75859a]">excl. btw</span></p>
-              <p className="text-[12px] text-[#62768e]">Incl. btw {row.ownInc} · Verzending incl. btw {row.ownShipping}</p>
-              <p className="mt-1 text-[12px] font-medium text-[#35516d]">Totaal geleverd incl. btw {row.ownDelivered}</p>
-              {!hasOwnPrice ? <p className="mt-2 text-[11px] text-[#96651c]">Voeg je eigen prijs toe om een prijsverschil te berekenen.</p> : null}
-            </div>
-            <div className="grid grid-cols-2 gap-4 border-t border-[#e2e9f1] pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-              <LabelValue label="Laagste bevestigde prijs, excl. btw" value={row.marketEx} emphasis />
-              <LabelValue label="Verschil met jouw prijs" value={row.comparisonDifference} emphasis />
-              <LabelValue label="Bevestigde bronnen" value={String(sortedOffers.filter(offer => offer.priceInc !== '—').length)} />
-              <LabelValue label="Laatste meting" value={row.lastChecked} />
-            </div>
-          </div>
+        return (
+          <article key={row.id} className="overflow-hidden rounded-[14px] border border-[#e2e8f0] bg-white shadow-[0_3px_14px_rgba(31,49,77,.035)]">
+            <header className="flex flex-wrap items-start justify-between gap-3 px-4 py-3.5 sm:px-5">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={row.detailHref} className="truncate text-[14px] font-medium text-[#20344c] hover:text-[#315fa7]">
+                    {row.name || `Artikel ${row.articleNumber}`}
+                  </Link>
+                  <span title={row.qualityDetail} className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    row.quality === 'VERIFIED'
+                      ? 'bg-[#ecf8f2] text-[#247554]'
+                      : row.quality === 'ATTENTION'
+                        ? 'bg-[#fff1f1] text-[#a8464d]'
+                        : row.quality === 'LIMITED'
+                          ? 'bg-[#edf4ff] text-[#3d73d4]'
+                          : 'bg-[#fff6e4] text-[#916317]'
+                  }`}>{row.qualityLabel}</span>
+                </div>
+                <p className="mt-1 text-[10px] text-[#8794a7]">
+                  {row.articleNumber}{row.ean ? ` · EAN ${row.ean}` : ''}{row.group && row.group !== '—' ? ` · ${row.group}` : ''}
+                </p>
+              </div>
 
-          {sortedOffers.length > 0 ? <details defaultOpen={rows[0]?.id === row.id} className="group"><summary className="flex cursor-pointer items-center justify-between border-t border-[#ecf0f5] px-4 py-3 text-[12px] font-medium text-[#315fa7] sm:px-5">Concurrentieprijzen bekijken ({sortedOffers.length})<span aria-hidden="true" className="text-[#7b8da2]">⌄</span></summary><div className="overflow-x-auto px-4 pb-4 pt-3 sm:px-5" role="region" aria-label={`Concurrenten van ${row.name}`} tabIndex={0}>
-            <table className="w-full min-w-[680px] text-left text-[12px]">
-              <thead className="text-[10px] font-semibold text-[#687b91]">
-                <tr><th scope="col" className="py-2 pr-3">Concurrent</th><th scope="col" className="px-3 py-2 text-right">Prijs excl. btw</th><th scope="col" className="px-3 py-2 text-right">Prijs incl. btw</th><th scope="col" className="px-3 py-2 text-right">Verzending incl. btw</th><th scope="col" className="px-3 py-2 text-right">Totaal geleverd incl. btw</th><th scope="col" className="px-3 py-2 text-right">Meting</th><th scope="col" className="py-2 pl-3 text-right">Acties</th></tr>
-              </thead>
-              <tbody>
-                {sortedOffers.map(offer => <tr key={offer.id} className="border-t border-[#e9eef4]">
-                  <td className="py-3 pr-3"><span className="font-medium text-[#2b435c]">{offer.name}</span><span className="mt-0.5 block text-[10px] text-[#718196]">{offer.stock || 'Voorraad onbekend'}</span></td>
-                  <td className="px-3 py-3 text-right font-medium tabular-nums text-[#203c56]">{offer.priceEx}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{offer.priceInc}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{offer.shippingInc}</td>
-                  <td className="px-3 py-3 text-right font-medium tabular-nums">{offer.totalInc}</td>
-                  <td className="px-3 py-3 text-right text-[11px] text-[#718196]">{offer.checked}</td>
-                  <td className="py-3 pl-3 text-right"><Link href={offer.detailHref} className="font-semibold text-[#315fa7]">Bekijken</Link></td>
-                </tr>)}
-              </tbody>
-            </table>
-          </div></details> : <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
-            <p className="text-[12px] text-[#65778d]">{row.review > 0 ? `${row.review} concurrentiesuggesties wachten op beoordeling.` : 'Nog geen bevestigde concurrentieprijzen voor dit product.'}</p>
-            <Link href={row.detailHref + '#concurrenten-vinden'} className="secondary-action min-h-[34px] px-3 py-1.5 text-[11px]">Concurrenten vinden</Link>
-          </div>}
-          <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#ecf0f5] px-4 py-3 sm:px-5">
-            {canCrawl && row.sources > 0 ? <form action={refreshSinglePriceAction}><input name="singleProductId" type="hidden" value={row.id} /><button type="submit" className="secondary-action min-h-[34px] px-3 py-1.5 text-[11px]">Prijzen ophalen</button></form> : null}
-            <Link href={row.detailHref + '#concurrentieprijzen'} className="text-[11px] font-medium text-[#315fa7]">Prijsdetails</Link>
-          </footer>
-        </article>
+              <div className="flex items-center gap-2">
+                {canCrawl && row.sources > 0 ? (
+                  <form action={refreshSinglePriceAction}>
+                    <input name="singleProductId" type="hidden" value={row.id} />
+                    <button type="submit" className="secondary-action min-h-[32px] px-3 py-1.5 text-[10px]">Vernieuw</button>
+                  </form>
+                ) : null}
+                <Link href={row.detailHref} className="secondary-action min-h-[32px] px-3 py-1.5 text-[10px]">Open</Link>
+              </div>
+            </header>
+
+            <div className="grid border-t border-[#edf1f5] sm:grid-cols-3">
+              <div className="px-4 py-4 sm:px-5">
+                <p className="text-[10px] text-[#8190a3]">Jouw prijs excl. btw</p>
+                <p className="mt-1 text-[20px] font-semibold tracking-tight text-[#1f344b] tabular-nums">{row.ownEx}</p>
+                <p className="mt-1 text-[10px] text-[#7a899c]">{hasOwnPrice ? `Incl. btw ${row.ownInc}` : 'Nog geen eigen prijs'}</p>
+              </div>
+
+              <div className="border-t border-[#edf1f5] px-4 py-4 sm:border-l sm:border-t-0 sm:px-5">
+                <p className="text-[10px] text-[#8190a3]">Laagste bevestigde prijs</p>
+                <p className="mt-1 text-[20px] font-semibold tracking-tight text-[#1f344b] tabular-nums">{row.marketEx}</p>
+                <p className="mt-1 text-[10px] text-[#7a899c]">{hasCompetitorPrice ? `${row.sources} gekoppelde bronnen` : 'Nog geen bevestigde prijs'}</p>
+              </div>
+
+              <div className="border-t border-[#edf1f5] px-4 py-4 sm:border-l sm:border-t-0 sm:px-5">
+                <p className="text-[10px] text-[#8190a3]">Verschil</p>
+                <div className="mt-2"><Tone value={row.comparisonDifference} positive={deltaPositive} /></div>
+                <p className="mt-2 text-[10px] text-[#7a899c]">Laatste meting {row.lastChecked.toLowerCase()}</p>
+              </div>
+            </div>
+
+            {row.comparisons.length > 0 ? (
+              <details className="group border-t border-[#edf1f5]">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[11px] font-medium text-[#52657d] sm:px-5">
+                  <span>Prijsdetails, {row.comparisons.length} concurrent{row.comparisons.length === 1 ? '' : 'en'}</span>
+                  <span aria-hidden="true" className="text-[#9aa6b5]">⌄</span>
+                </summary>
+                <div className="border-t border-[#edf1f5] bg-[#fbfcfe] px-4 pb-4 pt-3 sm:px-5">
+                  <div className="mb-3 grid gap-2 text-[10px] text-[#6f7f92] sm:grid-cols-3">
+                    <span>Eigen levering incl. btw, {row.ownDelivered}</span>
+                    <span>Eigen verzending, {row.ownShipping}</span>
+                    <span>Laagste prijs incl. btw, {row.marketInc}</span>
+                  </div>
+
+                  <div className="overflow-x-auto" role="region" aria-label={`Concurrenten van ${row.name}`} tabIndex={0}>
+                    <table className="w-full min-w-[620px] text-left text-[11px]">
+                      <thead>
+                        <tr>
+                          <th scope="col" className="py-2 pr-3">Concurrent</th>
+                          <th scope="col" className="px-3 py-2 text-right">Excl. btw</th>
+                          <th scope="col" className="px-3 py-2 text-right">Incl. btw</th>
+                          <th scope="col" className="px-3 py-2 text-right">Verzending</th>
+                          <th scope="col" className="px-3 py-2 text-right">Totaal</th>
+                          <th scope="col" className="py-2 pl-3 text-right">Meting</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {row.comparisons.map(offer => (
+                          <tr key={offer.id} className="border-t border-[#edf1f5]">
+                            <td className="py-3 pr-3">
+                              <Link href={offer.detailHref} className="font-medium text-[#2b435c] hover:text-[#315fa7]">{offer.name}</Link>
+                              <span className="mt-0.5 block text-[9px] text-[#8b98a8]">{offer.stock || 'Voorraad onbekend'}</span>
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums">{offer.priceEx}</td>
+                            <td className="px-3 py-3 text-right tabular-nums">{offer.priceInc}</td>
+                            <td className="px-3 py-3 text-right tabular-nums">{offer.shippingInc}</td>
+                            <td className="px-3 py-3 text-right tabular-nums">{offer.totalInc}</td>
+                            <td className="py-3 pl-3 text-right text-[#7e8b9d]">{offer.checked}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </details>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf1f5] px-4 py-3 sm:px-5">
+                <p className="text-[11px] text-[#718096]">{row.review > 0 ? `${row.review} suggesties wachten op controle` : 'Nog geen concurrentieprijs gevonden'}</p>
+                <Link href={row.detailHref + '#concurrenten-vinden'} className="text-[11px] font-medium text-[#315fa7] hover:underline">Concurrent vinden</Link>
+              </div>
+            )}
+          </article>
+        )
       })}
-      {rows.length === 0 ? <div className="rounded-xl border border-[#e1e8f0] bg-white px-5 py-12 text-center text-[13px] text-[#6f8196]">Geen producten gevonden voor deze zoekopdracht. Pas de filters aan of voeg een product toe.</div> : null}
+
+      {rows.length === 0 ? (
+        <div className="premium-empty-state px-5 py-10 text-center text-[12px]">
+          Geen producten gevonden. Pas je zoekopdracht of filters aan.
+        </div>
+      ) : null}
     </section>
   )
 }

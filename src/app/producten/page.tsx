@@ -265,61 +265,81 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
       <header className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-[22px] font-medium tracking-tight text-[#1f3349]">Producten</h1>
-          <div className="mt-1 text-[12px] text-[#748398]">{formatNumber(totalCount)} producten{selectedCountry ? ` · ${selectedCountry.name}` : ''}</div>
+          <div className="mt-1 text-[11px] text-[#7d8b9d]">{formatNumber(totalCount)} producten{selectedCountry ? ` · ${selectedCountry.name}` : ''}</div>
         </div>
-        <div role="group" aria-label="Weergave" className="inline-flex w-fit gap-1 rounded-lg bg-[#edf2f8] p-1 text-[11px] font-medium">
-          <Link href={tableHref} aria-current={view === 'tabel' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'tabel' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Producten</Link>
-          <Link href={comparisonHref} aria-current={view === 'vergelijking' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'vergelijking' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Prijsvergelijking</Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Weergave" className="inline-flex w-fit gap-1 rounded-lg bg-[#edf2f8] p-1 text-[11px] font-medium">
+            <Link href={tableHref} aria-current={view === 'tabel' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'tabel' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Overzicht</Link>
+            <Link href={comparisonHref} aria-current={view === 'vergelijking' ? 'page' : undefined} className={'rounded-md px-3 py-2 ' + (view === 'vergelijking' ? 'bg-white text-[#244976] shadow-sm' : 'text-[#68798f]')}>Prijzen</Link>
+          </div>
+          <Link href="/producten/nieuw" className="primary-action">Product toevoegen</Link>
         </div>
       </header>
 
-      <section className="ps-panel px-3 py-3 sm:px-4">
+      <section className="ps-panel p-3 sm:p-4">
         <form method="get" action="/producten" className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="weergave" value={view} />
-          <input name="q" defaultValue={filters.q || ''} placeholder="Zoek op artikelnummer, productnaam of EAN" aria-label="Zoek producten" className="toolbar-control min-w-[210px] flex-[2_1_240px]" />
-          <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[125px] flex-1">
+          <input
+            name="q"
+            defaultValue={filters.q || ''}
+            placeholder="Zoek product, artikelnummer of EAN"
+            aria-label="Zoek producten"
+            className="toolbar-control min-w-[230px] flex-[2_1_340px]"
+          />
+          <select name="land" aria-label="Markt" defaultValue={filters.countryId || ''} className="toolbar-control min-w-[150px] flex-1">
             <option value="">Alle markten</option>
             {activeMarkets.map((market) => <option key={market.id} value={market.id}>{market.name}</option>)}
           </select>
-          <select name="productgroep" aria-label="Productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control min-w-[140px] flex-1">
-            <option value="">Alle productgroepen</option>
-            {filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}
-          </select>
+
           <details className="relative">
-            <summary className="secondary-action cursor-pointer list-none">Filters</summary>
-            <div className="absolute right-0 top-full z-30 mt-2 grid w-[250px] gap-3 rounded-xl border border-[#dce3ea] bg-white p-3 shadow-xl">
-              <label className="text-[10px] font-semibold text-[#64758a]">Productfeed
+            <summary className="secondary-action cursor-pointer list-none font-medium">Filters</summary>
+            <div className="absolute right-0 top-full z-30 mt-2 grid w-[285px] gap-3 rounded-xl border border-[#dce3ea] bg-white p-3 shadow-xl">
+              <label className="text-[10px] font-medium text-[#64758a]">Productgroep
+                <select name="productgroep" defaultValue={filters.productGroupId || ''} className="toolbar-control mt-1 w-full">
+                  <option value="">Alle productgroepen</option>
+                  {filterOptions.productGroups.filter((group) => productGroupLabel(group) !== 'Nog niet ingedeeld').map((group) => <option key={group.id} value={group.id}>{productGroupLabel(group)}</option>)}
+                </select>
+              </label>
+              <label className="text-[10px] font-medium text-[#64758a]">Productfeed
                 <select name="feed" defaultValue={filters.feedSourceId || ''} className="toolbar-control mt-1 w-full">
                   <option value="">Alle feeds</option>
                   {feedOptions.map((feed) => <option key={feed.id} value={feed.id}>{feed.countryCode} · {feed.name}</option>)}
                 </select>
-                <Link href="/instellingen/feedbeheer" className="mt-1 block text-[10px] text-[#315fa7] underline">Feedbeheer</Link>
               </label>
-              <label className="text-[10px] font-semibold text-[#64758a]">Concurrent
+              <label className="text-[10px] font-medium text-[#64758a]">Concurrent
                 <select name="concurrent" defaultValue={filters.competitorId || ''} className="toolbar-control mt-1 w-full">
                   <option value="">Alle concurrenten</option>
                   {filterOptions.competitors.filter((competitor) => !filters.countryId || competitor.countryId === filters.countryId).map((competitor) => <option key={competitor.id} value={competitor.id}>{competitor.name}</option>)}
                 </select>
               </label>
-              <label className="text-[10px] font-semibold text-[#64758a]">EAN
+              <label className="text-[10px] font-medium text-[#64758a]">EAN status
                 <select name="identificatie" defaultValue={filters.identifierStatus || ''} className="toolbar-control mt-1 w-full">
-                  <option value="">Alle EAN statussen</option>
+                  <option value="">Alle statussen</option>
                   <option value="aanwezig">EAN aanwezig</option>
                   <option value="ontbreekt">EAN ontbreekt</option>
                 </select>
               </label>
+              <label className="text-[10px] font-medium text-[#64758a]">Resultaten per pagina
+                <select name="aantal" defaultValue={String(pageSize)} className="toolbar-control mt-1 w-full">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+              </label>
             </div>
           </details>
-          <label className="flex items-center gap-1.5 text-[10px] font-semibold text-[#66788d]">
-            Tonen
-            <select name="aantal" defaultValue={String(pageSize)} className="toolbar-control min-w-[75px]">
-              <option value="25">25</option><option value="50">50</option>
-            </select>
-          </label>
+
           <button type="submit" className="primary-action">Toepassen</button>
-          <Link href="/producten" className="secondary-action">Wissen</Link>
+          {(filters.q || filters.productGroupId || filters.competitorId || filters.identifierStatus || filters.feedSourceId || requestedMarket) ? (
+            <Link href="/producten" className="px-2 text-[11px] text-[#6f7f92] hover:text-[#315fa7]">Wissen</Link>
+          ) : null}
         </form>
-        {selectedFeed ? <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-[#f5f8fc] px-3 py-2 text-[11px] text-[#52657d]"><span>Feed, {selectedFeed.name} · {selectedFeed.countryCode}</span><Link href="/instellingen/feedbeheer" className="font-semibold text-[#315fa7]">Beheer feed</Link></div> : null}
+
+        {selectedFeed ? (
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-[#edf1f5] pt-2 text-[10px] text-[#6f8093]">
+            <span>Feed, {selectedFeed.name} · {selectedFeed.countryCode}</span>
+            <Link href="/instellingen/feedbeheer" className="text-[#315fa7] hover:underline">Beheer feed</Link>
+          </div>
+        ) : null}
       </section>
 
       {view === 'vergelijking' ? (
@@ -339,7 +359,7 @@ export default async function ProductenPage({ searchParams }: { searchParams: Pr
         filters={filters}
       />}
 
-      <nav aria-label="Pagina's" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-4 py-3 text-[11px] text-[#66788d]">
+      <nav aria-label="Pagina's" className="flex flex-wrap items-center justify-between gap-2 px-1 py-2 text-[10px] text-[#7b899a]">
         <span>Pagina {page} van {totalPages}, {formatNumber(totalCount)} producten</span>
         <div className="flex gap-2">
           <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={'secondary-action min-h-[32px] px-3 py-1.5 ' + (page <= 1 ? 'pointer-events-none opacity-40' : '')}>Vorige</Link>
