@@ -36,6 +36,17 @@ body {
   background: var(--background) !important;
 }
 
+/* Controlled desktop canvas: decision screens stay compact, data tables scroll inside the frame. */
+.ps-content-frame {
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
+}
+
+.ps-content-frame > * {
+  min-width: 0;
+}
+
 /* Keep the global header action legible independently of page-level button styles. */
 .app-header-primary-action,
 .app-header-primary-action:visited {
@@ -62,7 +73,7 @@ main:not(.min-h-screen) {
 }
 
 main > div[class*='space-y'] {
-  max-width: 1540px !important;
+  max-width: 100% !important;
   margin-inline: 0 !important;
 }
 
@@ -815,7 +826,19 @@ main .premium-toolbar {
 }
 
 main .data-grid-scroll {
+  max-width: 100%;
+  overflow-x: auto;
   border-radius: 10px !important;
+}
+
+main [class*='overflow-x-auto'] {
+  max-width: 100%;
+}
+
+main .data-grid-scroll > table,
+main [class*='overflow-x-auto'] > table {
+  min-width: max-content;
+  width: 100%;
 }
 
 @media (max-width: 768px) {
