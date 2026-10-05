@@ -40,15 +40,15 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
   const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
   const warm = (href: string) => router.prefetch(href)
 
-  return <aside className="flex h-dvh w-[220px] flex-col overflow-hidden border-r border-white/[0.05] bg-[#0b1728] text-white">
-    <Link href="/dashboard" className="flex h-[62px] items-center gap-3 px-4" aria-label="Prysight overzicht">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white/[0.055]">
-        <Image src="/prysight-mark.svg" width={29} height={22} alt="" priority className="h-auto w-[28px]" />
+  return <aside className="ps-sidebar flex h-dvh w-[216px] flex-col overflow-hidden border-r border-[#e5e9f0] bg-[#f8f9fc] text-[#202938]">
+    <Link href="/dashboard" className="ps-sidebar-brand flex h-[58px] items-center gap-2.5 px-3.5" aria-label="Prysight overzicht">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-[#e2e7ef] bg-white shadow-[0_1px_2px_rgba(16,24,40,.03)]">
+        <Image src="/prysight-mark.svg" width={26} height={20} alt="" priority className="h-auto w-[25px]" />
       </div>
-      <p className="text-[15px] font-semibold tracking-[-0.025em] text-white">PrySight</p>
+      <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#4261e8]">PrySight</p>
     </Link>
 
-    <nav className="min-h-0 flex-1 space-y-1 px-2.5 py-3">
+    <nav className="ps-sidebar-nav min-h-0 flex-1 space-y-1 px-2.5 py-3">
       {navItems.map((item) => {
         const active = activeFor(pathname, item)
         return <Link
@@ -59,23 +59,23 @@ export function Sidebar({ user }: { user?: SidebarUser | null }) {
           onMouseEnter={() => warm(item.href)}
           onFocus={() => warm(item.href)}
           className={cn(
-            'group relative flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] font-medium transition-colors',
-            active ? 'bg-white/[0.08] text-white' : 'text-[#a8b5c5] hover:bg-white/[0.045] hover:text-white',
+            'group relative flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[12.5px] font-medium transition-colors',
+            active ? 'bg-[#eaf0ff] text-[#2f4ec4]' : 'text-[#38465a] hover:bg-[#f0f3f8] hover:text-[#1f2937]',
           )}
         >
-          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px]', active ? 'bg-[#2f6fec] text-white' : 'text-[#91a1b5] group-hover:text-white')}><NavIcon name={item.icon}/></span>
+          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px]', active ? 'bg-[#dfe7ff] text-[#4261e8]' : 'text-[#718096] group-hover:text-[#4261e8]')}><NavIcon name={item.icon}/></span>
           <span className="truncate">{item.label}</span>
         </Link>
       })}
     </nav>
 
-    {user ? <div className="border-t border-white/[0.06] p-3">
-      <div className="flex items-center gap-2.5 rounded-[11px] px-2 py-2">
+    {user ? <div className="border-t border-[#e5e9f0] p-3">
+      <div className="flex items-center gap-2.5 rounded-[10px] px-1.5 py-1.5">
         <Link href="/instellingen/profiel" prefetch={false} onMouseEnter={() => warm('/instellingen/profiel')} className="flex min-w-0 flex-1 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#22354d] text-[11px] font-semibold text-white">{initials}</div>
-          <p className="truncate text-[11px] font-medium text-[#dce4ed]">{user.name || user.email}</p>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8edff] text-[10px] font-semibold text-[#3f5ddd]">{initials}</div>
+          <p className="truncate text-[11px] font-medium text-[#46556a]">{user.name || user.email}</p>
         </Link>
-        <form action={logoutAction}><button type="submit" className="rounded-lg p-2 text-[#778aa1] transition-colors hover:bg-white/[0.06] hover:text-white" title="Uitloggen" aria-label="Uitloggen"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg></button></form>
+        <form action={logoutAction}><button type="submit" className="rounded-lg p-2 text-[#8793a5] transition-colors hover:bg-[#eef1f6] hover:text-[#344054]" title="Uitloggen" aria-label="Uitloggen"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg></button></form>
       </div>
     </div> : null}
   </aside>
