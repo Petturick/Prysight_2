@@ -73,7 +73,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
         </header>
         <div className="ps-main-scroll min-h-0 flex-1 overflow-y-auto bg-[#fbfcfe]">
           <main className="ps-main min-w-0 px-4 pb-10 pt-4 sm:px-6 lg:px-7 lg:pt-5">
-            <div className="w-full max-w-[1580px]">{children}</div>
+            <div className="ps-content-frame w-full">{children}</div>
           </main>
         </div>
       </section>
