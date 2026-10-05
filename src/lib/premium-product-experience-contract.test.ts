@@ -7,6 +7,7 @@ const interaction = read('src/components/InteractionFeedback.tsx')
 const shell = read('src/components/AppShell.tsx')
 const sidebar = read('src/components/Sidebar.tsx')
 const css = read('src/app/globals.css')
+const modernCss = read('src/app/prysight-modern.css')
 const monitoring = read('src/app/monitoring/page.tsx')
 const notFound = read('src/app/not-found.tsx')
 const comparison = read('src/components/ProductComparisonView.tsx')
@@ -34,6 +35,13 @@ test('premium interaction standard covers focus, touch and reduced motion', () =
   assert.match(css, /prefers-reduced-motion: reduce/)
   assert.match(css, /pointer:coarse/)
   assert.match(css, /premium-kpi-card/)
+})
+
+test('workspace width stays controlled on large desktop screens', () => {
+  assert.match(shell, /ps-content-frame/)
+  assert.doesNotMatch(shell, /max-w-\[1580px\]/)
+  assert.match(modernCss, /\.ps-content-frame\s*\{[^}]*max-width:\s*1400px;[^}]*margin-inline:\s*auto;/s)
+  assert.doesNotMatch(modernCss, /max-width:\s*1540px/)
 })
 
 test('core decision surfaces use premium patterns and explicit recovery states', () => {
