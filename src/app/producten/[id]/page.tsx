@@ -248,6 +248,10 @@ export default async function ProductDetailPage({ params, searchParams }: { para
     match.competitorOffer.lastCheckedAt,
     match.competitorOffer.competitor.checkFrequencyHours,
   )).length
+  const nextAutomaticCheck = automaticMatches
+    .map((match) => match.competitorOffer.nextCheckAt)
+    .filter((date): date is Date => Boolean(date))
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
   const competitorOutOfStock = confirmedMatches.filter((match) => isOutOfStock(match.competitorOffer.stockStatus)).length
   const staleSources = crawlableMatches.filter((match) => isStalePriceSource(match.competitorOffer.lastCheckedAt)).length
   const failedLatestChecks = crawlableMatches.filter((match) => match.competitorOffer.priceChecks[0] && !match.competitorOffer.priceChecks[0].isSuccess).length
@@ -348,7 +352,6 @@ export default async function ProductDetailPage({ params, searchParams }: { para
             {productDescription ? <p className="mt-2 max-w-4xl line-clamp-2 text-[12px] leading-5 text-[#687b91]">{productDescription}</p> : null}
             <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-[#6f8095]">
               <span>{selectedMarket?.stockStatus ?? product.stockStatus ?? 'Voorraad onbekend'}</span>
-              {latestCheck ? <><span className="h-1 w-1 rounded-full bg-[#c3ccd8]" /><span>Laatste meting {formatDate(latestCheck)}</span></> : null}
               {productImageUrl ? <><span className="h-1 w-1 rounded-full bg-[#c3ccd8]" /><a href={productImageUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#315fa7]">Productafbeelding</a></> : null}
             </div>
           </div>
@@ -374,6 +377,12 @@ export default async function ProductDetailPage({ params, searchParams }: { para
                 {defaultCountry ? <span className="ps-chip ps-chip-blue">{defaultCountry.name}</span> : null}
               </div>
               <p className="mt-1 text-[10px] text-[#7c8ba0]">{pricedComparisonMatches.length} bruikbare prijzen, {missingPriceMatches.length} bronnen vragen aandacht</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[9px] font-medium text-[#74869a]">
+                <span className={automaticMatches.length > 0 ? 'ps-chip ps-chip-green' : 'ps-chip'}>{automaticMatches.length > 0 ? 'Automatisch actief' : 'Handmatig'}</span>
+                <span>Laatste {latestCheck ? formatDate(latestCheck) : '—'}</span>
+                <span className="text-[#b5bec9]">·</span>
+                <span>Volgende {automaticMatches.length === 0 ? '—' : automaticDue > 0 ? 'nu' : nextAutomaticCheck ? formatDate(nextAutomaticCheck) : '—'}</span>
+              </div>
             </div>
             {canEditCompetitors && defaultCountry ? (
               <form action={refreshProductIntelligenceAction}>
