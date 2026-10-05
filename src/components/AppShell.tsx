@@ -51,14 +51,14 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
     <RoutePrefetcher />
     <EanAutoDiscovery />
     <div className="ps-workspace-shell flex h-dvh overflow-hidden">
-      <div className="hidden lg:block lg:w-[220px] lg:flex-none"><Sidebar user={user} /></div>
+      <div className="hidden lg:block lg:w-[216px] lg:flex-none"><Sidebar user={user} /></div>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="relative z-20 border-b border-[#e8ecf1] bg-white/95 backdrop-blur-xl">
-          <div className="flex min-h-[62px] items-center justify-between px-5 py-3 sm:px-7 lg:px-8">
-            <h1 className="min-w-0 truncate text-[18px] font-semibold leading-none tracking-[-0.025em] text-[#172033]">{context.title}</h1>
+        <header className="ps-app-header relative z-20 border-b border-[#e7ebf1] bg-white/98 backdrop-blur-xl">
+          <div className="flex min-h-[58px] items-center justify-between px-5 py-2.5 sm:px-6 lg:px-7">
+            <h1 className="min-w-0 truncate text-[15px] font-semibold leading-none tracking-[-0.02em] text-[#273449]">{context.title}</h1>
             <div className="ml-3 flex shrink-0 items-center gap-2">
               <GlobalMarketSwitcher />
-              <Link href="/acties" prefetch={false} onMouseEnter={() => warm('/acties')} onFocus={() => warm('/acties')} className="group relative flex h-9 w-9 items-center justify-center rounded-[10px] text-[#667085] transition-colors hover:bg-[#f4f6f8] hover:text-[#172033]" title="Acties" aria-label="Acties">
+              <Link href="/acties" prefetch={false} onMouseEnter={() => warm('/acties')} onFocus={() => warm('/acties')} className="group relative flex h-8 w-8 items-center justify-center rounded-[8px] text-[#7b8798] transition-colors hover:bg-[#f2f4f8] hover:text-[#2f4ec4]" title="Acties" aria-label="Acties">
                 <svg className="h-[17px] w-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z"/><path d="M10 20h4"/></svg>
               </Link>
               {context.action ? <Link href={context.action.href} prefetch={false} onMouseEnter={() => warm(context.action!.href)} onFocus={() => warm(context.action!.href)} className="app-header-primary-action hidden min-h-9 items-center rounded-[10px] px-3.5 text-[12px] font-semibold md:inline-flex">{context.action.label}</Link> : null}
@@ -71,9 +71,9 @@ export function AppShell({ children, user }: { children: React.ReactNode; user?:
             })}
           </nav>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto bg-[#f6f7f9]">
-          <main className="min-w-0 px-4 pb-10 pt-5 sm:px-6 lg:px-8 lg:pt-6">
-            <div className="w-full max-w-[1500px]">{children}</div>
+        <div className="ps-main-scroll min-h-0 flex-1 overflow-y-auto bg-[#fbfcfe]">
+          <main className="ps-main min-w-0 px-4 pb-10 pt-4 sm:px-6 lg:px-7 lg:pt-5">
+            <div className="w-full max-w-[1580px]">{children}</div>
           </main>
         </div>
       </section>
