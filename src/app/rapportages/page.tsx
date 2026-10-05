@@ -35,12 +35,6 @@ function reportContent(value: unknown): WeeklyReportContent | null {
   return value as WeeklyReportContent
 }
 
-function statusLabel(status: string) {
-  if (status === 'GENERATED') return 'Gereed'
-  if (status === 'FAILED') return 'Mislukt'
-  return 'Wordt opgebouwd'
-}
-
 function numberValue(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
